@@ -3763,8 +3763,9 @@ function scheduleDayCount(s){
    - agendas "não realizadas" não contam;
    - agenda interna sempre conta; as demais respeitam o filtro de cliente (cidade/segmento);
    - as horas são somadas dia a dia (agendas de dia inteiro entram só nos dias do intervalo). */
-function dashHoursPredicate(clientIds){
+function dashHoursPredicate(clientIds, includePending){
   return s => {
+    if(!includePending && s.status!=='concluida') return false;   // Painel Geral: só agendas confirmadas
     if(isInternalType(s.type)) return true;
     const ids = scheduleClientIds(s);
     return !ids.length || ids.some(cid=>clientIds.has(cid));
@@ -5620,7 +5621,7 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
   let html = '<div class="report-section dash-card-full">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#E3F2FD;color:#1565C0;">📈</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Horas por mês — comparação entre analistas</h2>'
-    + '<p class="report-section-desc">Total de horas das agendas realizadas (concluídas e pendentes, exceto não realizadas) em cada mês do ano selecionado, uma linha por analista — mesma regra do quadro “Horas dos analistas”. Mostra sempre todos os meses do ano, sem depender das datas do filtro do Painel Geral. Os filtros de analista, cidade e segmento continuam valendo.</p></div>'
+    + '<p class="report-section-desc">Total de horas das agendas <strong>confirmadas</strong> (concluídas) em cada mês do ano selecionado, uma linha por analista; agendas pendentes e não realizadas ficam de fora. Mostra sempre todos os meses do ano, sem depender das datas do filtro do Painel Geral. Os filtros de analista, cidade e segmento continuam valendo.</p></div>'
     + '<div class="field" style="margin:0;min-width:110px;"><label style="font-size:10px;">Ano</label><select data-action="dashboard-chart-year-filter">'
     + yearOptions.map(y=>'<option value="'+esc(y)+'" '+(y===ui.dashboardChartYear?'selected':'')+'>'+esc(y)+'</option>').join('')
     + '</select></div>'
@@ -5631,7 +5632,8 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
     return html;
   }
 
-  const inCategory = dashHoursPredicate(dashboardClientIds);
+  const clientPred = dashHoursPredicate(dashboardClientIds);
+  const inCategory = s => s.status==='concluida' && clientPred(s);   // só agendas confirmadas (concluídas)
 
   const monthsData = [];
   for(let m=0; m<12; m++){
@@ -6430,7 +6432,7 @@ function renderDashboardView(){
   const negativeClients = activeCards.map(c=>({c,client:getClient(c.clientId),bal:cardBalanceHours(c)})).filter(x=>x.client && x.bal<0);
   const lastByClient = {};
   dashboardReportClients.forEach(c=>{
-    const scheds = state.schedules.filter(s=>s.clientId===c.id && s.status!=='nao_realizada' && (!selectedAnalyst || scheduleAnalystIds(s).includes(selectedAnalyst.id)));
+    const scheds = state.schedules.filter(s=>s.clientId===c.id && s.status==='concluida' && (!selectedAnalyst || scheduleAnalystIds(s).includes(selectedAnalyst.id)));
     lastByClient[c.id] = scheds.reduce((max,s)=> !max || s.date>max ? s.date : max, '');
   });
   const staleClients = dashboardReportClients.map(c=>({client:c,last:lastByClient[c.id]})).filter(x=>!x.last || x.last < addDaysISO(today,-15)).sort((a,b)=>(a.last||'').localeCompare(b.last||''));
@@ -6551,9 +6553,9 @@ function renderDashboardView(){
   let horasAnalistasHtml = '<div class="report-section dash-card">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#EDE7F6;color:#7B4B94;">⏱</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Horas dos analistas</h2>'
-    + '<p class="report-section-desc">Total de horas de todas as agendas cadastradas <strong>'+periodLabel+'</strong>, incluindo Férias, Treinamento, Reunião, Visita, Interna, Serviço e demais tipos. Agendas não realizadas são desconsideradas. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
+    + '<p class="report-section-desc">Total de horas de todas as agendas cadastradas <strong>'+periodLabel+'</strong>, incluindo Férias, Treinamento, Reunião, Visita, Interna, Serviço e demais tipos. Só entram agendas confirmadas (concluídas); pendentes e não realizadas ficam de fora. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
   const dashboardHourSchedules = state.schedules.filter(s=>{
-    if(s.status==='nao_realizada') return false;
+    if(s.status!=='concluida') return false;   // somente agendas confirmadas
     if(!scheduleInPeriod(s)) return false;
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
     if(isInternalType(s.type)) return true;
@@ -6610,7 +6612,7 @@ function renderDashboardView(){
   let contatoHtml = '<div class="report-section dash-card">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#E3F2FD;color:#1565C0;">☎️</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Agendas por tipo de contato</h2>'
-    + '<p class="report-section-desc">Quantidade de agendas cadastradas <strong>'+periodLabel+'</strong>, separadas pelo tipo de contato (WhatsApp, Vídeo chamada, Presencial ou Ligação). Agendas não realizadas são desconsideradas. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
+    + '<p class="report-section-desc">Quantidade de agendas cadastradas <strong>'+periodLabel+'</strong>, separadas pelo tipo de contato (WhatsApp, Vídeo chamada, Presencial ou Ligação). Só entram agendas confirmadas (concluídas); pendentes e não realizadas ficam de fora. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
   if(!dashboardHourSchedules.length){
     contatoHtml += '<div class="report-empty">Nenhuma agenda encontrada no período selecionado.</div>';
   } else {
@@ -6669,7 +6671,7 @@ function renderDashboardView(){
     + '<p class="report-section-desc">Ranking dos módulos registrados em agendas <strong>'+periodLabel+'</strong>, concluídas ou pendentes (agendas não realizadas não entram). O filtro de analista também se aplica a este relatório.</p></div></div>';
   const moduleCounts = {};
   state.schedules.forEach(s=>{
-    if(s.status==='nao_realizada') return;
+    if(s.status!=='concluida') return;
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return;
     if(!scheduleInPeriod(s)) return;
     (s.modules||[]).forEach(m=>{
@@ -6753,7 +6755,7 @@ function renderDashboardView(){
     'clientes-contador': clientesContadorHtml,
     'ranking-sem-abatimento': rankingSemAbatimentoHtml,
     'burndown': renderBurndownPanel(activeCards),
-    'carga-semana': renderWeekLoadPanel(filteredAnalysts, dashHoursPredicate(dashboardClientIds)),
+    'carga-semana': renderWeekLoadPanel(filteredAnalysts, dashHoursPredicate(dashboardClientIds, true)),
     'ciclo': renderCyclePanel(dashboardCardsAll, periodStart, periodEnd),
     'reportes-comercial': renderCommercialTrendPanel(dashboardCardsAll, periodEnd)
   };
