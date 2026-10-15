@@ -3758,6 +3758,23 @@ function scheduleDayCount(s){
   const diff = Math.round((end-start)/86400000)+1;
   return Math.max(1, diff);
 }
+/* Regra ÚNICA das horas do Painel Geral (Horas dos analistas, Horas por mês e
+   Carga por analista na semana usam estas funções, pra nunca divergirem):
+   - agendas "não realizadas" não contam;
+   - agenda interna sempre conta; as demais respeitam o filtro de cliente (cidade/segmento);
+   - as horas são somadas dia a dia (agendas de dia inteiro entram só nos dias do intervalo). */
+function dashHoursPredicate(clientIds){
+  return s => {
+    if(isInternalType(s.type)) return true;
+    const ids = scheduleClientIds(s);
+    return !ids.length || ids.some(cid=>clientIds.has(cid));
+  };
+}
+function analystMinutesInRange(analystId, startISO, endISO, pred){
+  let total = 0;
+  for(let d=startISO; d<=endISO; d=addDaysISO(d,1)) total += analystMinutesOnDay(d, analystId, pred);
+  return total;
+}
 function analystMinutesOnDay(day, analystId, inCategoryFn){
   let total = 0;
   state.schedules.forEach(s=>{
@@ -5593,7 +5610,7 @@ function niceAxisMax(maxVal){
   const niceMax = Math.ceil(maxVal/step)*step;
   return {niceMax, step};
 }
-function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
+function renderHoursByMonthChart(activeAnalysts, dashboardClientIds, periodRange){
   const years = new Set([String(new Date().getFullYear())]);
   state.schedules.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
   const yearOptions = [...years].sort((a,b)=> b.localeCompare(a));
@@ -5603,7 +5620,7 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
   let html = '<div class="report-section dash-card-full">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#E3F2FD;color:#1565C0;">📈</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Horas por mês — comparação entre analistas</h2>'
-    + '<p class="report-section-desc">Total de horas de agendas <strong>concluídas</strong> em cada mês do ano selecionado, uma linha por analista. Os filtros de analista, cidade e segmento do Painel Geral continuam valendo.</p></div>'
+    + '<p class="report-section-desc">Total de horas das agendas realizadas (concluídas e pendentes, exceto não realizadas) em cada mês do ano selecionado, uma linha por analista — mesma regra do quadro “Horas dos analistas”. Só entram os dias dentro do período do Painel Geral'+(periodRange?' (<strong>'+fmtDateBR(periodRange.start)+' a '+fmtDateBR(periodRange.end)+'</strong>)':'')+'; para ver o ano inteiro, amplie as datas. Os filtros de analista, cidade e segmento continuam valendo.</p></div>'
     + '<div class="field" style="margin:0;min-width:110px;"><label style="font-size:10px;">Ano</label><select data-action="dashboard-chart-year-filter">'
     + yearOptions.map(y=>'<option value="'+esc(y)+'" '+(y===ui.dashboardChartYear?'selected':'')+'>'+esc(y)+'</option>').join('')
     + '</select></div>'
@@ -5614,7 +5631,7 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
     return html;
   }
 
-  const inCategory = s => s.status==='concluida' && (!scheduleClientIds(s).length || scheduleClientIds(s).some(cid=>dashboardClientIds.has(cid)));
+  const inCategory = dashHoursPredicate(dashboardClientIds);
 
   const monthsData = [];
   for(let m=0; m<12; m++){
@@ -5624,6 +5641,7 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
       let mins = 0;
       for(let d=1; d<=daysInMonth; d++){
         const iso = year+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+        if(periodRange && (iso < periodRange.start || iso > periodRange.end)) continue;
         mins += analystMinutesOnDay(iso, a.id, inCategory);
       }
       perAnalyst[a.id] = mins/60;
@@ -6092,18 +6110,18 @@ function analystDayOff(analystId, iso){
   return (state.vacationEntries||[]).some(v=> v.analystId===analystId && v.status!=='analise' && v.startDate<=iso && (v.endDate||v.startDate)>=iso)
     || state.schedules.some(s=> isFeriasType(s.type) && scheduleAnalystIds(s).includes(analystId) && scheduleSpansDate(s, iso));
 }
-function analystWeekLoad(analystId, mondayIso){
+function analystWeekLoad(analystId, mondayIso, clientPred){
   let planned = 0, capacity = 0, offDays = 0;
   const notFerias = s=>!isFeriasType(s.type);
   for(let i=0;i<5;i++){
     const iso = addDaysISO(mondayIso, i);
     if(analystDayOff(analystId, iso)){ offDays++; continue; }
     capacity += FERIAS_MIN_PER_WEEKDAY;
-    planned += analystMinutesOnDay(iso, analystId, notFerias);
+    planned += analystMinutesOnDay(iso, analystId, clientPred ? (s=>notFerias(s) && clientPred(s)) : notFerias);
   }
   return {planned, capacity, offDays, free: capacity-planned};
 }
-function renderWeekLoadPanel(analysts){
+function renderWeekLoadPanel(analysts, clientPred){
   const monday = ui.loadWeekStart ? startOfWeekISO(ui.loadWeekStart) : startOfWeekISO(todayISO());
   const friday = addDaysISO(monday, 4);
   let h = '<div class="report-section dash-card-full">' + dashSectionHead('⚖️','#E8F5E9','Carga por analista na semana','Horas agendadas (exceto férias) contra a capacidade da semana (8h48 por dia útil, descontando férias). Útil antes de distribuir um cliente novo.');
@@ -6112,7 +6130,7 @@ function renderWeekLoadPanel(analysts){
     +'<strong>'+fmtDateBR(monday)+' a '+fmtDateBR(friday)+'</strong>'
     +'<button class="btn btn-sm btn-ghost" data-action="load-week" data-dir="1">Próxima semana ›</button>'
     +'<button class="btn btn-sm" data-action="load-week" data-dir="0">Hoje</button></div>';
-  const rows = analysts.map(a=>({a, l:analystWeekLoad(a.id, monday)})).sort((x,y)=>y.l.planned/(y.l.capacity||1) - x.l.planned/(x.l.capacity||1));
+  const rows = analysts.map(a=>({a, l:analystWeekLoad(a.id, monday, clientPred)})).sort((x,y)=>y.l.planned/(y.l.capacity||1) - x.l.planned/(x.l.capacity||1));
   if(!rows.length) return h+'<div class="report-empty">Nenhum analista nos filtros atuais.</div></div>';
   h += '<div style="display:flex;flex-direction:column;gap:8px;">';
   rows.forEach(r=>{
@@ -6544,6 +6562,7 @@ function renderDashboardView(){
     return true;
   });
   const analystSchedules = dashboardHourSchedules;
+  const hoursPred = dashHoursPredicate(dashboardClientIds);
   if(!state.analysts.length){
     horasAnalistasHtml += '<div class="report-empty">Nenhum analista cadastrado.</div>';
   } else if(!analystSchedules.length){
@@ -6551,7 +6570,7 @@ function renderDashboardView(){
   } else {
     const analystMin = state.analysts.filter(a=>!a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id)).map(a=>{
       const scheds = analystSchedules.filter(s=>scheduleAnalystIds(s).includes(a.id));
-      const mins = scheds.reduce((sum,s)=> sum + scheduleMinutesPerAnalyst(s), 0);
+      const mins = analystMinutesInRange(a.id, periodStart, periodEnd, hoursPred);
       return {a, mins, count:scheds.length};
     }).sort((x,y)=> y.mins-x.mins || x.a.name.localeCompare(y.a.name,'pt-BR'));
     const maxMin = Math.max(1, ...analystMin.map(x=>x.mins));
@@ -6716,7 +6735,7 @@ function renderDashboardView(){
   const clientesCidadeHtml = renderClientDistribution('Clientes por cidade', 'Distribuição da base de clientes conforme a cidade cadastrada. Este relatório não é filtrado por analista.', '📍', clientsByCity);
   const clientesContadorHtml = renderClientDistribution('Clientes por contador', 'Quantidade de clientes vinculados a cada contador cadastrado. Clientes do tipo "Contador" não entram nesta contagem. Este relatório não é filtrado por analista.', '🧾', clientsByAccountant, clientsByAccountantTotal);
 
-  const horasMesHtml = renderHoursByMonthChart(filteredAnalysts, dashboardClientIds);
+  const horasMesHtml = renderHoursByMonthChart(filteredAnalysts, dashboardClientIds, {start:periodStart, end:periodEnd});
   const categoriaNovosHtml = renderCategoryVsNewCardsChart(dashboardClientIds);
 
   const dashboardCardHtmlByKey = {
@@ -6735,7 +6754,7 @@ function renderDashboardView(){
     'clientes-contador': clientesContadorHtml,
     'ranking-sem-abatimento': rankingSemAbatimentoHtml,
     'burndown': renderBurndownPanel(activeCards),
-    'carga-semana': renderWeekLoadPanel(filteredAnalysts),
+    'carga-semana': renderWeekLoadPanel(filteredAnalysts, dashHoursPredicate(dashboardClientIds)),
     'ciclo': renderCyclePanel(dashboardCardsAll, periodStart, periodEnd),
     'reportes-comercial': renderCommercialTrendPanel(dashboardCardsAll, periodEnd)
   };
@@ -10008,17 +10027,21 @@ function renderModal(){
       + '<div class="field-row"><div class="field"><label>CNPJ</label><input type="text" name="cnpj" value="'+esc(eff.cnpj)+'"></div><div class="field"><label>IE</label><input type="text" name="ie" value="'+esc(eff.ie)+'"></div></div>'
       + (ctype==='contador' ? '<div class="field-row"><div class="field"><label>CRC</label><input type="text" name="crc" value="'+esc(eff.crc)+'" placeholder="Ex: 1SP123456/O-0"></div><div class="field"><label>CPF do proprietário</label><input type="text" name="ownerCpf" value="'+esc(eff.ownerCpf)+'" placeholder="000.000.000-00"></div></div>' : '')
       + (ctype!=='contador' ? (accountantOptions.length
-          ? '<div class="field"><label>Contador responsável</label><select name="accountantId">'
-            + '<option value="">— Nenhum —</option>'
-            + accountantOptions.map(acc => '<option value="'+acc.id+'" '+(eff.accountantId===acc.id?'selected':'')+'>'+esc(acc.name)+(acc.cnpj?' — '+esc(acc.cnpj):'')+'</option>').join('')
-            + '</select><div class="hint" style="margin-top:2px;">Cadastre um cliente do tipo "Contador" para que ele apareça aqui.</div></div>'
+          ? (()=>{ const lbl = acc => acc.name+(acc.cnpj?' — '+acc.cnpj:'')+(acc.code?' ('+acc.code+')':''); const cur = accountantOptions.find(a=>a.id===eff.accountantId);
+              return '<div class="field"><label>Contador responsável</label>'
+              + '<input type="text" id="accountant-search" name="accountantSearch" list="accountant-list" autocomplete="off" placeholder="Digite nome, CNPJ ou código e selecione…" value="'+esc((draft && draft.accountantSearch!=null) ? draft.accountantSearch : (cur?lbl(cur):''))+'">'
+              + '<input type="hidden" name="accountantId" id="accountant-id" value="'+esc(cur?cur.id:'')+'">'
+              + '<datalist id="accountant-list">'+accountantOptions.map(acc=>'<option value="'+esc(lbl(acc))+'"></option>').join('')+'</datalist>'
+              + '<div class="hint" style="margin-top:2px;">Comece a digitar para filtrar a lista; apague o campo para deixar sem contador.</div></div>'; })()
           : '<div class="hint" style="margin:0 0 13px;">Nenhum contador cadastrado ainda. Cadastre um cliente do tipo "Contador" para poder vinculá-lo.</div>')
         : '')
       + '<div class="field-row"><div class="field"><label>Segmento</label><input type="text" name="segment" value="'+esc(eff.segment)+'"></div><div class="field"><label>Cidade</label><input type="text" name="city" value="'+esc(eff.city)+'"></div></div>'
       + '<div class="field-row"><div class="field"><label>UF</label><input type="text" name="uf" maxlength="2" value="'+esc(eff.uf)+'" placeholder="Ex: PR" style="text-transform:uppercase;"></div><div class="field"><label>CEP</label><input type="text" name="cep" value="'+esc(eff.cep)+'" placeholder="00000-000"></div></div>'
       + '<div class="field"><label>Contato</label><input type="text" name="contact" value="'+esc(eff.contact)+'"></div>'
       + '<div class="field-row"><div class="field"><label>E-mail</label><input type="email" name="email" value="'+esc(eff.email)+'"></div><div class="field"><label>Telefone</label><input type="tel" name="phone" value="'+esc(eff.phone)+'"></div></div>'
-      + '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar</button></div></form>';
+      + '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar</button></div>'
+      + (ui.formErr ? '<div class="error-msg" style="margin:10px 0 0;">'+esc(ui.formErr)+'</div>' : '')
+      + '</form>';
   } else if(m.type==='client-view'){
     const c = getClient(m.id);
     if(!c){ inner = '<div class="modal-header"><h3>Cliente não encontrado</h3><button class="modal-close" data-action="close-modal">✕</button></div>'; }
@@ -12468,7 +12491,20 @@ document.addEventListener('change', function(e){
    conhecido. Aqui salvamos em ui.modal.values sem re-renderizar, para não
    perder o foco nem o que estava sendo digitado.
    ═══════════════════════════════════════════════════════════════════════ */
+function accountantResolveText(txt){
+  const t = (txt||'').trim().toLowerCase(); if(!t) return {id:'', ok:true};
+  const lbl = acc => (acc.name+(acc.cnpj?' — '+acc.cnpj:'')+(acc.code?' ('+acc.code+')':'')).toLowerCase();
+  const list = state.clients.filter(c=>c.clientType==='contador');
+  let m = list.filter(a=>lbl(a)===t);
+  if(!m.length) m = list.filter(a=>a.name.toLowerCase()===t);
+  if(!m.length){ const digits = t.replace(/\D/g,''); if(digits.length>=5) m = list.filter(a=>(a.cnpj||'').replace(/\D/g,'')===digits); }
+  return m.length===1 ? {id:m[0].id, ok:true} : {id:'', ok:false};
+}
 document.addEventListener('input', function(e){
+  if(e.target && e.target.id==='accountant-search'){
+    const r = accountantResolveText(e.target.value); const h = document.getElementById('accountant-id'); if(h) h.value = r.id;
+    return;
+  }
   /* 2a) Captura silenciosa para formulário de agenda (schedule) */
   const formSchedule = e.target.closest && e.target.closest('form[data-form="schedule"]');
   if(formSchedule && ui.modal && (ui.modal.type==='schedule-new' || ui.modal.type==='schedule-edit')){
@@ -12679,6 +12715,7 @@ document.addEventListener('submit', async function(e){
       crc: (fd.get('crc')||'').trim(), ownerCpf: (fd.get('ownerCpf')||'').trim(),
       accountantId: (fd.get('clientType')==='contador' ? '' : (fd.get('accountantId')||'').trim())
     };
+    { const inp = form.querySelector('#accountant-search'); if(inp && fd.get('clientType')!=='contador'){ const r = accountantResolveText(inp.value); if(!r.ok){ ui.formErr = 'Contador não encontrado: selecione um item da lista ou apague o campo.'; ui.modal.values = captureFormValues(form); render(); return; } data.accountantId = r.id; } }
     const id = form.dataset.id;
     if(!data.name){ showAlert('Informe o nome do cliente.'); return; }
     if(data.code && state.clients.some(c=>c.code===data.code && c.id!==id)){ showAlert('Código duplicado.'); return; }
