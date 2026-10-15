@@ -5610,7 +5610,7 @@ function niceAxisMax(maxVal){
   const niceMax = Math.ceil(maxVal/step)*step;
   return {niceMax, step};
 }
-function renderHoursByMonthChart(activeAnalysts, dashboardClientIds, periodRange){
+function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
   const years = new Set([String(new Date().getFullYear())]);
   state.schedules.forEach(s=>{ if(s.date) years.add(s.date.slice(0,4)); });
   const yearOptions = [...years].sort((a,b)=> b.localeCompare(a));
@@ -5620,7 +5620,7 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds, periodRange
   let html = '<div class="report-section dash-card-full">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#E3F2FD;color:#1565C0;">📈</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Horas por mês — comparação entre analistas</h2>'
-    + '<p class="report-section-desc">Total de horas das agendas realizadas (concluídas e pendentes, exceto não realizadas) em cada mês do ano selecionado, uma linha por analista — mesma regra do quadro “Horas dos analistas”. Só entram os dias dentro do período do Painel Geral'+(periodRange?' (<strong>'+fmtDateBR(periodRange.start)+' a '+fmtDateBR(periodRange.end)+'</strong>)':'')+'; para ver o ano inteiro, amplie as datas. Os filtros de analista, cidade e segmento continuam valendo.</p></div>'
+    + '<p class="report-section-desc">Total de horas das agendas realizadas (concluídas e pendentes, exceto não realizadas) em cada mês do ano selecionado, uma linha por analista — mesma regra do quadro “Horas dos analistas”. Mostra sempre todos os meses do ano, sem depender das datas do filtro do Painel Geral. Os filtros de analista, cidade e segmento continuam valendo.</p></div>'
     + '<div class="field" style="margin:0;min-width:110px;"><label style="font-size:10px;">Ano</label><select data-action="dashboard-chart-year-filter">'
     + yearOptions.map(y=>'<option value="'+esc(y)+'" '+(y===ui.dashboardChartYear?'selected':'')+'>'+esc(y)+'</option>').join('')
     + '</select></div>'
@@ -5641,7 +5641,6 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds, periodRange
       let mins = 0;
       for(let d=1; d<=daysInMonth; d++){
         const iso = year+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
-        if(periodRange && (iso < periodRange.start || iso > periodRange.end)) continue;
         mins += analystMinutesOnDay(iso, a.id, inCategory);
       }
       perAnalyst[a.id] = mins/60;
@@ -6735,7 +6734,7 @@ function renderDashboardView(){
   const clientesCidadeHtml = renderClientDistribution('Clientes por cidade', 'Distribuição da base de clientes conforme a cidade cadastrada. Este relatório não é filtrado por analista.', '📍', clientsByCity);
   const clientesContadorHtml = renderClientDistribution('Clientes por contador', 'Quantidade de clientes vinculados a cada contador cadastrado. Clientes do tipo "Contador" não entram nesta contagem. Este relatório não é filtrado por analista.', '🧾', clientsByAccountant, clientsByAccountantTotal);
 
-  const horasMesHtml = renderHoursByMonthChart(filteredAnalysts, dashboardClientIds, {start:periodStart, end:periodEnd});
+  const horasMesHtml = renderHoursByMonthChart(filteredAnalysts, dashboardClientIds);
   const categoriaNovosHtml = renderCategoryVsNewCardsChart(dashboardClientIds);
 
   const dashboardCardHtmlByKey = {
