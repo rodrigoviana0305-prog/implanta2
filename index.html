@@ -151,6 +151,8 @@ h1,h2,h3,h4{ font-family:var(--font-head); margin:0; color:var(--ink); }
 .card-mini{ background:var(--surface); border-radius:9px; padding:10px 11px; box-shadow:var(--shadow-1); cursor:grab; border:1px solid transparent; display:flex; flex-direction:column; gap:6px; }
 .card-mini:hover{ border-color:var(--border); }
 .card-mini.dragging{ opacity:.4; }
+.card-mini.drop-before{ box-shadow:0 -3px 0 0 var(--brand), var(--shadow-1); }
+.card-mini.drop-after{ box-shadow:0 3px 0 0 var(--brand), var(--shadow-1); }
 .card-mini.done{ border-left:4px solid var(--ok); }
 .chip-row{ display:flex; flex-wrap:wrap; gap:4px; }
 .chip{ font-size:10.5px; font-weight:700; padding:2px 7px; border-radius:20px; color:#fff; letter-spacing:.2px; }
@@ -173,7 +175,10 @@ h1,h2,h3,h4{ font-family:var(--font-head); margin:0; color:var(--ink); }
 
 .overlay{ position:fixed; inset:0; background:rgba(15,20,17,.5); display:flex; align-items:flex-start; justify-content:center; padding:5vh 16px; overflow-y:auto; z-index:100; }
 .overlay.card-overlay{ z-index:90; }
-.overlay.confirm-overlay{ z-index:300; }
+.overlay.confirm-overlay{ z-index:300; } /* acima do card (90) e dos modais (100): alertas nunca ficam atrás */
+#app-toasts{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:400; display:flex; flex-direction:column; gap:8px; align-items:center; width:min(92vw,460px); pointer-events:none; }
+.app-toast{ background:#17324d; color:#fff; padding:10px 14px; border-radius:10px; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.25); pointer-events:auto; }
+.app-toast.warn{ background:#8a4b00; }
 .modal{ background:var(--surface); border-radius:var(--radius-l); box-shadow:var(--shadow-2); width:100%; max-width:520px; padding:22px 24px 24px; }
 .modal.wide{ max-width:760px; }
 .modal-header{ display:flex; align-items:flex-start; gap:10px; margin-bottom:14px; }
@@ -976,6 +981,17 @@ th{background:var(--surface-2);color:var(--ink-soft);}
 .dash-reorder-handle{ font-size:14px; color:var(--brand-ink); cursor:default; }
 .dash-reorder-actions{ display:flex; gap:6px; flex-wrap:wrap; }
 .dash-reorder-actions .btn{ padding:3px 9px; font-size:11px; }
+/* Celular: barra compacta (só ícones), em uma linha, para não empurrar o conteúdo. */
+@media screen and (max-width:520px){
+  .dash-reorder-bar{ padding:4px 6px; margin-bottom:8px; flex-wrap:nowrap; }
+  .dash-reorder-handle{ font-size:12px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+  .dash-reorder-handle .hint{ display:none; }
+  .dash-reorder-actions{ flex-wrap:nowrap; gap:3px; flex:0 0 auto; }
+  .dash-reorder-actions .btn{ padding:3px 6px; }
+  .dash-lbl{ display:none; }
+  /* "Meia largura" não existe em tela estreita: tudo ocupa a largura toda. */
+  .dash-grid > .dash-card, .dash-grid > .dash-card-full{ grid-column:1 / -1; }
+}
 .dash-reorder-actions .btn:disabled{ opacity:.35; cursor:not-allowed; }
 .report-section.dash-reorder-active{ outline:1px dashed var(--brand); outline-offset:3px; }
 
@@ -1056,6 +1072,7 @@ th{background:var(--surface-2);color:var(--ink-soft);}
 .report-tag.ok{ background:var(--ok-soft); color:var(--ok); }
 .report-tag.gold{ background:var(--gold-soft); color:var(--gold); }
 .report-tag.info{ background:var(--brand-soft); color:var(--brand); }
+.report-tag.danger{ background:var(--danger-soft); color:var(--danger); }
 .report-tag.brand{ background:var(--brand); color:#fff; }
 
 .report-balance{ font-weight:800; padding:3px 9px; border-radius:20px; font-size:12.5px; }
@@ -1705,7 +1722,7 @@ async function doLogin(){
   document.getElementById('app').innerHTML = renderLoginScreen('Usuário ou senha inválidos. Tente novamente.');
 }
 
-function logout(){ setStoredUser(null); ui.showUserMenu=false; ui.showNotif=false; document.getElementById('app').innerHTML = renderLoginScreen(); }
+function logout(){ stopRealtimeSync(); setStoredUser(null); ui.showUserMenu=false; ui.showNotif=false; document.getElementById('app').innerHTML = renderLoginScreen(); }
 
 /* ============================= STATE ============================= */
 const STORAGE_KEY = 'implanta_v1';
@@ -2275,6 +2292,8 @@ async function saveChangedTables(sb, st){
 }
 const CLOUD_CONFIG_KEY = 'implanta_cloud_config_v1';
 const CLOUD_DISABLED_KEY = 'implanta_cloud_disabled_v1';
+/* Obs.: a config da nuvem fica no localStorage do navegador (global por domínio). Em computador compartilhado,
+   outros usuários do mesmo navegador usam a mesma config — o acesso aos dados continua exigindo login. */
 function loadCloudConfig(){
   try{
     if(localStorage.getItem(CLOUD_DISABLED_KEY)==='1') return null;
@@ -2400,6 +2419,9 @@ async function refreshFromCloudIfChanged(source){
   }
   return changed;
 }
+/* Logs informativos só aparecem com DEBUG_LOG=true (ou localStorage implanta_debug=1). */
+var DEBUG_LOG = (function(){ try{ return localStorage.getItem('implanta_debug')==='1'; }catch(e){ return false; } })();
+function dbg(){ if(DEBUG_LOG && window.console) console.info.apply(console, arguments); }
 function stopRealtimeSync(){
   if(realtimeChannel && sbClient){ try{ sbClient.removeChannel(realtimeChannel); }catch(e){} }
   realtimeChannel = null;
@@ -2414,7 +2436,7 @@ function startRealtimeSync(){
       realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table:table},
         ()=>{ refreshFromCloudIfChanged('realtime'); });
     });
-    realtimeChannel.subscribe(status=>{ if(status==='SUBSCRIBED') console.info('Sincronização em tempo real ativa.'); });
+    realtimeChannel.subscribe(status=>{ if(status==='SUBSCRIBED') dbg('Sincronização em tempo real ativa.'); });
   }catch(e){ console.warn('Não foi possível iniciar a sincronização em tempo real', e); }
   realtimePollTimer = setInterval(()=>{ if(document.visibilityState==='visible') refreshFromCloudIfChanged('poll'); }, REALTIME_POLL_MS);
 }
@@ -2427,7 +2449,10 @@ function persist(){
     if(window.__mgrInteracted && (!window.__mgrWarnAt || Date.now()-window.__mgrWarnAt>4000)){ window.__mgrWarnAt = Date.now(); setTimeout(function(){ try{ showAlert('Perfil Gestor é somente leitura: nada foi salvo. Atualize a página para descartar a alteração.'); }catch(e){} }, 0); }
     return;
   }
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){ console.warn('Falha ao salvar localmente', e); }
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); window.__lsFailed = false; }catch(e){
+    console.warn('Falha ao salvar localmente', e);
+    if(!window.__lsFailed){ window.__lsFailed = true; showToast('Não foi possível salvar neste navegador (espaço cheio). Verifique o tamanho dos anexos'+(cloudStatus==='connected' ? '; os dados continuam sendo enviados à nuvem.' : '.'), 'warn'); }
+  }
   if(cloudStatus==='connected' && sbClient){
     saveStatus = 'pending';
     updateSaveStatusLine();
@@ -2722,6 +2747,11 @@ async function applyRestoredBackup(data){
 
 async function boot(){
   if(!currentUser){ document.getElementById('app').innerHTML = renderLoginScreen(); return; }
+  if(cloudConfig && !window.supabase){
+    /* O <script> da biblioteca é síncrono: se window.supabase não existe, o CDN falhou. Avisa em vez de ficar "offline" em silêncio. */
+    cloudStatus = 'error';
+    cloudErrorMsg = 'A biblioteca do banco na nuvem não carregou (verifique a internet). Usando os dados salvos neste navegador por enquanto.';
+  }
   if(cloudConfig && window.supabase){
     try{
       sbClient = window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
@@ -2914,6 +2944,7 @@ function computeVacationSummary(periods){
   };
 }
 const WD_NAMES = ['seg','ter','qua','qui','sex','sáb','dom'];
+/* ATENÇÃO: WD_NAMES começa na segunda; Date.getDay() começa no domingo (0). Por isso o (getDay()+6)%7. */
 function weekdayShort(iso){ const [y,m,d]=iso.split('-').map(Number); const dt=new Date(y,m-1,d); return WD_NAMES[(dt.getDay()+6)%7]; }
 function fmtDT(ts){ const d=new Date(ts); return d.toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 function timeToMin(t){ if(!t) return 0; const [h,m]=t.split(':').map(Number); return h*60+(m||0); }
@@ -3086,11 +3117,7 @@ function cardRisk(card){
   return {score, level: score>=50?'alto':(score>=25?'medio':'baixo'), reasons};
 }
 function riskRows(){
-  let rows = state.cards.filter(c=>{
-    if(c.isConcluded) return false;
-    const b = getBoard(c.boardId), l = b ? byId(b.lists, c.listId) : null;
-    return !(l && (isListCanceledName(l.name) || isDoneListName(l.name)));
-  }).map(c=>{ const b = getBoard(c.boardId); return Object.assign({card:c, client:getClient(c.clientId), analyst:b?getAnalyst(b.analystId):null}, cardRisk(c)); });
+  let rows = state.cards.filter(c=> cardIsActive(c)).map(c=>{ const b = getBoard(c.boardId); return Object.assign({card:c, client:getClient(c.clientId), analyst:b?getAnalyst(b.analystId):null}, cardRisk(c)); });
   if(ui.reportsClientFilter!=='all') rows = rows.filter(r=>r.client && r.client.id===ui.reportsClientFilter);
   return rows;
 }
@@ -3100,7 +3127,7 @@ function backlogRows(){
   return cap.rows.map(r=>{
     let scheduled = 0, unscheduled = 0;
     state.cards.forEach(c=>{
-      if(c.isConcluded) return; const b = getBoard(c.boardId); if(!b || b.analystId!==r.analyst.id) return;
+      if(!cardIsActive(c)) return; const b = getBoard(c.boardId); if(!b || b.analystId!==r.analyst.id) return;
       const f = cardForecast(c); scheduled += f.futHours; unscheduled += Math.max(0, f.remaining - f.futHours);
     });
     const free4 = r.weeks.reduce((sum,w)=>sum+w.free,0)/60;
@@ -3424,7 +3451,7 @@ function renderReconciliationReport(){
   return h+'</tbody></table></div></div>';
 }
 function forecastRows(){
-  let rows = state.cards.filter(c=>!c.isConcluded).map(c=>{
+  let rows = state.cards.filter(c=>cardIsActive(c)).map(c=>{
     const b = getBoard(c.boardId), an = b ? getAnalyst(b.analystId) : null;
     const list = b ? byId(b.lists, c.listId) : null;
     if(list && (isListCanceledName(list.name) || isDoneListName(list.name))) return null;
@@ -3571,7 +3598,7 @@ function renderPrazoReport(){
     + sortableTh('prazo','days','Dias',srt,' class="num"') + '<th class="num">vs. média</th></tr></thead><tbody>';
   sortRowsBy(rows, srt, acc).forEach(r=>{
     const diff = r.days-avg;
-    html += '<tr><td><div class="report-client-name">'+esc(nm(r))+'</div>'+(r.c.isConcluded?'<span class="report-tag ok">Concluído</span>':'')+'</td>'
+    html += '<tr><td><div class="report-client-name">'+esc(nm(r))+'</div>'+(cardStatus(r.c).key!=='ativo'?'<span class="report-tag '+(cardStatus(r.c).key==='concluido'?'ok':'info')+'">'+cardStatus(r.c).label+'</span>':'')+'</td>'
       + '<td>'+(r.analyst?esc(r.analyst.name):'—')+'</td>'
       + '<td>'+fmtDateBR(r.c.commercialDate)+'</td><td>'+fmtDateBR(r.c.startDate)+'</td>'
       + '<td class="num"><strong>'+r.days+'</strong></td>'
@@ -3653,15 +3680,45 @@ function clientMatchesQuery(cl, q){
 function getCard(id){ return byId(state.cards,id); }
 function boardOfAnalyst(analystId){ return state.boards.find(b=>b.analystId===analystId); }
 function cardsInBoard(boardId){ return state.cards.filter(c=>c.boardId===boardId); }
+/* Ordem livre dos cards no quadro: cada card pode ter sortOrder (número). Sem ele, vai para o fim, na ordem de criação. */
+function sortCardsManual(cards){
+  return cards.map((c,i)=>({c,i})).sort((a,b)=>{
+    const ao = typeof a.c.sortOrder==='number' ? a.c.sortOrder : Infinity, bo = typeof b.c.sortOrder==='number' ? b.c.sortOrder : Infinity;
+    if(ao===bo) return a.i-b.i;
+    return ao<bo ? -1 : 1;
+  }).map(x=>x.c);
+}
+function unifiedListCards(listName){
+  let cards = [];
+  state.boards.forEach(b=>{
+    const l = (b.lists||[]).find(x=>x.name===listName); if(!l) return;
+    cards = cards.concat(cardsInBoard(b.id).filter(c=>c.listId===l.id));
+  });
+  return sortCardsManual(cards);
+}
+/* Coloca o card antes/depois de outro (ou no fim da lista, se refId vazio). Usa números intermediários pra mexer em poucos cards. */
+function placeCardAt(cardId, listName, refId, before){
+  const card = getCard(cardId); if(!card) return;
+  const others = unifiedListCards(listName).filter(c=>c.id!==cardId);
+  if(others.some(c=>typeof c.sortOrder!=='number')) others.forEach((c,i)=>{ c.sortOrder = (i+1)*1000; });
+  let idx = refId ? others.findIndex(c=>c.id===refId) : others.length;
+  if(idx<0) idx = others.length; else if(refId && !before) idx++;
+  const prev = others[idx-1], next = others[idx];
+  card.sortOrder = prev && next ? (prev.sortOrder+next.sortOrder)/2 : (prev ? prev.sortOrder+1000 : (next ? next.sortOrder-1000 : 1000));
+}
 function schedulesForCard(cardId){ return state.schedules.filter(s=>scheduleCardIds(s).includes(cardId)).sort((a,b)=> (a.date+a.startTime).localeCompare(b.date+b.startTime)); }
+/* Horas CONSUMIDAS do card: só agendas confirmadas, usando o abatimento (deductMinutes) quando existir. Base do saldo exibido no card. */
 function cardUsedMinutes(card){ return state.schedules.filter(s=>scheduleCardIds(s).includes(card.id) && s.status==='concluida').reduce((sum,s)=> sum + (s.deductMinutes!=null ? s.deductMinutes : scheduleMinutes(s)), 0); }
+/* Saldo REAL do card em horas (contratado − consumido); 0 se o saldo foi zerado/transferido. */
 function cardBalanceHours(card){ if(card.balanceForfeited) return 0; return (card.contractedHours||0) - cardUsedMinutes(card)/60; }
+/* Contratado para RELATÓRIOS/painel: em card concluído conta só o que foi efetivamente usado. */
 function cardContractedForReporting(card){
   const contracted = Number(card && card.contractedHours || 0);
   if(!card || !card.isConcluded) return contracted;
   return Math.min(contracted, cardUsedMinutes(card)/60);
 }
 function totalContractedForReporting(cards){ return (cards||[]).reduce((sum,c)=>sum+cardContractedForReporting(c),0); }
+/* Saldo para RELATÓRIOS/painel: card concluído não tem saldo. */
 function cardBalanceForReporting(card){ return card && card.isConcluded ? 0 : cardBalanceHours(card); }
 function cardTypeInfo(client){
   const ctype = client ? (client.clientType||'novo') : 'novo';
@@ -3787,6 +3844,7 @@ function analystMinutesOnDay(day, analystId, inCategoryFn){
   });
   return total;
 }
+/* Minutos de UM analista num dia específico (dia todo = jornada cheia; Férias só em dia útil). Usado na carga do dia/semana. */
 function scheduleMinutesOnSpecificDay(s, day){
   if(!s.allDay) return scheduleMinutesPerAnalyst(s);
   if(isFeriasType(s.type)) return isWeekdayISO(day) ? FERIAS_MIN_PER_WEEKDAY : 0;
@@ -3802,6 +3860,7 @@ function workloadStatusColor(minutes){
   if(minutes <= FERIAS_MIN_PER_WEEKDAY) return 'var(--ok)';
   return '#1B1F23';
 }
+/* Duração bruta da agenda para UM analista (sem multiplicar pelo nº de analistas e sem abatimento). */
 function scheduleMinutesPerAnalyst(s){
   if(s.allDay){
     if(isFeriasType(s.type)){
@@ -3812,6 +3871,7 @@ function scheduleMinutesPerAnalyst(s){
   }
   return timeToMin(s.endTime)-timeToMin(s.startTime);
 }
+/* Minutos A ABATER do saldo: usa deductMinutes se definido, senão duração × nº de analistas. NÃO usar para horas trabalhadas. */
 function scheduleMinutes(s){
   if(s.deductMinutes!=null) return s.deductMinutes;
   const perAnalyst = scheduleMinutesPerAnalyst(s);
@@ -3834,6 +3894,7 @@ function unlinkedInternalSchedulesForClient(clientId){
 function unlinkedInternalMinutesForClient(clientId){
   return unlinkedInternalSchedulesForClient(clientId).reduce((sum,s)=> sum + scheduleMinutes(s), 0);
 }
+/* Duração REAL (todos os analistas somados), ignorando deductMinutes. Usar em horas trabalhadas/dashboard. */
 function scheduleActualMinutes(s){
   const perAnalyst = scheduleMinutesPerAnalyst(s);
   const n = Math.max(1, scheduleAnalystIds(s).length);
@@ -3950,7 +4011,7 @@ function notificationItemsForAnalyst(analystId){
 const LOW_BALANCE_PCT = 80;
 function cardBalanceAlertLevel(card){
   const contracted = Number(card && card.contractedHours)||0;
-  if(!card || card.isConcluded || card.balanceForfeited || contracted<=0) return 0;
+  if(!card || !cardIsActive(card) || card.balanceForfeited || contracted<=0) return 0;
   const pct = cardUsedMinutes(card)/60/contracted*100;
   return pct>=100 ? 100 : (pct>=mgmt().alertPct ? LOW_BALANCE_PCT : 0);
 }
@@ -3986,6 +4047,7 @@ function jiraStatusNoticesForAnalyst(analystId){
   return out;
 }
 /* ===== Gestão: alertas, cards parados, previsão, capacidade, conferência ===== */
+/* Config de gestão: inicializa os padrões na 1ª chamada e devolve o MESMO objeto mutável (state.mgmt) — não é uma cópia. */
 function mgmt(){
   if(!state.mgmt || typeof state.mgmt!=='object') state.mgmt = {};
   const m = state.mgmt;
@@ -3996,6 +4058,29 @@ function mgmt(){
 }
 function isManagerUser(){ return !!(currentUser && currentUser.role==='gestor'); }
 function isListCanceledName(n){ return /cancel/i.test(String(n||'')); }
+function isListPausedName(n){ return /pausad|parad/i.test(normalizeHeader(n||'')); }
+/* Situação do card, pela lista (coluna) em que ele está:
+   Concluído (lista Concluído) · Cancelado (lista Cancelados) · Parado (listas Comercial/Pausados) · Ativo (demais). */
+function cardStatus(card){
+  if(!card) return {key:'ativo', label:'Ativo'};
+  const b = getBoard(card.boardId), l = b ? byId(b.lists, card.listId) : null, n = l ? l.name : '';
+  if(isListCanceledName(n)) return {key:'cancelado', label:'Cancelado'};
+  if(isCommercialListName(n) || isListPausedName(n)) return {key:'parado', label:'Parado'};
+  if(card.isConcluded || isDoneListName(n)) return {key:'concluido', label:'Concluído'};
+  return {key:'ativo', label:'Ativo'};
+}
+function cardIsActive(card){ return cardStatus(card).key==='ativo'; }
+/* Opções padrão dos filtros de status de card (Painel Geral e Relatórios) */
+function cardStatusFilterOptions(cur){
+  return [['ativos','Ativos'],['parados','Parados'],['concluidos','Concluídos'],['cancelados','Cancelados'],['todos','Todos']]
+    .map(o=>'<option value="'+o[0]+'" '+(cur===o[0]?'selected':'')+'>'+o[1]+'</option>').join('');
+}
+function cardStatusBadge(card){
+  const st = cardStatus(card); if(st.key==='ativo') return '';
+  const col = st.key==='concluido' ? ['var(--ok-soft)','var(--ok)'] : (st.key==='cancelado' ? ['var(--danger-soft)','var(--danger)'] : ['var(--gold-soft)','var(--gold)']);
+  return '<span class="badge" style="background:'+col[0]+';color:'+col[1]+';vertical-align:middle;">'+st.label+'</span>';
+}
+/* Data (YYYY-MM-DD) da última atividade do card, ou '' se não houver nenhuma. Quem usa deve tratar o vazio. */
 function cardLastActivityISO(card){
   let t = 0;
   (card.history||[]).forEach(h=>{ if(h && h.ts>t) t = h.ts; });
@@ -4006,7 +4091,7 @@ function cardLastActivityISO(card){
 }
 /* Card parado: não concluído, sem atividade há X dias e sem agenda futura pendente. */
 function cardStaleInfo(card){
-  if(!card || card.isConcluded) return null;
+  if(!card || !cardIsActive(card)) return null;
   const board = getBoard(card.boardId), list = board ? byId(board.lists, card.listId) : null;
   if(list && (isListCanceledName(list.name) || isDoneListName(list.name))) return null;
   const today = todayISO();
@@ -4018,8 +4103,10 @@ function cardStaleInfo(card){
 }
 function attentionData(boardAnalystId){
   const low = [], stale = [];
+  /* Filtra pelos quadros do analista ANTES de iterar os cards. */
+  const myBoards = boardAnalystId ? new Set(state.boards.filter(b=>b.analystId===boardAnalystId).map(b=>b.id)) : null;
   state.cards.forEach(c=>{
-    if(boardAnalystId){ const b=getBoard(c.boardId); if(!b || b.analystId!==boardAnalystId) return; }
+    if(myBoards && !myBoards.has(c.boardId)) return;
     const contracted = Number(c.contractedHours)||0;
     const lvl = cardBalanceAlertLevel(c);
     if(lvl) low.push({card:c, level:lvl, pct: contracted ? cardUsedMinutes(c)/60/contracted*100 : 0, balance: cardBalanceHours(c)});
@@ -4149,7 +4236,15 @@ function jiraAudit(r, text, by){
   r.history.unshift({ts:Date.now(), text, by: by!==undefined ? by : auditActor()});
   if(r.history.length>60) r.history.length = 60;
 }
-function colorForIndex(i){ return PALETTE[i % PALETTE.length]; }
+/* Os primeiros analistas usam a paleta fixa; do 16º em diante geramos matizes novos (ângulo áureo)
+   para as cores não se repetirem mesmo com dezenas de analistas. */
+function colorForIndex(i){
+  if(i < PALETTE.length) return PALETTE[i];
+  const h = ((i - PALETTE.length) * 137.508 + 20) % 360, sat = 0.55, lig = 0.40;
+  const k = n => (n + h/30) % 12, a = sat*Math.min(lig, 1-lig);
+  const f = n => { const c = lig - a*Math.max(-1, Math.min(k(n)-3, Math.min(9-k(n), 1))); return Math.round(255*c).toString(16).padStart(2,'0'); };
+  return '#'+f(0)+f(8)+f(4);
+}
 function analystAvatar(a, px, extraStyle){
   if(!a) return '';
   const bg = a.inactive ? '#B9CAD5' : (a.color||'#888');
@@ -4512,11 +4607,21 @@ function openAttachmentInNewTab(att){
     const w = window.open();
     if(!w){ showAlert('Não foi possível abrir a visualização. Verifique o bloqueador de pop-ups.'); return; }
     if((att.type||'').includes('pdf') || /\.pdf$/i.test(att.name||'')){
-      w.document.write('<title>'+esc(att.name)+'</title><iframe src="'+esc(src)+'" style="border:none;position:fixed;inset:0;width:100%;height:100%;"></iframe>');
-      w.document.close();
+      /* Monta por DOM (sem document.write): a URL nunca é interpretada como HTML. */
+      w.document.title = att.name || 'Anexo';
+      w.document.body.style.margin = '0';
+      const fr = w.document.createElement('iframe');
+      fr.style.cssText = 'border:none;position:fixed;inset:0;width:100%;height:100%;';
+      fr.src = src;
+      w.document.body.appendChild(fr);
     } else if((att.type||'').startsWith('image/')){
-      w.document.write('<title>'+esc(att.name)+'</title><div style="margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#222;"><img src="'+esc(src)+'" style="max-width:100%;max-height:100vh;" alt="'+esc(att.name)+'"></div>');
-      w.document.close();
+      w.document.title = att.name || 'Anexo';
+      w.document.body.style.cssText = 'margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#222;';
+      const im = w.document.createElement('img');
+      im.style.cssText = 'max-width:100%;max-height:100vh;';
+      im.alt = att.name || '';
+      im.src = src;
+      w.document.body.appendChild(im);
     } else {
       const a = document.createElement('a');
       a.href = src;
@@ -5050,7 +5155,7 @@ function renderTopbar(){
     left += '</select>'
       + '<div class="search-box" style="margin-left:8px;"><span>🔎</span><input id="search-input" placeholder="Buscar cliente..." value="'+esc(ui.search)+'"></div>'
       + '<select class="board-analyst-filter" data-action="board-sort" title="Ordenar cards" style="margin-left:8px;">'
-      +   '<option value="default"'+(ui.boardSortBy==='default'?' selected':'')+'>Ordem: padrão</option>'
+      +   '<option value="default"'+(ui.boardSortBy==='default'?' selected':'')+'>Ordem: livre (arraste os cards)</option>'
       +   '<option value="client-name"'+(ui.boardSortBy==='client-name'?' selected':'')+'>Ordem: nome (A-Z)</option>'
       +   '<option value="start-date"'+(ui.boardSortBy==='start-date'?' selected':'')+'>Ordem: início</option>'
       + '</select>'
@@ -5574,15 +5679,15 @@ function wrapDashboardCard(key, cardHtml, idx, total, size){
   cardHtml = setCardWidthClasses(cardHtml, size);
   if(!ui.dashboardReorderMode) return cardHtml;
   const otherSize = size==='full' ? 'half' : 'full';
-  const sizeBtnLabel = size==='full' ? '▣ Meia largura' : '⛶ Largura total';
+  const sizeBtnLabel = size==='full' ? '▣<span class="dash-lbl"> Meia largura</span>' : '⛶<span class="dash-lbl"> Largura total</span>';
   const bar = '<div class="dash-reorder-bar" draggable="true" data-dash-drag="'+key+'" title="Arraste para onde quiser">'
     + '<span class="dash-reorder-handle">⠿ '+esc(DASHBOARD_CARD_LABELS[key]||key)+' <span class="hint" style="margin:0;">(arraste)</span></span>'
     + '<span class="dash-reorder-actions">'
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-resize-card" data-key="'+key+'" data-size="'+otherSize+'">'+sizeBtnLabel+'</button>'
-    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="-1"'+(idx===0?' disabled':'')+'>▲ Subir</button>'
-    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="1"'+(idx===total-1?' disabled':'')+'>▼ Descer</button>'
-    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="start"'+(idx===0?' disabled':'')+'>⤒ Início</button>'
-    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="end"'+(idx===total-1?' disabled':'')+'>⤓ Final</button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="-1" title="Subir"'+(idx===0?' disabled':'')+'>▲<span class="dash-lbl"> Subir</span></button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="1" title="Descer"'+(idx===total-1?' disabled':'')+'>▼<span class="dash-lbl"> Descer</span></button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="start" title="Mover para o início"'+(idx===0?' disabled':'')+'>⤒<span class="dash-lbl"> Início</span></button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="end" title="Mover para o final"'+(idx===total-1?' disabled':'')+'>⤓<span class="dash-lbl"> Final</span></button>'
     + '</span></div>';
   return cardHtml
     .replace(/^<div class="/, '<div data-dash-key="'+key+'" class="')
@@ -6082,7 +6187,7 @@ function renderBurndownChart(card, st, todayIso){
 }
 function renderBurndownPanel(cards){
   const today = todayISO();
-  const rows = cards.filter(c=>(Number(c.contractedHours)||0)>0 && !c.isConcluded).map(c=>{
+  const rows = cards.filter(c=>(Number(c.contractedHours)||0)>0 && cardIsActive(c)).map(c=>{
     const st = cardBurnStats(c, today), cl = getClient(c.clientId), b = getBoard(c.boardId), an = b?getAnalyst(b.analystId):null;
     return {c, st, cl, an, pct: st.contracted ? st.used/st.contracted*100 : 0};
   }).sort((a,b)=>{
@@ -6281,7 +6386,7 @@ function renderDashboardView(){
   const dashboardReportClients = selectedAnalyst
     ? dashboardClients.filter(c=>dashboardReportClientIds.has(c.id))
     : dashboardClients.slice();
-  const activeCards = dashboardCardsAll.filter(c=>ui.dashboardStatus==='concluidos' ? c.isConcluded : (ui.dashboardStatus==='todos' ? true : !c.isConcluded));
+  const activeCards = dashboardCardsAll.filter(c=>{ const k = cardStatus(c).key; const f = ui.dashboardStatus; return f==='todos' ? true : (f==='concluidos' ? k==='concluido' : (f==='parados' ? k==='parado' : (f==='cancelados' ? k==='cancelado' : k==='ativo'))); });
   const dashboardSchedules = state.schedules.filter(s=>{
     if(scheduleClientIds(s).length && !scheduleClientIds(s).some(cid=>dashboardClientIds.has(cid))) return false;
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
@@ -6354,7 +6459,7 @@ function renderDashboardView(){
   html += '<div class="field"><label>Cidade</label><select id="dash-city-filter" data-action="dashboard-filter"><option value="all">Todas</option>';
   cityOptions.forEach(v=> html += '<option value="'+esc(v)+'" '+(ui.dashboardCity===v?'selected':'')+'>'+esc(v)+'</option>');
   html += '</select></div>';
-  html += '<div class="field"><label>Status dos projetos</label><select id="dash-status-filter" data-action="dashboard-filter"><option value="ativos" '+(ui.dashboardStatus==='ativos'?'selected':'')+'>Ativos</option><option value="todos" '+(ui.dashboardStatus==='todos'?'selected':'')+'>Todos</option><option value="concluidos" '+(ui.dashboardStatus==='concluidos'?'selected':'')+'>Concluídos</option></select></div>';
+  html += '<div class="field"><label>Status dos projetos</label><select id="dash-status-filter" data-action="dashboard-filter">'+cardStatusFilterOptions(ui.dashboardStatus)+'</select></div>';
   html += '<div class="field"><label>Base filtrada</label><div style="height:36px;display:flex;align-items:center;font-size:12px;font-weight:800;color:var(--brand-dark);">'+dashboardReportClients.length+' cliente(s)</div></div>';
   html += '</div></div>';
 
@@ -6455,7 +6560,7 @@ function renderDashboardView(){
     const scheds=dashboardSchedules.filter(s=>s.status==='concluida' && scheduleAnalystIds(s).includes(a.id));
     const mins=scheds.reduce((sum,s)=>sum+scheduleMinutesPerAnalyst(s),0);
     const board=boardOfAnalyst(a.id);
-    const cards=dashboardCardsAll.filter(c=>{ const b=getBoard(c.boardId); return !c.isConcluded && b && b.analystId===a.id; });
+    const cards=dashboardCardsAll.filter(c=>{ const b=getBoard(c.boardId); return cardIsActive(c) && b && b.analystId===a.id; });
     return {a,mins,cards:cards.length};
   }).sort((a,b)=>b.mins-a.mins);
   const totalWorked=analystWork.reduce((s,x)=>s+x.mins,0);
@@ -6468,7 +6573,7 @@ function renderDashboardView(){
     + '<p class="report-section-desc">Distribuição de clientes, projetos e horas dentro dos filtros selecionados.</p></div></div>';
   visaoExecutivaHtml += '<div class="dash-trend-grid">'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Clientes na carteira</span><div class="dash-trend-value">'+dashboardReportClients.length+'</div><div class="dash-trend-sub">'+(segmentOptions.length)+' segmentos na base</div></div>'
-    + '<div class="dash-trend-item"><span class="dash-trend-label">Projetos ativos</span><div class="dash-trend-value">'+activeCards.length+'</div><div class="dash-trend-sub">'+dashboardCardsAll.filter(c=>c.isConcluded).length+' concluído(s) no filtro</div></div>'
+    + '<div class="dash-trend-item"><span class="dash-trend-label">Projetos ativos</span><div class="dash-trend-value">'+activeCards.length+'</div><div class="dash-trend-sub">'+dashboardCardsAll.filter(c=>cardStatus(c).key==='concluido').length+' concluído(s) no filtro</div></div>'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Horas realizadas</span><div class="dash-trend-value">'+minToHM(totalWorked)+'</div><div class="dash-trend-sub">agendas concluídas no período</div></div>'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Utilização contratada</span><div class="dash-trend-value">'+utilization+'%</div><div class="dash-trend-sub">'+minToHM(totalUsed)+' usadas de '+minToHM(totalContract)+'</div></div>'
     + '</div>';
@@ -6804,7 +6909,7 @@ function renderBoardView(){
   });
 
   const activeCardsCount = state.cards
-    .filter(c=>boards.some(b=>b.id===c.boardId) && !c.isConcluded)
+    .filter(c=>boards.some(b=>b.id===c.boardId) && cardIsActive(c))
     .filter(c=>{ const cl=getClient(c.clientId); return !q || clientMatchesQuery(cl, q); }).length;
 
   let html = '<div class="board-summary">'
@@ -6841,6 +6946,7 @@ function renderBoardView(){
       cards = cards.concat(cardsInBoard(b.id).filter(c=>c.listId===list.id));
     });
     if(q){ cards = cards.filter(c=>{ const cl=getClient(c.clientId); return clientMatchesQuery(cl, q); }); }
+    cards = sortCardsManual(cards);
     if(ui.boardSortBy==='client-name'){
       cards.sort((a,b)=>{
         const na = getClient(a.clientId)?.name || '';
@@ -6920,7 +7026,7 @@ function renderCardMini(card, listName, filterId){
   }
   if(ui.boardCardView==='compact'){
     return '<div class="card-mini card-mini-compact'+(card.isConcluded?' done':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';">'
-      + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+'</div>'
+      + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
       + (analyst
         ? '<div class="card-meta analyst-meta">'+(analyst.photo ? analystAvatar(analyst,18) : '<span class="analyst-dot" style="background:'+analyst.color+'"></span>')+'<span>'+esc(analyst.name)+'</span></div>'
         : '')
@@ -6937,7 +7043,7 @@ function renderCardMini(card, listName, filterId){
   return '<div class="card-mini'+(card.isConcluded?' done':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';">'
     + '<span class="badge" style="background:'+typeInfo.badgeBg+';color:'+typeInfo.badgeColor+';align-self:flex-start;">'+esc(typeInfo.label)+'</span>'
     + (chips? '<div class="chip-row">'+chips+'</div>' : '')
-    + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+'</div>'
+    + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
     + ((filterId==='all' && analyst)
       ? '<div class="card-meta analyst-meta">'+(analyst.photo ? analystAvatar(analyst,18) : '<span class="analyst-dot" style="background:'+analyst.color+'"></span>')+'<span>'+esc(analyst.name)+'</span></div>'
       : '')
@@ -6970,7 +7076,7 @@ function renderCardModalContent(card){
   let html = '<div class="modal-header" style="border-left:4px solid '+typeInfo.accent+';padding-left:12px;">'
     + '<div style="flex:1;">'
     + '<span class="badge" style="background:'+typeInfo.badgeBg+';color:'+typeInfo.badgeColor+';">'+esc(typeInfo.label)+'</span>'
-    + '<h3 style="margin-top:4px;">'+esc(client? client.name : '(cliente removido)')+(card.isConcluded?' <span class="badge concluida" style="vertical-align:middle;">Concluído</span>':'')+'</h3>'
+    + '<h3 style="margin-top:4px;">'+esc(client? client.name : '(cliente removido)')+(cardStatus(card).key==='concluido'?' <span class="badge concluida" style="vertical-align:middle;">Concluído</span>':' '+cardStatusBadge(card))+'</h3>'
     + '<div class="card-modal-meta"><span style="display:inline-flex;align-items:center;gap:6px;">Analista: '+(analyst?analystAvatar(analyst,20):'')+esc(analyst?analyst.name:'—')+'</span>'+(card.commercialDate?'<span>Comercial: '+fmtDateBR(card.commercialDate)+(card.commercialTime?' às '+esc(card.commercialTime):'')+'</span>':'')+(card.expectedStartDate?'<span>Início previsto: '+fmtDateBR(card.expectedStartDate)+'</span>':'')+(card.expectedEndDate?'<span>Fim previsto: '+fmtDateBR(card.expectedEndDate)+'</span>':'')+'<span>Início: '+fmtDateBR(card.startDate)+'</span>'+(card.conclusionDate?'<span>Conclusão: '+fmtDateBR(card.conclusionDate)+'</span>':'')+'</div>'
     + '</div><button class="modal-close" data-action="close-card">✕</button></div>';
 
@@ -7003,7 +7109,7 @@ function renderCardModalContent(card){
     { const fc = cardForecast(card), st = cardStaleInfo(card);
       html += '<div class="hint" style="margin:-4px 0 12px;display:flex;gap:6px 14px;flex-wrap:wrap;">'
         + '<span>🔮 <strong>Previsão de término:</strong> '+(fc.date ? fmtDateBR(fc.date) : '—')+(fc.note ? ' ('+esc(fc.note)+')' : '')+'</span>'
-        + '<span>🕓 <strong>Última movimentação:</strong> '+fmtDateBR(cardLastActivityISO(card))+'</span>'
+        + '<span>🕓 <strong>Última movimentação:</strong> '+(cardLastActivityISO(card) ? fmtDateBR(cardLastActivityISO(card)) : '—')+'</span>'
         + (st ? '<span class="attn-flag attn-stale">⏸ parado há '+st.days+' dias</span>' : '')
         + '</div>'; }
     html += renderCsatCardBlock(card);
@@ -7258,13 +7364,20 @@ function copyTextToClipboard(text){
   }
   return Promise.resolve(copyTextToClipboardFallback(text));
 }
+/* Último recurso quando nem a Clipboard API nem execCommand funcionam:
+   mostra o texto numa caixa visível, já selecionada, para o usuário copiar. */
+function showCopyDialog(message, text){
+  ui.confirmDialog = {message, onConfirm:null, alertOnly:true, copyText:text};
+  render();
+  setTimeout(function(){ const t=document.getElementById('copy-fallback-text'); if(t){ t.focus(); t.select(); } }, 30);
+}
+/* Preferência: navigator.clipboard; execCommand só como fallback legado. */
 function copyTextToClipboardFallback(text){
   try{
     const ta = document.createElement('textarea');
     ta.value = text;
-    ta.style.position = 'fixed';
-    ta.style.left = '-9999px';
-    ta.style.top = '0';
+    ta.setAttribute('readonly','');
+    ta.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;';
     document.body.appendChild(ta);
     ta.focus();
     ta.select();
@@ -8004,8 +8117,8 @@ function renderReportsView(){
   const totalContratadas = totalContractedForReporting(allCards);
   const totalUsadas = allCards.reduce((s,c)=> s + cardUsedMinutes(c)/60, 0);
   const saldoTotal = totalContratadas - totalUsadas;
-  const clientesAtivos = new Set(allCards.filter(c=>!c.isConcluded).map(c=>c.clientId)).size;
-  const cardsConcluidos = allCards.filter(c=>c.isConcluded).length;
+  const clientesAtivos = new Set(allCards.filter(c=>cardIsActive(c)).map(c=>c.clientId)).size;
+  const cardsConcluidos = allCards.filter(c=>cardStatus(c).key==='concluido').length;
   const pendentes = pendingConfirmations(null).length;
   const usoPct = totalContratadas ? Math.min(100, (totalUsadas/totalContratadas)*100) : 0;
 
@@ -8075,7 +8188,7 @@ function renderReportsView(){
     const client=getClient(c.clientId), board=getBoard(c.boardId), analyst=board?getAnalyst(board.analystId):null;
     const used = cardUsedMinutes(c)/60, bal = cardBalanceForReporting(c);
     const pct = c.contractedHours ? Math.min(100, Math.max(0,(used/c.contractedHours)*100)) : 0;
-    rows.push({ client, analyst, used, bal, contracted: cardContractedForReporting(c), pct, concluded: c.isConcluded });
+    rows.push({ client, analyst, used, bal, contracted: cardContractedForReporting(c), pct, concluded: c.isConcluded, cstatus: cardStatus(c) });
   });
   state.clients.forEach(cl=>{
     if(state.cards.some(c=>c.clientId===cl.id)) return;
@@ -8155,7 +8268,7 @@ function renderReportsView(){
         + '<td><div class="report-client-cell">'
         +   '<span class="report-client-dot" style="background:'+(r.analyst?r.analyst.color:'var(--ink-faint)')+'"></span>'
         +   '<div><div class="report-client-name">'+esc(r.client?r.client.name:'—')+'</div>'
-        +   (r.concluded ? '<span class="report-tag ok">Concluído</span>' : (r.onlyInternal ? '<span class="report-tag gold">Só interna</span>' : '<span class="report-tag info">Em andamento</span>'))
+        +   (r.cstatus && r.cstatus.key==='concluido' ? '<span class="report-tag ok">Concluído</span>' : (r.cstatus && (r.cstatus.key==='parado'||r.cstatus.key==='cancelado') ? '<span class="report-tag '+(r.cstatus.key==='cancelado'?'danger':'gold')+'">'+r.cstatus.label+'</span>' : (r.onlyInternal ? '<span class="report-tag gold">Só interna</span>' : '<span class="report-tag info">Ativo</span>')))
         +   '</div></div></td>'
         + '<td>'+(r.analyst ? esc(r.analyst.name) : '<span style="color:var(--ink-faint);">—</span>')+'</td>'
         + '<td class="num">'+(r.onlyInternal? '—' : (r.contracted+'h'))+'</td>'
@@ -8388,7 +8501,7 @@ function renderReportsView(){
       if(ui.reportsClientFilter!=='all') scheds = scheds.filter(s=> s.clientId===ui.reportsClientFilter);
       const totalMin = scheds.reduce((sum,s)=> sum + scheduleMinutesPerAnalyst(s), 0);
       const board = boardOfAnalyst(a.id);
-      let cardCount = board ? cardsInBoard(board.id).filter(c=>!c.isConcluded) : [];
+      let cardCount = board ? cardsInBoard(board.id).filter(c=>cardIsActive(c)) : [];
       if(ui.reportsClientFilter!=='all') cardCount = cardCount.filter(c=> c.clientId===ui.reportsClientFilter);
       cardCount = cardCount.length;
       return {a, scheds, totalMin, cardCount};
@@ -8456,11 +8569,9 @@ function renderReportsView(){
     +   '<p class="report-section-desc">Em qual estágio cada cliente está no quadro do analista responsável.'+(ui.reportsClientFilter!=='all'?' Filtrado para o cliente selecionado acima.':'')+'</p>'
     + '</div>'
     + '</div>';
-  const distribuicaoStatus = ['ativos','todos','concluidos'].includes(ui.distribuicaoStatus) ? ui.distribuicaoStatus : 'ativos';
+  const distribuicaoStatus = ['ativos','todos','concluidos','parados','cancelados'].includes(ui.distribuicaoStatus) ? ui.distribuicaoStatus : 'ativos';
   html += '<div class="field" style="max-width:240px;margin-bottom:14px;"><label>Situação do card</label><select id="distribuicao-status-filter" data-action="distribuicao-status-filter">'
-    + '<option value="ativos" '+(distribuicaoStatus==='ativos'?'selected':'')+'>Ativos</option>'
-    + '<option value="todos" '+(distribuicaoStatus==='todos'?'selected':'')+'>Todos</option>'
-    + '<option value="concluidos" '+(distribuicaoStatus==='concluidos'?'selected':'')+'>Concluídos</option>'
+    + cardStatusFilterOptions(distribuicaoStatus)
     + '</select></div>';
   if(!state.analysts.length){
     html += '<div class="report-empty">Nenhum analista cadastrado.</div>';
@@ -8470,8 +8581,10 @@ function renderReportsView(){
       const board = boardOfAnalyst(a.id);
       let cards = board ? cardsInBoard(board.id) : [];
       if(ui.reportsClientFilter!=='all') cards = cards.filter(c=> c.clientId===ui.reportsClientFilter);
-      if(distribuicaoStatus==='ativos') cards = cards.filter(c=>!c.isConcluded);
-      else if(distribuicaoStatus==='concluidos') cards = cards.filter(c=>c.isConcluded);
+      if(distribuicaoStatus==='ativos') cards = cards.filter(c=>cardIsActive(c));
+      else if(distribuicaoStatus==='concluidos') cards = cards.filter(c=>cardStatus(c).key==='concluido');
+      else if(distribuicaoStatus==='parados') cards = cards.filter(c=>cardStatus(c).key==='parado');
+      else if(distribuicaoStatus==='cancelados') cards = cards.filter(c=>cardStatus(c).key==='cancelado');
       return {a, board, cards};
     });
     const distAccessor = (r,key)=>{
@@ -8490,7 +8603,7 @@ function renderReportsView(){
     sortedDistRows.forEach(({a, board, cards})=>{
       const names = cards.map(c=>{
         const cl=getClient(c.clientId); const list = board.lists.find(l=>l.id===c.listId);
-        return '<div style="margin:3px 0;"><strong>'+esc(cl?cl.name:'—')+'</strong> <span class="report-tag info">'+esc(list?list.name:'')+'</span>'+(c.isConcluded?' <span class="report-tag ok">Concluído</span>':'')+'</div>';
+        return '<div style="margin:3px 0;"><strong>'+esc(cl?cl.name:'—')+'</strong> <span class="report-tag info">'+esc(list?list.name:'')+'</span>'+(cardStatus(c).key!=='ativo'?' <span class="report-tag '+(cardStatus(c).key==='concluido'?'ok':'info')+'">'+cardStatus(c).label+'</span>':'')+'</div>';
       });
       html += '<tr'+(a.inactive?' style="opacity:.55;"':'')+'>'
         + '<td><div class="report-client-cell">'
@@ -8743,7 +8856,7 @@ function renderClientBalancePrintReport(clientId){
       totalUsadasMin += usadasMin;
       totalSaldo += saldo;
       html += '<tr>'
-        + '<td>'+(c.isConcluded ? 'Concluído' : 'Em andamento')+'</td>'
+        + '<td>'+cardStatus(c).label+'</td>'
         + '<td>'+contratadas.toFixed(1)+'h</td>'
         + '<td>'+minToHM(usadasMin)+'</td>'
         + '<td>'+minToHM(saldo*60)+'</td>'
@@ -10693,7 +10806,7 @@ function renderAgendaPrintReport(scheduleId){
   html += '<div class="agenda-print-grid">'
     +   '<div class="agenda-print-field"><span class="lbl">Cliente</span><span class="val">'+esc(client ? client.name : 'Interno / sem cliente')+(client && client.code ? ' <span style="color:var(--ink-faint);font-weight:500;">('+esc(client.code)+')</span>' : '')+'</span></div>'
     +   '<div class="agenda-print-field"><span class="lbl">Analista(s) responsável(is)</span><span class="val">'+analystNames+'</span></div>'
-    +   (card ? '<div class="agenda-print-field"><span class="lbl">Card vinculado</span><span class="val">'+esc(card.isConcluded ? 'Concluído em '+fmtDateBR(card.conclusionDate) : 'Em andamento')+'</span></div>' : '')
+    +   (card ? '<div class="agenda-print-field"><span class="lbl">Card vinculado</span><span class="val">'+esc(cardStatus(card).key==='concluido' ? 'Concluído em '+fmtDateBR(card.conclusionDate) : (cardStatus(card).key==='ativo' ? 'Ativo' : cardStatus(card).label))+'</span></div>' : '')
     +   '<div class="agenda-print-field"><span class="lbl">Tipo / Categoria</span><span class="val">'+esc(tipoLabel)+' <span class="agenda-print-tag muted" style="margin-left:6px;">'+categoriaLabel+'</span></span></div>'
     +   (contactTypeLabel(s.contactType) ? '<div class="agenda-print-field"><span class="lbl">Tipo de contato</span><span class="val">'+esc(contactTypeLabel(s.contactType))+'</span></div>' : '')
     + '</div>';
@@ -11199,6 +11312,18 @@ function renderScheduleForm(m){
 /* ============================= EVENT HANDLING ============================= */
 function closeModal(){ ui.modal=null; ui.formErr=''; ui.formSuccess=''; render(); }
 function showConfirm(message, onConfirm){ ui.confirmDialog = {message, onConfirm, alertOnly:false}; render(); }
+/* Aviso leve, não bloqueante: some sozinho depois de alguns segundos. */
+function showToast(message, kind){
+  try{
+    let box = document.getElementById('app-toasts');
+    if(!box){ box = document.createElement('div'); box.id = 'app-toasts'; box.setAttribute('role','status'); document.body.appendChild(box); }
+    const t = document.createElement('div');
+    t.className = 'app-toast'+(kind ? ' '+kind : '');
+    t.textContent = message;
+    box.appendChild(t);
+    setTimeout(function(){ if(t.parentNode) t.parentNode.removeChild(t); }, 7000);
+  }catch(e){}
+}
 function showAlert(message){ ui.confirmDialog = {message, onConfirm:null, alertOnly:true}; render(); }
 /* Dica do campo "Usuários treinados": aparece como um balão (pop-up) solto
    na tela, SEM passar por render() — então não redesenha a página, não tira
@@ -11394,11 +11519,14 @@ function showPdfGenOverlay(){
   const el = document.createElement('div');
   el.className = 'pdf-gen-overlay';
   el.id = 'pdf-gen-overlay';
-  el.innerHTML = '<div class="pdf-gen-spinner"></div><div>Gerando PDF…</div>';
+  el.innerHTML = '<div class="pdf-gen-spinner"></div><div>Gerando PDF… <span id="pdf-gen-secs">0s</span></div><div style="font-weight:400;font-size:12.5px;opacity:.85;">Relatórios grandes podem levar alguns segundos. Não feche esta janela.</div>';
   document.body.appendChild(el);
+  const t0 = Date.now();
+  el._timer = setInterval(function(){ const sp = document.getElementById('pdf-gen-secs'); if(sp) sp.textContent = Math.round((Date.now()-t0)/1000)+'s'; }, 1000);
   return el;
 }
 function removePdfGenOverlay(el){
+  if(el && el._timer) clearInterval(el._timer);
   if(el && el.parentNode) el.parentNode.removeChild(el);
 }
 function nextPaint(){
@@ -11465,6 +11593,7 @@ function renderConfirmDialog(){
     : '<button class="btn btn-ghost" data-action="confirm-cancel">Cancelar</button><button class="btn btn-primary" data-action="confirm-ok">Confirmar</button>';
   return '<div class="overlay confirm-overlay"><div class="modal" style="max-width:420px;">'
     + '<p style="margin:4px 0 18px;white-space:pre-line;">'+esc(d.message)+'</p>'
+    + (d.copyText ? '<textarea id="copy-fallback-text" readonly rows="6" style="width:100%;margin:-6px 0 14px;font:12px/1.4 monospace;">'+esc(d.copyText)+'</textarea>' : '')
     + '<div class="form-actions">'+buttons+'</div></div></div>';
 }
 
@@ -11708,14 +11837,14 @@ document.addEventListener('click', async function(e){
   else if(a==='commercial-report-email-copy'){
     const payload = (ui.modal && ui.modal.payload) ? ui.modal.payload : {};
     copyTextToClipboard(payload.body||'').then(function(ok){
-      showAlert(ok ? 'Texto copiado! Cole no seu e-mail, Teams ou WhatsApp.' : 'Não foi possível copiar automaticamente. Toque/clique na mensagem para selecionar tudo e use Ctrl+C (ou Cmd+C).');
+      if(ok) showAlert('Texto copiado! Cole no seu e-mail, Teams ou WhatsApp.'); else showCopyDialog('Não foi possível copiar automaticamente. Selecione o texto abaixo e use Ctrl+C (ou Cmd+C).', payload.body||'');
     });
   }
   else if(a==='analyst-ics-copy'){
     const an = getAnalyst(el.dataset.id);
     if(an){
       copyTextToClipboard(icsFeedUrl(an)).then(function(ok){
-        showAlert(ok ? 'Link copiado! Cole no Outlook/Teams em "Adicionar calendário > Assinar da internet".' : 'Não foi possível copiar automaticamente. Clique no campo do link pra selecionar tudo e use Ctrl+C (ou Cmd+C).');
+        if(ok) showAlert('Link copiado! Cole no Outlook/Teams em "Adicionar calendário > Assinar da internet".'); else showCopyDialog('Não foi possível copiar automaticamente. Selecione o link abaixo e use Ctrl+C (ou Cmd+C).', icsFeedUrl(an));
       });
     }
   }
@@ -11752,7 +11881,7 @@ document.addEventListener('click', async function(e){
       window.open(buildOutlookComposeUrl(subject, body), '_blank');
     } else {
       copyTextToClipboard(body).then(function(ok){
-        showAlert(ok ? 'Texto copiado! Cole no seu e-mail, Teams ou WhatsApp.' : 'Não foi possível copiar automaticamente neste navegador.');
+        if(ok) showAlert('Texto copiado! Cole no seu e-mail, Teams ou WhatsApp.'); else showCopyDialog('Não foi possível copiar automaticamente. Selecione o texto abaixo e use Ctrl+C (ou Cmd+C).', body);
       });
     }
   }
@@ -12186,7 +12315,7 @@ document.addEventListener('click', async function(e){
     ui.modal = { type:'schedule-new', prefillDate: el.dataset.date, prefillStart: pad(startH)+':'+pad(startM), prefillEnd: pad(endH===24?23:endH)+':'+(endM===60?'59':pad(endM)), prefillAnalyst: ui.calAnalyst!=='all' ? ui.calAnalyst : undefined };
     render();
   }
-  else if(a==='toggle-show-pass'){ const id = el.dataset.id; const a2 = getAnalyst(id); if(a2) alert(isHashedPassword(a2.password) ? 'Esta senha está protegida (hash) e não pode ser exibida. Use "Editar" para definir uma nova senha.' : 'Senha: '+(a2.password||'(vazia)')); }
+  else if(a==='toggle-show-pass'){ const id = el.dataset.id; const a2 = getAnalyst(id); if(a2) showAlert(isHashedPassword(a2.password) ? 'Esta senha está protegida (hash) e não pode ser exibida. Use "Editar" para definir uma nova senha.' : 'Senha: '+(a2.password||'(vazia)')); }
   else if(a==='internal-answer-yes'){
     const payload = ui.modal && ui.modal.payload ? ui.modal.payload : {};
     const s = byId(state.schedules, payload.scheduleId);
@@ -12588,7 +12717,35 @@ document.addEventListener('keydown', function(e){
     if(btn) btn.click();
   }
   if(e.key==='Enter' && e.target.id==='login-pass'){ doLogin(); }
+  appShortcuts(e);
 });
+/* Atalhos: Esc fecha o diálogo do topo; Ctrl/Cmd+S salva o formulário aberto;
+   Ctrl/Cmd+K foca a busca da tela atual. */
+function topOverlayEl(){
+  return document.querySelector('.overlay.confirm-overlay') || document.querySelector('.overlay:not(.card-overlay):not(.confirm-overlay)') || document.querySelector('.overlay.card-overlay');
+}
+function appShortcuts(e){
+  if(!currentUser) return;
+  if(e.key==='Escape'){
+    const ov = topOverlayEl();
+    if(!ov) return;
+    const btn = ov.querySelector('.modal-close') || ov.querySelector('[data-action="confirm-cancel"]') || ov.querySelector('[data-action="confirm-ok"]');
+    if(btn){ e.preventDefault(); btn.click(); }
+    return;
+  }
+  const mod = e.ctrlKey || e.metaKey;
+  if(mod && (e.key==='s' || e.key==='S')){
+    const ov = topOverlayEl();
+    const form = ov && ov.querySelector('form[data-form]');
+    if(form){ e.preventDefault(); if(form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); }
+    return;
+  }
+  if(mod && (e.key==='k' || e.key==='K')){
+    if(topOverlayEl()) return;
+    const inp = document.getElementById('search-input') || document.getElementById('client-search-input') || document.getElementById('faq-search-input');
+    if(inp){ e.preventDefault(); inp.focus(); inp.select(); }
+  }
+}
 
 /* ====================== GESTO DE ARRASTAR PARA ABRIR O MENU (MOBILE) ======================
    Padrão comum de app mobile: arrastar a partir da borda esquerda da tela pra
@@ -13345,6 +13502,7 @@ document.addEventListener('dragend', function(e){
   document.body.classList.remove('dragging-dash');
   document.querySelectorAll('.dash-drop-target').forEach(x=>x.classList.remove('dash-drop-target'));
   const card = e.target.closest('.card-mini'); if(card) card.classList.remove('dragging');
+  document.querySelectorAll('.card-mini.drop-before,.card-mini.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after'));
   const evt = e.target.closest('.cal-tg-event'); if(evt) evt.classList.remove('dragging');
   document.body.classList.remove('dragging-sched');
 });
@@ -13355,7 +13513,13 @@ document.addEventListener('dragover', function(e){
     if(t){ e.preventDefault(); t.classList.add('dash-drop-target'); }
     return;
   }
-  const list = e.target.closest('.list-cards'); if(list){ e.preventDefault(); list.classList.add('drag-over'); return; }
+  const list = e.target.closest('.list-cards'); if(list){
+    e.preventDefault(); list.classList.add('drag-over');
+    document.querySelectorAll('.card-mini.drop-before,.card-mini.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after'));
+    const over = e.target.closest('.card-mini');
+    if(over && !over.classList.contains('dragging')){ const r = over.getBoundingClientRect(); over.classList.add(e.clientY < r.top + r.height/2 ? 'drop-before' : 'drop-after'); }
+    return;
+  }
   const chip = e.target.closest('.cal-reassign-chip'); if(chip){ e.preventDefault(); chip.classList.add('drag-over'); return; }
   const daycol = e.target.closest('.cal-tg-daycol'); if(daycol){ e.preventDefault(); daycol.classList.add('drag-over'); }
 });
@@ -13377,14 +13541,28 @@ document.addEventListener('drop', function(e){
   if(list){
     e.preventDefault(); list.classList.remove('drag-over');
     const payload = e.dataTransfer.getData('text/plain');
+    const overEl = e.target.closest('.card-mini');
+    let refId = '', before = true;
+    if(overEl && overEl.dataset.cardId && overEl.dataset.cardId!==payload){ refId = overEl.dataset.cardId; const rr = overEl.getBoundingClientRect(); before = e.clientY < rr.top + rr.height/2; }
+    document.querySelectorAll('.card-mini.drop-before,.card-mini.drop-after').forEach(x=>x.classList.remove('drop-before','drop-after'));
     if(payload && !payload.startsWith('sched:')){
       const card = getCard(payload);
       if(card){
         const listName = list.dataset.unifiedListName;
+        const _srcB = getBoard(card.boardId), _srcL = _srcB ? byId(_srcB.lists, card.listId) : null;
+        if(_srcL && _srcL.name===listName){
+          /* mesma lista: só reordena */
+          if(typeof isManagerUser==='function' && isManagerUser()) return;
+          if(ui.boardSortBy!=='default'){ ui.boardSortBy = 'default'; }
+          placeCardAt(card.id, listName, refId, before); persist(); render();
+          return;
+        }
         const targetBoard = getBoard(card.boardId);
         const targetList = targetBoard && targetBoard.lists.find(l=>l.name===listName);
         if(targetList){
           const r = moveCard(payload, targetBoard.id, targetList.id);
+          if(ui.boardSortBy!=='default') ui.boardSortBy = 'default';
+          placeCardAt(card.id, listName, refId, before);
           if(r && r.enteredCommercial){
             ui.modal = {type:'commercial-report-form', payload:{cardId: card.id, reportId: null}};
             render(); return;
@@ -13705,6 +13883,9 @@ function renderCardDetailOverlay(){
 }
 const _origRender = render;
 render = function(){
+  /* Ao trocar de modal (por qualquer caminho), mensagens de erro/sucesso do anterior não vazam. */
+  const sig = ui.modal ? [ui.modal.type, ui.modal.id||'', ui.modal.card||'', ui.modal.scheduleId||'', ui.modal.cardId||''].join('|') : '';
+  if(sig !== window.__modalSig){ window.__modalSig = sig; ui.formErr = ''; ui.formSuccess = ''; }
   _origRender();
   if(ui.openCardId){ renderCardDetailOverlay(); } else { const ex=document.getElementById('card-detail-overlay'); if(ex) ex.remove(); }
 };
