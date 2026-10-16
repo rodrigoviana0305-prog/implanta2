@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>NEO - Gestão de Implantação</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2F5D50">
@@ -175,6 +175,7 @@ h1,h2,h3,h4{ font-family:var(--font-head); margin:0; color:var(--ink); }
 
 .overlay{ position:fixed; inset:0; background:rgba(15,20,17,.5); display:flex; align-items:flex-start; justify-content:center; padding:5vh 16px; overflow-y:auto; z-index:100; }
 .overlay.card-overlay{ z-index:90; }
+@media (pointer:coarse){ input, select, textarea{ font-size:16px !important; } }
 .overlay.confirm-overlay{ z-index:300; } /* acima do card (90) e dos modais (100): alertas nunca ficam atrás */
 #app-toasts{ position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:400; display:flex; flex-direction:column; gap:8px; align-items:center; width:min(92vw,460px); pointer-events:none; }
 .app-toast{ background:#17324d; color:#fff; padding:10px 14px; border-radius:10px; font-size:13px; box-shadow:0 6px 20px rgba(0,0,0,.25); pointer-events:auto; }
@@ -1698,6 +1699,8 @@ function renderLoginScreen(errorMsg){
 }
 
 async function doLogin(){
+  /* Celular: tira o foco do campo ao entrar, para o navegador não manter o zoom aplicado ao digitar. */
+  try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); window.scrollTo(0,0); }catch(e){}
   const userEl = document.getElementById('login-user');
   const passEl = document.getElementById('login-pass');
   const u = (userEl.value||'').trim().toLowerCase();
@@ -2748,7 +2751,7 @@ async function applyRestoredBackup(data){
 async function boot(){
   if(!currentUser){ document.getElementById('app').innerHTML = renderLoginScreen(); return; }
   if(cloudConfig && !window.supabase){
-    /* O <script> da biblioteca é síncrono: se window.supabase não existe, o CDN falhou. Avisa em vez de ficar "offline" em silêncio. */
+    /* A tag de script da biblioteca é síncrona: se window.supabase não existe, o CDN falhou. Avisa em vez de ficar "offline" em silêncio. */
     cloudStatus = 'error';
     cloudErrorMsg = 'A biblioteca do banco na nuvem não carregou (verifique a internet). Usando os dados salvos neste navegador por enquanto.';
   }
