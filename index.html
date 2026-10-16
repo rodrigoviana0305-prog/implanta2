@@ -1626,8 +1626,14 @@ applyTheme(getTheme());
 
 /* ============================= LOGIN ============================= */
 const LOGIN_KEY = 'implanta_logged_user_v1';
-const MASTER_USER = 'administrador';
-const MASTER_PASS = '71209403';
+/* LOGIN SEGURO: usuário e senha são conferidos no servidor (Supabase Auth). Nenhuma senha fica no código.
+   Cada usuário vira um login "usuario@implanta.realtec.com.br" (e-mail fictício, só para o Auth). */
+const AUTH_EMAIL_DOMAIN = 'implanta.realtec.com.br';
+const ADMIN_EMAIL = 'rsoaresrealtec@gmail.com';   // e-mail real do login do administrador geral no Supabase Auth
+const MASTER_USER = 'administrador';           // apenas o NOME do usuário administrador geral (sem senha aqui)
+/* Fase 1 da migração: quem ainda não tem login seguro entra com a senha antiga (hash) até o administrador
+   definir uma nova senha. Depois da Fase 2 (banco trancado) essa via deixa de dar acesso aos dados. */
+const LEGACY_LOGIN_FALLBACK = true;
 
 var currentUser = null;
 
@@ -1688,8 +1694,8 @@ function renderLoginScreen(errorMsg){
       + '<p class="login-subtitle">Entre com seu usuário para acessar o sistema</p>'
       + (errorMsg ? '<div class="login-error">'+esc(errorMsg)+'</div>' : '')
       + '<form id="login-form" onsubmit="event.preventDefault();doLogin();">'
-        + '<div class="field"><label>Usuário</label><input type="text" id="login-user" placeholder="Digite seu usuário" autocomplete="username" autofocus></div>'
-        + '<div class="field"><label>Senha</label><input type="password" id="login-pass" placeholder="Digite sua senha" autocomplete="current-password"></div>'
+        + '<div class="field"><label>Usuário</label><input type="text" id="login-user" placeholder="Digite seu usuário" autocomplete="username" style="font-size:16px"'+(isTouchDevice() ? '' : ' autofocus')+'></div>'
+        + '<div class="field"><label>Senha</label><input type="password" id="login-pass" placeholder="Digite sua senha" autocomplete="current-password" style="font-size:16px"></div>'
         + '<button type="submit" class="btn btn-primary">Entrar</button>'
       + '</form>'
       + '<img src="https://realtec.com.br/wp-content/uploads/2018/03/logorealtec.png" alt="Realtec" class="login-footer-logo">'
@@ -1698,6 +1704,25 @@ function renderLoginScreen(errorMsg){
   + '</div>';
 }
 
+/* Celular/tablet (toque): evita autofoco e zoom ao digitar. */
+function isTouchDevice(){ try{ return !!(window.matchMedia && window.matchMedia('(pointer:coarse)').matches); }catch(e){ return false; } }
+/* Se o navegador do celular deu zoom ao focar um campo, desfaz o zoom quando o campo perde o foco
+   (e quando o visualViewport indica escala > 1), forçando o viewport a ser reavaliado. */
+function resetMobileZoom(){
+  try{
+    const vv = window.visualViewport;
+    if(vv && vv.scale && vv.scale <= 1.01) return;
+    const m = document.querySelector('meta[name=viewport]'); if(!m) return;
+    const base = 'width=device-width, initial-scale=1.0, maximum-scale=1.0';
+    m.setAttribute('content', base + ', minimum-scale=1.0');
+    setTimeout(function(){ m.setAttribute('content', base); }, 120);
+  }catch(e){}
+}
+document.addEventListener('focusout', function(e){
+  const t = e.target;
+  if(t && /^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) && isTouchDevice()) setTimeout(resetMobileZoom, 60);
+});
+try{ if(window.visualViewport) window.visualViewport.addEventListener('resize', function(){ if(isTouchDevice()) resetMobileZoom(); }); }catch(e){}
 async function doLogin(){
   /* Celular: tira o foco do campo ao entrar, para o navegador não manter o zoom aplicado ao digitar. */
   try{ if(document.activeElement && document.activeElement.blur) document.activeElement.blur(); window.scrollTo(0,0); }catch(e){}
@@ -1707,25 +1732,96 @@ async function doLogin(){
   const p = passEl.value||'';
 
   if(!u || !p){ document.getElementById('app').innerHTML = renderLoginScreen('Preencha usuário e senha.'); return; }
-  if(u === MASTER_USER && p === MASTER_PASS){
-    setStoredUser({username:MASTER_USER, displayName:'Administrador', role:'admin', isMaster:true});
+  const sec = await authLogin(u, p);
+  if(sec.ok){
+    setStoredUser({ username: u, displayName: sec.displayName, role: sec.role, analystId: sec.analystId||undefined,
+      isAdmin: sec.role==='admin', isMaster: sec.role==='admin' && !sec.analystId, secure: true });
     document.getElementById('app').innerHTML = '';
     boot();
     return;
   }
-  const analyst = state.analysts.find(a=> a.username && a.username.toLowerCase() === u);
-  if(analyst){
-    if(analyst.inactive){ document.getElementById('app').innerHTML = renderLoginScreen('Este usuário está inativo. Fale com o administrador.'); return; }
-    if(!analyst.password || !(await passwordMatches(analyst.password, p))){ document.getElementById('app').innerHTML = renderLoginScreen('Usuário ou senha inválidos. Tente novamente.'); return; }
-    setStoredUser({ username: analyst.username, displayName: analyst.name, role: analyst.isAdmin ? 'admin' : (analyst.isManager ? 'gestor' : 'analyst'), analystId: analyst.id, isAdmin: !!analyst.isAdmin });
-    document.getElementById('app').innerHTML = '';
-    boot();
-    return;
+  if(sec.reason==='banned'){ document.getElementById('app').innerHTML = renderLoginScreen('Este usuário está inativo. Fale com o administrador.'); return; }
+  if(LEGACY_LOGIN_FALLBACK){
+    const analyst = state.analysts.find(a=> a.username && a.username.toLowerCase() === u);
+    if(analyst && analyst.password){
+      if(analyst.inactive){ document.getElementById('app').innerHTML = renderLoginScreen('Este usuário está inativo. Fale com o administrador.'); return; }
+      if(await passwordMatches(analyst.password, p)){
+        setStoredUser({ username: analyst.username, displayName: analyst.name, role: analyst.isAdmin ? 'admin' : (analyst.isManager ? 'gestor' : 'analyst'), analystId: analyst.id, isAdmin: !!analyst.isAdmin, secure: false });
+        document.getElementById('app').innerHTML = '';
+        boot();
+        return;
+      }
+    }
   }
+  if(sec.reason==='network'){ document.getElementById('app').innerHTML = renderLoginScreen('Não foi possível falar com o servidor. Verifique a internet e tente de novo.'); return; }
   document.getElementById('app').innerHTML = renderLoginScreen('Usuário ou senha inválidos. Tente novamente.');
 }
 
-function logout(){ stopRealtimeSync(); setStoredUser(null); ui.showUserMenu=false; ui.showNotif=false; document.getElementById('app').innerHTML = renderLoginScreen(); }
+/* ---------- Autenticação no servidor (Supabase Auth) ---------- */
+function authEmail(u){
+  u = String(u||'').trim().toLowerCase();
+  if(u === MASTER_USER || u === ADMIN_EMAIL) return ADMIN_EMAIL;   // administrador geral entra com o nome ou com o e-mail
+  if(u.indexOf('@') > -1) return u;
+  return u + '@' + AUTH_EMAIL_DOMAIN;
+}
+var sbShared = null;
+/* Cliente Supabase ÚNICO (login, dados, sincronização e funções usam a mesma sessão). */
+function getSb(){
+  if(sbShared) return sbShared;
+  if(!cloudConfig || !cloudConfig.url || !window.supabase) return null;
+  try{
+    sbShared = window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey, { auth:{ persistSession:true, autoRefreshToken:true, storageKey:'implanta_auth_v1' } });
+    sbShared.auth.onAuthStateChange(function(ev){
+      if(ev==='SIGNED_OUT' && currentUser && currentUser.secure && !window.__loggingOut){ logout('Sua sessão terminou. Entre novamente.'); }
+    });
+  }catch(e){ console.warn('Falha ao criar o cliente Supabase', e); sbShared = null; }
+  return sbShared;
+}
+async function authLogin(u, p){
+  const sb = getSb();
+  if(!sb) return { ok:false, reason:'nocloud' };
+  try{
+    const r = await sb.auth.signInWithPassword({ email: authEmail(u), password: p });
+    if(r.error){
+      const msg = String(r.error.message||'').toLowerCase();
+      if(msg.indexOf('banned')>=0 || msg.indexOf('suspend')>=0) return { ok:false, reason:'banned' };
+      if(r.error.status===0 || msg.indexOf('fetch')>=0 || msg.indexOf('network')>=0) return { ok:false, reason:'network' };
+      return { ok:false, reason:'invalid' };
+    }
+    const user = r.data && r.data.user; const am = (user && user.app_metadata) || {}; const um = (user && user.user_metadata) || {};
+    if(!am.role){ try{ await sb.auth.signOut(); }catch(e){} return { ok:false, reason:'invalid' }; }
+    return { ok:true, role: am.role, analystId: am.analyst_id || '', displayName: um.name || (am.role==='admin' ? 'Administrador' : u) };
+  }catch(e){ return { ok:false, reason:'network' }; }
+}
+function isSecureSession(){ return !!(currentUser && currentUser.secure && getSb()); }
+/* Chama a função "neo-admin" do Supabase (somente administradores): cria/atualiza/exclui logins. */
+async function adminCall(action, payload){
+  const sb = getSb(); if(!sb) throw new Error('Sem conexão com a nuvem.');
+  const r = await sb.functions.invoke('neo-admin', { body: Object.assign({ action: action }, payload||{}) });
+  if(r.error){
+    let msg = r.error.message || 'Falha ao chamar o servidor.';
+    try{ const j = await r.error.context.json(); if(j && j.error) msg = j.error; }catch(e){}
+    throw new Error(msg);
+  }
+  return r.data;
+}
+/* Cria/atualiza o login seguro de um analista. Sem senha = só atualiza perfil/situação. */
+async function syncAnalystLogin(a, password){
+  const role = a.isAdmin ? 'admin' : (a.isManager ? 'gestor' : 'analyst');
+  await adminCall('upsert_user', { username: a.username, password: password||undefined, role: role, analystId: a.id, displayName: a.name, inactive: !!a.inactive });
+  a.authReady = true;
+  delete a.password;   // a senha antiga (hash) não é mais necessária
+}
+
+function logout(msg){
+  window.__loggingOut = true;
+  stopRealtimeSync();
+  const wasSecure = !!(currentUser && currentUser.secure);
+  setStoredUser(null); ui.showUserMenu=false; ui.showNotif=false;
+  try{ const sb = getSb(); if(sb && wasSecure) sb.auth.signOut(); }catch(e){}
+  setTimeout(function(){ window.__loggingOut = false; }, 500);
+  document.getElementById('app').innerHTML = renderLoginScreen(typeof msg==='string' ? msg : '');
+}
 
 /* ============================= STATE ============================= */
 const STORAGE_KEY = 'implanta_v1';
@@ -1770,7 +1866,7 @@ function defaultState(){
       {id:uid('at'), name:'Férias', isInternal:true, isServico:false, inactive:false}
     ]
   };
-  const adminAnalyst = {id:uid('an'), name:ADMIN_ANALYST_NAME, color:'#0B5C8E', username:'rodrigo.soares', password:'71209403', isAdmin:true, inactive:false};
+  const adminAnalyst = {id:uid('an'), name:ADMIN_ANALYST_NAME, color:'#0B5C8E', username:'rodrigo.soares', isAdmin:true, inactive:false};
   st.analysts.push(adminAnalyst);
   st.boards.push({id:uid('bd'), name:'Quadro — '+ADMIN_ANALYST_NAME, analystId:adminAnalyst.id, lists:[
     {id:uid('ls'), name:'Fila / Cadastro'},
@@ -1806,7 +1902,7 @@ function ensureAdminAnalyst(s){
   let admin = s.analysts.find(a=> a.isAdmin);
   if(!admin){ admin = s.analysts.find(a=> a.name && a.name.toLowerCase() === ADMIN_ANALYST_NAME.toLowerCase()); }
   if(!admin){
-    admin = {id:uid('an'), name:ADMIN_ANALYST_NAME, color:'#0B5C8E', username:'rodrigo.soares', password:'71209403', isAdmin:true, inactive:false};
+    admin = {id:uid('an'), name:ADMIN_ANALYST_NAME, color:'#0B5C8E', username:'rodrigo.soares', isAdmin:true, inactive:false};
     s.analysts.push(admin);
     s.boards.push({id:uid('bd'), name:'Quadro — '+ADMIN_ANALYST_NAME, analystId:admin.id, lists:[
       {id:uid('ls'), name:'Fila / Cadastro'},{id:uid('ls'), name:'Em implantação'},{id:uid('ls'), name:'Treinamento'},{id:uid('ls'), name:'Concluído'}
@@ -1814,7 +1910,6 @@ function ensureAdminAnalyst(s){
   } else {
     admin.isAdmin = true; admin.inactive = false;
     if(!admin.username) admin.username = 'rodrigo.soares';
-    if(!admin.password) admin.password = '71209403';
   }
   if(!s.boards.some(b=> b.analystId===admin.id)){
     s.boards.push({id:uid('bd'), name:'Quadro — '+admin.name, analystId:admin.id, lists:[
@@ -2551,7 +2646,7 @@ async function connectCloud(url, anonKey){
 }
 function disconnectCloud(){
   stopRealtimeSync();
-  cloudConfig = null; sbClient = null; cloudStatus = 'local'; cloudErrorMsg=''; usingDefaultCloud = false;
+  cloudConfig = null; sbClient = null; sbShared = null; cloudStatus = 'local'; cloudErrorMsg=''; usingDefaultCloud = false;
   localStorage.removeItem(CLOUD_CONFIG_KEY);
   localStorage.setItem(CLOUD_DISABLED_KEY, '1');
   render();
@@ -2750,6 +2845,14 @@ async function applyRestoredBackup(data){
 
 async function boot(){
   if(!currentUser){ document.getElementById('app').innerHTML = renderLoginScreen(); return; }
+  /* Sessão antiga (de antes do login seguro): pede para entrar de novo, uma única vez. */
+  if(currentUser.secure === undefined){ setStoredUser(null); document.getElementById('app').innerHTML = renderLoginScreen('Para sua segurança, entre novamente.'); return; }
+  /* Sessão "segura" salva neste aparelho: só vale se o servidor ainda reconhece o login. */
+  if(currentUser.secure && cloudConfig && window.supabase){
+    let okSession = false;
+    try{ const sb = getSb(); const g = sb && await sb.auth.getSession(); okSession = !!(g && g.data && g.data.session); }catch(e){ okSession = navigator.onLine === false; }
+    if(!okSession){ setStoredUser(null); document.getElementById('app').innerHTML = renderLoginScreen('Sua sessão expirou. Entre novamente.'); return; }
+  }
   if(cloudConfig && !window.supabase){
     /* A tag de script da biblioteca é síncrona: se window.supabase não existe, o CDN falhou. Avisa em vez de ficar "offline" em silêncio. */
     cloudStatus = 'error';
@@ -2757,7 +2860,7 @@ async function boot(){
   }
   if(cloudConfig && window.supabase){
     try{
-      sbClient = window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
+      sbClient = getSb() || window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
       const loaded = await loadStateFromTables(sbClient);
       const localBeforeCloud = loadLocalState();
       const hasAnyData = ENTITY_TABLES.some(({key})=> (loaded[key]||[]).length > 0);
@@ -2816,7 +2919,7 @@ var ui = {
   cardForecastModuleTab: null,
   reportsTab: 'saldo',
   analistasStatusFilter: 'active',
-  distribuicaoStatus: 'ativos',
+  distribuicaoStatus: 'todos',
   prazoAnalyst: 'all',
   tableSort: {},
   reportsDateStart: '',
@@ -2842,7 +2945,7 @@ var ui = {
   dashboardAnalyst: 'all',
   dashboardSegment: 'all',
   dashboardCity: 'all',
-  dashboardStatus: 'ativos',
+  dashboardStatus: 'todos',
   dashboardReorderMode: false,
   dashboardChartYear: String(new Date().getFullYear()),
   dashboardHoursChartTable: false,
@@ -3714,15 +3817,35 @@ function schedulesForCard(cardId){ return state.schedules.filter(s=>scheduleCard
 function cardUsedMinutes(card){ return state.schedules.filter(s=>scheduleCardIds(s).includes(card.id) && s.status==='concluida').reduce((sum,s)=> sum + (s.deductMinutes!=null ? s.deductMinutes : scheduleMinutes(s)), 0); }
 /* Saldo REAL do card em horas (contratado − consumido); 0 se o saldo foi zerado/transferido. */
 function cardBalanceHours(card){ if(card.balanceForfeited) return 0; return (card.contractedHours||0) - cardUsedMinutes(card)/60; }
-/* Contratado para RELATÓRIOS/painel: em card concluído conta só o que foi efetivamente usado. */
+/* ===== REGRA ÚNICA DOS NÚMEROS (Relatórios, Painel Geral, Clientes, impressões e Dashboard da TV) =====
+   Todos os totais de horas/saldo usam SOMENTE as funções abaixo, para que um mesmo número
+   nunca apareça diferente em telas diferentes:
+   - card "encerrado" = marcado como concluído OU na lista Concluído (mesmo critério do status exibido);
+   - saldo p/ relatório: encerrado ou com saldo zerado/transferido = 0; senão contratado − usado;
+   - contratado p/ relatório: o que o saldo implica (usado + saldo), então Contratadas − Usadas = Saldo
+     SEMPRE, em qualquer total (encerrado/zerado conta só o que foi efetivamente usado). */
+function cardIsClosed(card){ return !!card && (!!card.isConcluded || cardStatus(card).key==='concluido'); }
+function cardBalanceForReporting(card){
+  if(!card || cardIsClosed(card) || card.balanceForfeited) return 0;
+  return cardBalanceHours(card);
+}
 function cardContractedForReporting(card){
-  const contracted = Number(card && card.contractedHours || 0);
-  if(!card || !card.isConcluded) return contracted;
-  return Math.min(contracted, cardUsedMinutes(card)/60);
+  if(!card) return 0;
+  if(cardIsClosed(card) || card.balanceForfeited) return cardUsedMinutes(card)/60;
+  return Number(card.contractedHours||0);
 }
 function totalContractedForReporting(cards){ return (cards||[]).reduce((sum,c)=>sum+cardContractedForReporting(c),0); }
-/* Saldo para RELATÓRIOS/painel: card concluído não tem saldo. */
-function cardBalanceForReporting(card){ return card && card.isConcluded ? 0 : cardBalanceHours(card); }
+/* Totais de um conjunto de cards: contratadas e usadas em horas, usadas em minutos e saldo (= contratadas − usadas). */
+function reportTotals(cards){
+  let contracted = 0, usedMin = 0, balance = 0;
+  (cards||[]).forEach(c=>{ contracted += cardContractedForReporting(c); usedMin += cardUsedMinutes(c); balance += cardBalanceForReporting(c); });
+  return { contracted: contracted, usedMin: usedMin, used: usedMin/60, balance: balance };
+}
+/* Saldo do cliente para relatório/lista: soma dos cards pela regra acima. (clientConsolidatedBalanceHours continua
+   existindo só para a importação de saldo ao criar novo card, que precisa enxergar a sobra dos concluídos.) */
+function clientBalanceForReporting(clientId){
+  return state.cards.filter(c=>c.clientId===clientId).reduce((sum,c)=> sum + cardBalanceForReporting(c), 0);
+}
 function cardTypeInfo(client){
   const ctype = client ? (client.clientType||'novo') : 'novo';
   if(ctype==='base') return { label:'Serviço Cliente Base', badgeBg:'var(--brand-soft)', badgeColor:'var(--brand)', accent:'var(--brand)' };
@@ -3826,10 +3949,26 @@ function scheduleDayCount(s){
 function dashHoursPredicate(clientIds, includePending){
   return s => {
     if(!includePending && s.status!=='concluida') return false;   // Painel Geral: só agendas confirmadas
+    if(!clientIds) return true;                                    // sem filtro de cliente/segmento/cidade
     if(isInternalType(s.type)) return true;
     const ids = scheduleClientIds(s);
     return !ids.length || ids.some(cid=>clientIds.has(cid));
   };
+}
+/* A agenda toca o intervalo [start,end]? (agenda de dia todo pode atravessar o intervalo) */
+function scheduleOverlapsRange(s, start, end){
+  if(s.allDay) return (s.endDate||s.date) >= start && s.date <= end;
+  return s.date >= start && s.date <= end;
+}
+/* Horas trabalhadas (min) de TODOS os analistas (exceto Suporte) no intervalo, pela regra única (dia a dia). Painel Geral,
+   Relatórios e Dashboard da TV usam esta mesma conta, então "horas dos analistas" nunca diverge. */
+function workedMinutesAllAnalysts(start, end, pred, onlyAnalystId){
+  return state.analysts.filter(a=>!a.isSupport && (!onlyAnalystId || a.id===onlyAnalystId))
+    .reduce((sum,a)=> sum + analystMinutesInRange(a.id, start, end, pred), 0);
+}
+/* Nº de sessões (agendas) concluídas do analista no intervalo, mesma seleção usada nas horas acima. */
+function analystSessionCount(analystId, start, end, pred){
+  return state.schedules.filter(s=> s.status!=='nao_realizada' && scheduleAnalystIds(s).includes(analystId) && scheduleOverlapsRange(s,start,end) && (!pred || pred(s))).length;
 }
 function analystMinutesInRange(analystId, startISO, endISO, pred){
   let total = 0;
@@ -3895,7 +4034,7 @@ function unlinkedInternalSchedulesForClient(clientId){
   return state.schedules.filter(s=> scheduleClientIds(s).includes(clientId) && !scheduleCardIds(s).length && isInternalType(s.type) && s.status==='concluida');
 }
 function unlinkedInternalMinutesForClient(clientId){
-  return unlinkedInternalSchedulesForClient(clientId).reduce((sum,s)=> sum + scheduleMinutes(s), 0);
+  return unlinkedInternalSchedulesForClient(clientId).reduce((sum,s)=> sum + scheduleActualMinutes(s), 0);
 }
 /* Duração REAL (todos os analistas somados), ignorando deductMinutes. Usar em horas trabalhadas/dashboard. */
 function scheduleActualMinutes(s){
@@ -3910,7 +4049,42 @@ function cardZeroedInternalMinutes(cardId){
   return cardZeroedInternalSchedules(cardId).reduce((sum,s)=> sum + scheduleActualMinutes(s), 0);
 }
 function clientZeroedInternalMinutes(clientId){
-  return state.cards.filter(c=>c.clientId===clientId).reduce((sum,c)=> sum + cardZeroedInternalMinutes(c.id), 0);
+  return naoAbatidoList().filter(s=> scheduleCardIds(s).length && naoAbatidoClientIds(s).includes(clientId))
+    .reduce((sum,s)=> sum + scheduleActualMinutes(s), 0);
+}
+/* ===== HORAS NÃO ABATIDAS: regra única (Relatórios, Painel Geral e Dashboard da TV) =====
+   É "não abatida" a agenda INTERNA concluída que (a) não tem card mas tem cliente, ou (b) tem card e abatimento zerado.
+   Sempre vale a duração REAL (todos os analistas). Cada agenda é contada UMA vez no total, mesmo ligada a vários
+   cards/clientes; no detalhe por cliente ela aparece em cada cliente a que pertence. */
+function naoAbatidoClientIds(s){
+  const cids = scheduleCardIds(s);
+  if(!cids.length) return scheduleClientIds(s);
+  const set = new Set();
+  cids.forEach(id=>{ const c = getCard(id); if(c && c.clientId) set.add(c.clientId); });
+  return [...set];
+}
+function isNaoAbatidoSchedule(s){
+  if(s.status!=='concluida' || !isInternalType(s.type)) return false;
+  return scheduleCardIds(s).length ? s.deductMinutes===0 : scheduleClientIds(s).length>0;
+}
+function naoAbatidoList(opts){
+  opts = opts || {};
+  return state.schedules.filter(s=> isNaoAbatidoSchedule(s)
+    && (!opts.start || scheduleOverlapsRange(s, opts.start, opts.end))
+    && (!opts.analystId || scheduleAnalystIds(s).includes(opts.analystId)));
+}
+function naoAbatidoByClientMap(opts){
+  const m = {};
+  naoAbatidoList(opts).forEach(s=>{ const mins = scheduleActualMinutes(s); naoAbatidoClientIds(s).forEach(cid=>{ m[cid] = (m[cid]||0) + mins; }); });
+  return m;
+}
+/* Total (min) sem duplicar agendas; clientIdSet (opcional) restringe aos clientes dados. */
+function naoAbatidoTotalMinutes(opts, clientIdSet){
+  let t = 0;
+  naoAbatidoList(opts).forEach(s=>{
+    if(!clientIdSet || naoAbatidoClientIds(s).some(id=>clientIdSet.has(id))) t += scheduleActualMinutes(s);
+  });
+  return t;
 }
 
 function renameScreenEverywhere(oldName, newName){
@@ -4998,7 +5172,7 @@ function saveFilterGroup(group){
   } else if(group==='dashboard'){
     const st = ui.dashboardStart || addDaysISO(today,-29), en = ui.dashboardEnd || today;
     all.dashboard = { startOffset: dashDaysBetween(st, today), endOffset: dashDaysBetween(en, today),
-      analyst: ui.dashboardAnalyst||'all', segment: ui.dashboardSegment||'all', city: ui.dashboardCity||'all', status: ui.dashboardStatus||'ativos' };
+      analyst: ui.dashboardAnalyst||'all', segment: ui.dashboardSegment||'all', city: ui.dashboardCity||'all', status: ui.dashboardStatus||'todos' };
   }
   setSavedFilters(all);
 }
@@ -5018,7 +5192,7 @@ function applySavedFiltersOnce(){
   if(sf.dashboard){
     const d = sf.dashboard;
     ui.dashboardStart = addDaysISO(today, -(Number(d.startOffset)||29)); ui.dashboardEnd = addDaysISO(today, -(Number(d.endOffset)||0));
-    ui.dashboardAnalyst = d.analyst||'all'; ui.dashboardSegment = d.segment||'all'; ui.dashboardCity = d.city||'all'; ui.dashboardStatus = d.status||'ativos';
+    ui.dashboardAnalyst = d.analyst||'all'; ui.dashboardSegment = d.segment||'all'; ui.dashboardCity = d.city||'all'; ui.dashboardStatus = d.status||'todos';
   }
 }
 function render(){
@@ -5068,13 +5242,13 @@ function renderSidebar(){
     + '<span>▦</span><span style="flex:1;">Todos os analistas</span>'
     + (totalPendingBoardBadge()? '<span class="side-badge">'+totalPendingBoardBadge()+'</span>' : '')
     + '</button>';
-  state.analysts.filter(a=>!a.inactive && !a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
+  state.analysts.filter(a=>!a.inactive).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
     const myId = myAnalystId();
     const pend = (!myId || a.id===myId) ? notificationItemsForAnalyst(a.id).length : 0;
     const active = ui.view==='board' && ui.boardAnalystFilter===a.id;
     html += '<button class="side-item'+(active?' active':'')+'" data-action="board-analyst-filter" data-id="'+a.id+'">'
       + (a.photo ? analystAvatar(a,22) : '<span class="side-dot" style="background:'+a.color+'"></span>')
-      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+(a.isAdmin?' <span style="font-size:9px;font-weight:800;color:#F0A72F;letter-spacing:.5px;">ADMIN</span>':'')+'</span>'
+      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+(a.isAdmin?' <span style="font-size:9px;font-weight:800;color:#F0A72F;letter-spacing:.5px;">ADMIN</span>':(a.isSupport?' <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.5px;">SUPORTE</span>':(a.isManager?' <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.5px;">GESTOR</span>':'')))+'</span>'
       + (pend? '<span class="side-badge">'+pend+'</span>' : '')
       + '</button>';
   });
@@ -5084,10 +5258,10 @@ function renderSidebar(){
   const totalPend = notifItems().length;
   html += '<div class="side-section"><div class="side-label"><span>Gestão</span></div>';
   html += navItem('calendar','◷','Agenda', totalPend);
-  html += navItem('reports','▥','Relatórios');
   html += navItem('jira','⌁','Requisitos Jira');
   html += navItem('contracts','📄','Contratos de Serviços');
   html += navItem('clients','◉','Cadastros');
+  html += navItem('reports','▥','Relatórios');
   html += navItem('settings','⚙','Configurações');
   html += '<a class="side-item" href="https://realtec.atlassian.net/jira/dashboards/10502" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">'
         + '<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3gH-YxYAuaEuzft15oHDRUdvwwG_422hsdWx-ne2rcQ&s=10" alt="JIRA" style="width:16px;height:16px;object-fit:contain;flex:0 0 auto;border-radius:3px;">'
@@ -5152,8 +5326,8 @@ function renderTopbar(){
         : 'Quadro consolidado • Todos os analistas')+'</div></div>'
       + '<div class="board-tools"><select class="board-analyst-filter" data-action="board-analyst-filter" title="Filtrar analista">'
       + '<option value="all"'+(ui.boardAnalystFilter==='all'?' selected':'')+'>Todos</option>';
-    state.analysts.filter(a=>!a.inactive && !a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
-      left += '<option value="'+a.id+'"'+(ui.boardAnalystFilter===a.id?' selected':'')+'>'+esc(a.name)+'</option>';
+    state.analysts.filter(a=>!a.inactive).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
+      left += '<option value="'+a.id+'"'+(ui.boardAnalystFilter===a.id?' selected':'')+'>'+esc(a.name)+(a.isSupport?' (Suporte)':(a.isManager?' (Gestor)':''))+'</option>';
     });
     left += '</select>'
       + '<div class="search-box" style="margin-left:8px;"><span>🔎</span><input id="search-input" placeholder="Buscar cliente..." value="'+esc(ui.search)+'"></div>'
@@ -5741,6 +5915,8 @@ function renderHoursByMonthChart(activeAnalysts, dashboardClientIds){
   }
 
   const clientPred = dashHoursPredicate(dashboardClientIds);
+  // inativo só entra se trabalhou no ano (o total do ano bate com o painel "Horas dos analistas")
+  activeAnalysts = activeAnalysts.filter(a=> !a.inactive || analystMinutesInRange(a.id, year+'-01-01', year+'-12-31', clientPred) > 0);
   const inCategory = s => s.status==='concluida' && clientPred(s);   // só agendas confirmadas (concluídas)
 
   const monthsData = [];
@@ -6377,6 +6553,9 @@ function renderDashboardView(){
     (!selectedCity || String(c.city||'').trim()===selectedCity)
   );
   const dashboardClientIds = new Set(dashboardClients.map(c=>c.id));
+  // Filtro de cliente das HORAS: só vale se há segmento/cidade escolhidos; sem filtro entra tudo (igual aos Relatórios e à TV).
+  const hoursClientSet = (selectedSegment || selectedCity) ? dashboardClientIds : null;
+  const hoursPredDash = dashHoursPredicate(hoursClientSet);
   const dashboardCardsAll = state.cards.filter(c=>{
     if(!dashboardClientIds.has(c.clientId)) return false;
     if(selectedAnalyst){
@@ -6395,7 +6574,7 @@ function renderDashboardView(){
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
     return dateInRange(s.date, {start:periodStart, end:periodEnd}) || (s.allDay && s.endDate && s.endDate>=periodStart && s.date<=periodEnd);
   });
-  const totalBalance = dashboardCardsAll.reduce((s,c)=> s + cardBalanceForReporting(c), 0);
+  const totalBalance = reportTotals(dashboardCardsAll).balance;   // regra única (igual aos Relatórios e à TV)
   const pendConf = dashboardSchedules.filter(s=>scheduleIsDue(s)).length;
   const isMobile = (typeof window!=='undefined' && window.innerWidth<=820);
 
@@ -6467,7 +6646,8 @@ function renderDashboardView(){
   html += '</div></div>';
 
   html += '<div class="kpi-grid" style="margin-bottom:22px;">';
-  html += kpiCard('📁','Projetos em andamento', activeCards.length, dashboardReportClients.length+' cliente(s) no filtro', 'var(--brand)');
+  const statusKpiLabel = {ativos:'Projetos em andamento', todos:'Projetos (todas as situações)', concluidos:'Projetos concluídos', parados:'Projetos parados', cancelados:'Projetos cancelados'}[ui.dashboardStatus] || 'Projetos em andamento';
+  html += kpiCard('📁', statusKpiLabel, activeCards.length, dashboardReportClients.length+' cliente(s) no filtro · '+dashboardCardsAll.filter(c=>cardIsActive(c)).length+' em andamento', 'var(--brand)');
   html += kpiCard('👤','Analistas ativos', state.analysts.filter(a=>!a.inactive && !a.isSupport).length, state.analysts.filter(a=>!a.isSupport).length+' no total', 'var(--brand)');
   html += kpiCard('⏳','Saldo total disponível', minToHM(totalBalance*60), totalBalance<0?'atenção: saldo negativo':'dentro do contratado', totalBalance<0?'var(--danger)':'var(--ok)');
   html += kpiCard('🔔','Confirmações pendentes', pendConf, pendConf?'requer atenção':'tudo em dia', pendConf?'var(--danger)':'var(--ok)');
@@ -6537,7 +6717,7 @@ function renderDashboardView(){
   const clientsByAccountantTotal = clientsByAccountant.reduce((sum,[,count])=>sum+count, 0);
 
   const overdue = dashboardSchedules.filter(s=>scheduleIsDue(s));
-  const negativeClients = activeCards.map(c=>({c,client:getClient(c.clientId),bal:cardBalanceHours(c)})).filter(x=>x.client && x.bal<0);
+  const negativeClients = activeCards.map(c=>({c,client:getClient(c.clientId),bal:cardBalanceForReporting(c)})).filter(x=>x.client && x.bal<0);
   const lastByClient = {};
   dashboardReportClients.forEach(c=>{
     const scheds = state.schedules.filter(s=>s.clientId===c.id && s.status==='concluida' && (!selectedAnalyst || scheduleAnalystIds(s).includes(selectedAnalyst.id)));
@@ -6559,16 +6739,17 @@ function renderDashboardView(){
   html += '</div>';
 
   const filteredAnalysts = state.analysts.filter(a=>!a.inactive && !a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id));
-  const analystWork = filteredAnalysts.map(a=>{
-    const scheds=dashboardSchedules.filter(s=>s.status==='concluida' && scheduleAnalystIds(s).includes(a.id));
-    const mins=scheds.reduce((sum,s)=>sum+scheduleMinutesPerAnalyst(s),0);
-    const board=boardOfAnalyst(a.id);
+  // Todos os analistas (exceto Suporte) que contam nas horas; inativo só aparece se trabalhou no período.
+  const hoursAnalysts = state.analysts.filter(a=>!a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id));
+  const analystWork = hoursAnalysts.map(a=>{
+    const mins = analystMinutesInRange(a.id, periodStart, periodEnd, hoursPredDash);
     const cards=dashboardCardsAll.filter(c=>{ const b=getBoard(c.boardId); return cardIsActive(c) && b && b.analystId===a.id; });
     return {a,mins,cards:cards.length};
-  }).sort((a,b)=>b.mins-a.mins);
-  const totalWorked=analystWork.reduce((s,x)=>s+x.mins,0);
-  const totalContract=activeCards.reduce((s,c)=>s+cardContractedForReporting(c)*60,0);
-  const totalUsed=activeCards.reduce((s,c)=>s+cardUsedMinutes(c),0);
+  }).filter(x=> !x.a.inactive || x.mins>0).sort((a,b)=>b.mins-a.mins);
+  const totalWorked=workedMinutesAllAnalysts(periodStart, periodEnd, hoursPredDash, selectedAnalyst?selectedAnalyst.id:null);
+  const execTotals=reportTotals(activeCards);
+  const totalContract=execTotals.contracted*60;
+  const totalUsed=execTotals.usedMin;
   const utilization=totalContract ? Math.round((totalUsed/totalContract)*100) : 0;
   let visaoExecutivaHtml = '<div class="report-section dash-card-full">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#EDE7F6;color:#7B4B94;">📊</div>'
@@ -6576,14 +6757,14 @@ function renderDashboardView(){
     + '<p class="report-section-desc">Distribuição de clientes, projetos e horas dentro dos filtros selecionados.</p></div></div>';
   visaoExecutivaHtml += '<div class="dash-trend-grid">'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Clientes na carteira</span><div class="dash-trend-value">'+dashboardReportClients.length+'</div><div class="dash-trend-sub">'+(segmentOptions.length)+' segmentos na base</div></div>'
-    + '<div class="dash-trend-item"><span class="dash-trend-label">Projetos ativos</span><div class="dash-trend-value">'+activeCards.length+'</div><div class="dash-trend-sub">'+dashboardCardsAll.filter(c=>cardStatus(c).key==='concluido').length+' concluído(s) no filtro</div></div>'
+    + '<div class="dash-trend-item"><span class="dash-trend-label">'+esc(statusKpiLabel)+'</span><div class="dash-trend-value">'+activeCards.length+'</div><div class="dash-trend-sub">'+dashboardCardsAll.filter(c=>cardStatus(c).key==='concluido').length+' concluído(s) no filtro</div></div>'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Horas realizadas</span><div class="dash-trend-value">'+minToHM(totalWorked)+'</div><div class="dash-trend-sub">agendas concluídas no período</div></div>'
     + '<div class="dash-trend-item"><span class="dash-trend-label">Utilização contratada</span><div class="dash-trend-value">'+utilization+'%</div><div class="dash-trend-sub">'+minToHM(totalUsed)+' usadas de '+minToHM(totalContract)+'</div></div>'
     + '</div>';
   if(analystWork.length){
     visaoExecutivaHtml += '<div style="overflow:auto;margin-top:14px;"><table class="dash-insight-table"><thead><tr><th>Analista</th><th class="num">Clientes / projetos</th><th class="num">Horas no período</th><th class="num">Utilização da carteira</th></tr></thead><tbody>';
     analystWork.forEach(x=>{
-      const analystClients=new Set(dashboardCardsAll.filter(c=>{const b=getBoard(c.boardId);return b&&b.analystId===x.a.id;}).map(c=>c.clientId)).size;
+      const analystClients=new Set(dashboardCardsAll.filter(c=>{const b=getBoard(c.boardId);return cardIsActive(c)&&b&&b.analystId===x.a.id;}).map(c=>c.clientId)).size;
       const anContract=activeCards.filter(c=>{const b=getBoard(c.boardId);return b&&b.analystId===x.a.id;}).reduce((s,c)=>s+cardContractedForReporting(c)*60,0);
       const anUsed=activeCards.filter(c=>{const b=getBoard(c.boardId);return b&&b.analystId===x.a.id;}).reduce((s,c)=>s+cardUsedMinutes(c),0);
       const anPct=anContract?Math.round(anUsed/anContract*100):0;
@@ -6594,15 +6775,13 @@ function renderDashboardView(){
   visaoExecutivaHtml += '</div>';
 
   const prevStart=addDaysISO(periodStart,-periodDays), prevEnd=addDaysISO(periodStart,-1);
-  const currentDone=dashboardSchedules.filter(s=>s.status==='concluida').reduce((sum,s)=>sum+scheduleMinutesPerAnalyst(s),0);
-  const prevDone=state.schedules.filter(s=>{
-    if(s.status!=='concluida') return false;
-    if(scheduleClientIds(s).length && !scheduleClientIds(s).some(cid=>dashboardClientIds.has(cid))) return false;
-    if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
-    return dateInRange(s.date,{start:prevStart,end:prevEnd});
-  }).reduce((sum,s)=>sum+scheduleMinutesPerAnalyst(s),0);
-  const currentCompleted=dashboardSchedules.filter(s=>s.status==='concluida').length;
-  const prevCompleted=state.schedules.filter(s=>s.status==='concluida' && (!s.clientId || dashboardClientIds.has(s.clientId)) && (!selectedAnalyst || scheduleAnalystIds(s).includes(selectedAnalyst.id)) && dateInRange(s.date,{start:prevStart,end:prevEnd})).length;
+  const currentDone=totalWorked;     // mesma conta de "Horas realizadas" e "Horas dos analistas"
+  const prevDone=workedMinutesAllAnalysts(prevStart, prevEnd, hoursPredDash, selectedAnalyst?selectedAnalyst.id:null);
+  const evoPass = s => s.status==='concluida'
+    && (!scheduleClientIds(s).length || scheduleClientIds(s).some(cid=>dashboardClientIds.has(cid)))
+    && (!selectedAnalyst || scheduleAnalystIds(s).includes(selectedAnalyst.id));
+  const currentCompleted=state.schedules.filter(s=>evoPass(s) && scheduleOverlapsRange(s,periodStart,periodEnd)).length;
+  const prevCompleted=state.schedules.filter(s=>evoPass(s) && scheduleOverlapsRange(s,prevStart,prevEnd)).length;
   const deltaHours=prevDone?Math.round(((currentDone-prevDone)/prevDone)*100):null;
   const deltaAgenda=prevCompleted?Math.round(((currentCompleted-prevCompleted)/prevCompleted)*100):null;
   const evolucaoHtml = '<div class="report-section dash-card-full"><div class="report-section-head"><div class="report-section-icon" style="background:#E7F5EE;color:var(--ok);">📈</div><div style="flex:1;"><h2 class="report-section-title">Evolução do período</h2><p class="report-section-desc">Comparação com o período imediatamente anterior de mesma duração.</p></div></div>'
@@ -6615,8 +6794,8 @@ function renderDashboardView(){
 
   let projetosHtml = '<div class="report-section dash-card-full">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:var(--brand-soft);color:var(--brand);">📁</div>'
-    + '<div style="flex:1;"><h2 class="report-section-title">Projetos em andamento</h2>'
-    + '<p class="report-section-desc">Cards ainda não concluídos, ordenados por uso do saldo contratado.</p></div></div>';
+    + '<div style="flex:1;"><h2 class="report-section-title">'+esc(statusKpiLabel)+'</h2>'
+    + '<p class="report-section-desc">Cards conforme o filtro "Status dos projetos", ordenados por uso do saldo contratado.</p></div></div>';
   if(!activeCards.length){
     projetosHtml += '<div class="report-empty">Nenhum projeto em andamento no momento.</div>';
   } else {
@@ -6626,7 +6805,7 @@ function renderDashboardView(){
       const analyst = board ? getAnalyst(board.analystId) : null;
       const used = cardUsedMinutes(c)/60;
       const pct = c.contractedHours ? Math.min(100, Math.max(0,(used/c.contractedHours)*100)) : 0;
-      const bal = cardBalanceHours(c);
+      const bal = cardBalanceForReporting(c);
       return {client, analyst, pct, bal, typeInfo: cardTypeInfo(client)};
     }).sort((a,b)=> b.pct-a.pct);
     if(isMobile){
@@ -6666,12 +6845,10 @@ function renderDashboardView(){
     if(s.status!=='concluida') return false;   // somente agendas confirmadas
     if(!scheduleInPeriod(s)) return false;
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
-    if(isInternalType(s.type)) return true;
-    if(scheduleClientIds(s).length && !scheduleClientIds(s).some(cid=>dashboardClientIds.has(cid))) return false;
-    return true;
+    return hoursPredDash(s);
   });
   const analystSchedules = dashboardHourSchedules;
-  const hoursPred = dashHoursPredicate(dashboardClientIds);
+  const hoursPred = hoursPredDash;
   if(!state.analysts.length){
     horasAnalistasHtml += '<div class="report-empty">Nenhum analista cadastrado.</div>';
   } else if(!analystSchedules.length){
@@ -6804,18 +6981,7 @@ function renderDashboardView(){
   }
   modulosHtml += '</div>';
 
-  const naoAbatidoByClientDash = {};
-  state.schedules.forEach(s=>{
-    if(s.status!=='concluida') return;
-    if(!isInternalType(s.type)) return;
-    if(!s.clientId) return;
-    if(!scheduleInPeriod(s)) return;
-    if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return;
-    const isUnlinked = !s.cardId;
-    const isZeroed = s.cardId && s.deductMinutes===0;
-    if(!isUnlinked && !isZeroed) return;
-    naoAbatidoByClientDash[s.clientId] = (naoAbatidoByClientDash[s.clientId]||0) + scheduleActualMinutes(s);
-  });
+  const naoAbatidoByClientDash = naoAbatidoByClientMap({start:periodStart, end:periodEnd, analystId: selectedAnalyst ? selectedAnalyst.id : null});
   const naoAbatidoRanking = dashboardClients
     .map(cl=>({client:cl, mins:naoAbatidoByClientDash[cl.id]||0}))
     .filter(x=>x.mins>0)
@@ -6844,7 +7010,7 @@ function renderDashboardView(){
   const clientesCidadeHtml = renderClientDistribution('Clientes por cidade', 'Distribuição da base de clientes conforme a cidade cadastrada. Este relatório não é filtrado por analista.', '📍', clientsByCity);
   const clientesContadorHtml = renderClientDistribution('Clientes por contador', 'Quantidade de clientes vinculados a cada contador cadastrado. Clientes do tipo "Contador" não entram nesta contagem. Este relatório não é filtrado por analista.', '🧾', clientsByAccountant, clientsByAccountantTotal);
 
-  const horasMesHtml = renderHoursByMonthChart(filteredAnalysts, dashboardClientIds);
+  const horasMesHtml = renderHoursByMonthChart(hoursAnalysts, hoursClientSet);
   const categoriaNovosHtml = renderCategoryVsNewCardsChart(dashboardClientIds);
 
   const dashboardCardHtmlByKey = {
@@ -8117,9 +8283,10 @@ function renderReportsView(){
   const dataGeracao = today.toLocaleDateString('pt-BR', {day:'2-digit', month:'long', year:'numeric'});
 
   const allCards = state.cards;
-  const totalContratadas = totalContractedForReporting(allCards);
-  const totalUsadas = allCards.reduce((s,c)=> s + cardUsedMinutes(c)/60, 0);
-  const saldoTotal = totalContratadas - totalUsadas;
+  const repTotals = reportTotals(allCards);          // regra única: Contratadas − Usadas = Saldo
+  const totalContratadas = repTotals.contracted;
+  const totalUsadas = repTotals.used;
+  const saldoTotal = repTotals.balance;
   const clientesAtivos = new Set(allCards.filter(c=>cardIsActive(c)).map(c=>c.clientId)).size;
   const cardsConcluidos = allCards.filter(c=>cardStatus(c).key==='concluido').length;
   const pendentes = pendingConfirmations(null).length;
@@ -8142,7 +8309,7 @@ function renderReportsView(){
   html += '<div class="kpi-grid">';
   html += kpiCard('👥','Clientes ativos', clientesAtivos, 'com card em andamento', 'var(--brand)');
   html += kpiCard('⏱','Horas contratadas', totalContratadas.toFixed(1)+'h', usoPct.toFixed(0)+'% utilizado · saldo de concluídos não permanece no contratado', 'var(--brand)');
-  html += kpiCard('✅','Horas usadas', minToHM(totalUsadas*60), 'em '+cardsConcluidos+' concluídos', 'var(--gold)');
+  html += kpiCard('✅','Horas usadas', minToHM(repTotals.usedMin), 'em '+allCards.length+' cards ('+cardsConcluidos+' concluídos)', 'var(--gold)');
   html += kpiCard('💰','Saldo disponível', minToHM(saldoTotal*60), saldoTotal < 0 ? 'atenção: saldo negativo' : 'dentro do contratado', saldoTotal < 0 ? 'var(--danger)' : 'var(--ok)');
   html += kpiCard('🔔','Confirmações pendentes', pendentes, pendentes ? 'requer atenção' : 'tudo em dia', pendentes ? 'var(--danger)' : 'var(--ok)');
   html += '</div>';
@@ -8193,16 +8360,12 @@ function renderReportsView(){
     const pct = c.contractedHours ? Math.min(100, Math.max(0,(used/c.contractedHours)*100)) : 0;
     rows.push({ client, analyst, used, bal, contracted: cardContractedForReporting(c), pct, concluded: c.isConcluded, cstatus: cardStatus(c) });
   });
+  const naoAbatidoByClient = naoAbatidoByClientMap();      // regra única (cada agenda conta uma vez)
   state.clients.forEach(cl=>{
     if(state.cards.some(c=>c.clientId===cl.id)) return;
-    const minutes = unlinkedInternalMinutesForClient(cl.id);
+    const minutes = naoAbatidoByClient[cl.id] || 0;
     if(minutes <= 0) return;
     rows.push({ client: cl, analyst: null, used: 0, bal: 0, contracted: 0, naoAbatido: minutes, onlyInternal:true, pct: 0 });
-  });
-  const naoAbatidoByClient = {};
-  state.clients.forEach(cl=>{ naoAbatidoByClient[cl.id] = unlinkedInternalMinutesForClient(cl.id) + clientZeroedInternalMinutes(cl.id); });
-  rows.forEach(r=>{
-    if(r.client && naoAbatidoByClient[r.client.id] && !r.naoAbatido){ r.naoAbatido = naoAbatidoByClient[r.client.id]; }
   });
 
   if(ui.reportsTab==='saldo'){
@@ -8223,6 +8386,13 @@ function renderReportsView(){
     }
   };
   const rowsForSaldo = rowsByClientFilter.filter(saldoFilterFn);
+  // O "não abatido" é do CLIENTE: aparece só na primeira linha exibida de cada cliente (senão repetia em cada card dele e o total dobrava).
+  const naoAbatidoShown = {};
+  rowsForSaldo.forEach(r=>{
+    if(!r.client || r.onlyInternal) return;
+    const m = naoAbatidoByClient[r.client.id];
+    if(m && !naoAbatidoShown[r.client.id]){ naoAbatidoShown[r.client.id] = true; r.naoAbatido = m; }
+  });
   html += '<div class="report-section">';
   html += '<div class="report-section-head">'
     + '<div class="report-section-icon" style="background:var(--brand-soft);color:var(--brand);">💼</div>'
@@ -8287,13 +8457,27 @@ function renderReportsView(){
         + '</tr>';
     });
     const totalBalAll = sortedSaldoRows.reduce((s,r)=> s + (r.onlyInternal?0:r.bal), 0);
-    const totalNaoAbatidoAll = sortedSaldoRows.reduce((s,r)=> s + (r.naoAbatido||0), 0);
+    const shownNaoAbatidoIds = new Set(sortedSaldoRows.filter(r=>r.naoAbatido>0 && r.client).map(r=>r.client.id));
+    const totalNaoAbatidoAll = naoAbatidoTotalMinutes(null, shownNaoAbatidoIds);   // cada agenda uma vez
     html += '<tfoot><tr style="font-weight:800;background:var(--surface-2);">'
-      + '<td colspan="5" style="text-align:right;">Total (saldo de todos os cards acima, inclusive concluídos):</td>'
+      + '<td colspan="5" style="text-align:right;">Total das linhas exibidas ('+sortedSaldoRows.length+'):</td>'
       + '<td class="num"><span style="color:'+(totalBalAll<0?'var(--danger)':'var(--ok)')+';">'+minToHM(totalBalAll*60)+'</span></td>'
       + '<td class="num">'+(totalNaoAbatidoAll>0? minToHM(totalNaoAbatidoAll) : '—')+'</td>'
       + '<td></td>'
-      + '</tr></tfoot>';
+      + '</tr>';
+    if(ui.reportsSaldoFilter!=='all'){
+      // Total geral: o mesmo número dos KPIs do topo (todos os cards, qualquer tipo de saldo).
+      const baseRows = rowsByClientFilter.filter(r=>!r.onlyInternal);
+      const gContracted = baseRows.reduce((x,r)=>x+r.contracted,0), gUsed = baseRows.reduce((x,r)=>x+r.used,0), gBal = baseRows.reduce((x,r)=>x+r.bal,0);
+      const gIds = new Set(rowsByClientFilter.map(r=>r.client&&r.client.id).filter(Boolean));
+      const gNao = naoAbatidoTotalMinutes(null, ui.reportsClientFilter==='all' ? null : gIds);
+      html += '<tr style="font-weight:800;background:var(--surface-2);">'
+        + '<td colspan="5" style="text-align:right;">Total geral, todos os tipos de saldo (Contratadas '+gContracted.toFixed(1)+'h − Usadas '+minToHM(gUsed*60)+'):</td>'
+        + '<td class="num"><span style="color:'+(gBal<0?'var(--danger)':'var(--ok)')+';">'+minToHM(gBal*60)+'</span></td>'
+        + '<td class="num">'+(gNao>0? minToHM(gNao) : '—')+'</td>'
+        + '<td></td></tr>';
+    }
+    html += '</tfoot>';
     html += '</tbody></table></div>';
   }
   html += '</div>';
@@ -8363,7 +8547,7 @@ function renderReportsView(){
     .filter(s=> isInternalType(s.type) && scheduleClientIds(s).length && !scheduleCardIds(s).length && s.status==='concluida' && dateInRange(s.date, dateRange) && (ui.reportsClientFilter==='all' || scheduleClientIds(s).includes(ui.reportsClientFilter)))
     .sort((a,b)=> (b.date+(b.startTime||'')).localeCompare(a.date+(a.startTime||'')));
   if(allUnlinked.length){
-    const totalInterno = allUnlinked.reduce((s,x)=> s + scheduleMinutes(x), 0);
+    const totalInterno = allUnlinked.reduce((s,x)=> s + scheduleActualMinutes(x), 0);
     html += '<div class="report-section">';
     html += '<div class="report-section-head">'
       + '<div class="report-section-icon" style="background:var(--gold-soft);color:var(--gold);">⚑</div>'
@@ -8380,7 +8564,7 @@ function renderReportsView(){
         case 'client': { const cl=getClient(s.clientId); return cl?cl.name:''; }
         case 'analyst': return scheduleAnalystNames(s);
         case 'type': return s.type||'';
-        case 'duration': return scheduleMinutes(s);
+        case 'duration': return scheduleActualMinutes(s);
         default: return '';
       }
     };
@@ -8395,7 +8579,7 @@ function renderReportsView(){
       + '</tr></thead><tbody>';
     sortedUnlinked.forEach(s=>{
       const cl = getClient(s.clientId);
-      const dur = scheduleMinutes(s);
+      const dur = scheduleActualMinutes(s);
       html += '<tr>'
         + '<td>'+scheduleDateText(s)+'</td>'
         + '<td><strong>'+esc(cl?cl.name:'—')+'</strong></td>'
@@ -8500,13 +8684,14 @@ function renderReportsView(){
   } else {
     const analistasSort = getTableSort('analistas-cards', 'name', 'asc');
     const analystRows = analystsForGrid.map(a=>{
-      let scheds = schedulesForAnalyst(a.id).filter(s=>s.status==='concluida' && dateInRange(s.date, dateRange));
-      if(ui.reportsClientFilter!=='all') scheds = scheds.filter(s=> s.clientId===ui.reportsClientFilter);
-      const totalMin = scheds.reduce((sum,s)=> sum + scheduleMinutesPerAnalyst(s), 0);
+      const cf = ui.reportsClientFilter;
+      const predRep = s => s.status==='concluida' && (cf==='all' || scheduleClientIds(s).includes(cf));
+      const scheds = state.schedules.filter(s=> predRep(s) && scheduleAnalystIds(s).includes(a.id) && scheduleOverlapsRange(s, dateRange.start, dateRange.end));
+      const totalMin = analystMinutesInRange(a.id, dateRange.start, dateRange.end, predRep);   // mesma regra do Painel Geral e da TV
       const board = boardOfAnalyst(a.id);
-      let cardCount = board ? cardsInBoard(board.id).filter(c=>cardIsActive(c)) : [];
-      if(ui.reportsClientFilter!=='all') cardCount = cardCount.filter(c=> c.clientId===ui.reportsClientFilter);
-      cardCount = cardCount.length;
+      let activeOfBoard = board ? cardsInBoard(board.id).filter(c=>cardIsActive(c)) : [];
+      if(cf!=='all') activeOfBoard = activeOfBoard.filter(c=> c.clientId===cf);
+      const cardCount = new Set(activeOfBoard.map(c=>c.clientId)).size;   // clientes distintos com card ativo
       return {a, scheds, totalMin, cardCount};
     });
     const analistasAccessor = (r,key)=>{
@@ -8572,7 +8757,7 @@ function renderReportsView(){
     +   '<p class="report-section-desc">Em qual estágio cada cliente está no quadro do analista responsável.'+(ui.reportsClientFilter!=='all'?' Filtrado para o cliente selecionado acima.':'')+'</p>'
     + '</div>'
     + '</div>';
-  const distribuicaoStatus = ['ativos','todos','concluidos','parados','cancelados'].includes(ui.distribuicaoStatus) ? ui.distribuicaoStatus : 'ativos';
+  const distribuicaoStatus = ['ativos','todos','concluidos','parados','cancelados'].includes(ui.distribuicaoStatus) ? ui.distribuicaoStatus : 'todos';
   html += '<div class="field" style="max-width:240px;margin-bottom:14px;"><label>Situação do card</label><select id="distribuicao-status-filter" data-action="distribuicao-status-filter">'
     + cardStatusFilterOptions(distribuicaoStatus)
     + '</select></div>';
@@ -8710,12 +8895,13 @@ function renderExtratoMensalReport(dateRange){
   const porCliente = {};
   state.schedules.forEach(s=>{
     if(s.status!=='concluida') return;
-    if(!s.clientId) return;
     if(!dateInRange(s.date, dateRange)) return;
-    if(ui.reportsClientFilter!=='all' && s.clientId!==ui.reportsClientFilter) return;
     const mins = scheduleActualMinutes(s);
-    if(!porCliente[s.clientId]) porCliente[s.clientId] = {};
-    porCliente[s.clientId][s.date] = (porCliente[s.clientId][s.date]||0) + mins;
+    scheduleClientIds(s).forEach(cid=>{
+      if(ui.reportsClientFilter!=='all' && cid!==ui.reportsClientFilter) return;
+      if(!porCliente[cid]) porCliente[cid] = {};
+      porCliente[cid][s.date] = (porCliente[cid][s.date]||0) + mins;
+    });
   });
 
   const clientIds = Object.keys(porCliente);
@@ -9472,7 +9658,7 @@ function renderClientsView(){
 
   const clientRowData = clients.map(cl=>{
     const cardCount = state.cards.filter(c=>c.clientId===cl.id).length;
-    const balHours = clientConsolidatedBalanceHours(cl.id);
+    const balHours = clientBalanceForReporting(cl.id);   // mesma regra dos Relatórios
     const accountant = cl.accountantId ? getClient(cl.accountantId) : null;
     return { cl, cardCount, balHours, accountant };
   });
@@ -9812,12 +9998,12 @@ function renderSettingsView(){
     html += '<div class="section-card"><h3>Credenciais de acesso</h3>';
     if(!state.analysts.length){ html += '<p class="hint">Nenhum analista cadastrado.</p>'; }
     else {
-      html += '<table><thead><tr><th>Nome</th><th>Usuário</th><th>Senha</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody>';
+      html += '<table><thead><tr><th>Nome</th><th>Usuário</th><th>Login</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody>';
       state.analysts.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
         html += '<tr'+(a.inactive?' class="row-inactive"':'')+'>'
           + '<td style="font-weight:700;">'+esc(a.name)+(a.isAdmin?' <span class="badge" style="background:var(--gold-soft);color:var(--gold);">ADMIN</span>':'')+'</td>'
           + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
-          + '<td>'+(a.password? '•••••••• <button class="btn btn-sm btn-ghost" data-action="toggle-show-pass" data-id="'+a.id+'" style="font-size:11px;">👁 ver</button>' : '<span class="hint">—</span>')+'</td>'
+          + '<td>'+(a.authReady ? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">🔒 seguro</span>' : (a.password ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);" title="Edite o usuário e defina uma nova senha para ativar o login seguro">⚠ senha antiga</span>' : '<span class="hint">—</span>'))+'</td>'
           + '<td>'+(a.isAdmin?'Administrador':(a.isSupport?'Suporte':(a.isManager?'Gestor':'Analista')))+'</td>'
           + '<td>'+(a.inactive? '<span class="badge" style="background:#B9CAD5;color:#fff;">Inativo</span>' : '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">Ativo</span>')+'</td>'
           + '<td><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="analyst-edit" data-id="'+a.id+'">Editar</button></td>'
@@ -9831,18 +10017,15 @@ function renderSettingsView(){
         + '<form data-form="change-password" data-id="'+meAnalyst.id+'">'
         + '<div class="field-row">'
         + '<div class="field"><label>Senha atual</label><input type="password" name="currentPassword" required></div>'
-        + '<div class="field"><label>Nova senha</label><input type="password" name="newPassword" minlength="4" required></div>'
-        + '<div class="field"><label>Confirmar nova senha</label><input type="password" name="confirmPassword" minlength="4" required></div>'
+        + '<div class="field"><label>Nova senha</label><input type="password" name="newPassword" minlength="8" required></div>'
+        + '<div class="field"><label>Confirmar nova senha</label><input type="password" name="confirmPassword" minlength="8" required></div>'
         + '</div>'
         + '<div class="form-actions"><button type="submit" class="btn btn-primary">Alterar senha</button></div>'
         + '</form></div>';
     }
     if(currentUser && currentUser.isMaster){
-      html += '<div class="section-card"><h3>Conta mestra de emergência</h3>'
-        + '<table><thead><tr><th>Usuário</th><th>Senha</th></tr></thead><tbody>'
-        + '<tr><td><code style="background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+MASTER_USER+'</code></td>'
-        + '<td><code style="background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+MASTER_PASS+'</code></td></tr>'
-        + '</tbody></table></div>';
+      html += '<div class="section-card"><h3>Administrador geral</h3>'
+        + '<p class="hint">Usuário <code>'+MASTER_USER+'</code>. A senha é guardada de forma segura no servidor e não aparece no sistema. Para trocar, use "Alterar senha" no menu do topo.</p></div>';
     }
   } else if(ui.settingsTab==='nuvem' && admin){
     html += '<div class="section-card"><h3>Sincronização na nuvem</h3>';
@@ -10101,8 +10284,8 @@ function renderModal(){
       inner += '<p class="hint">Perfil Suporte não acessa o sistema (sem usuário/senha).</p>';
     } else {
       inner += '<div class="field-row">'
-        + '<div class="field"><label>'+(a?'Nova senha (em branco mantém)':'Senha')+'</label><input type="password" name="password" '+(a?'':'required')+' minlength="4" autocomplete="new-password"></div>'
-        + '<div class="field"><label>Confirmar senha</label><input type="password" name="passwordConfirm" '+(a?'':'required')+' minlength="4" autocomplete="new-password"></div>'
+        + '<div class="field"><label>'+(a?'Nova senha (em branco mantém)':'Senha')+' <span class="hint" style="margin:0;">(mín. 8)</span></label><input type="password" name="password" '+(a?'':'required')+' minlength="8" autocomplete="new-password"></div>'
+        + '<div class="field"><label>Confirmar senha</label><input type="password" name="passwordConfirm" '+(a?'':'required')+' minlength="8" autocomplete="new-password"></div>'
         + '</div>';
     }
     inner += (isSelf ? '<div class="hint">Você está editando seu próprio usuário.</div>' : '')
@@ -12172,7 +12355,7 @@ document.addEventListener('click', async function(e){
     const boardCards = board ? cardsInBoard(board.id).length : 0;
     if(linkedScheds > 0){ showAlert('Há '+linkedScheds+' agendamento(s). Inative.'); return; }
     if(boardCards > 0){ showAlert('Há '+boardCards+' card(s).'); return; }
-    showConfirm('Excluir este analista?', function(){ deleteAnalyst(id); if(ui.currentBoardId && !getBoard(ui.currentBoardId)) ui.currentBoardId = state.boards[0]?state.boards[0].id:null; });
+    showConfirm('Excluir este analista?', function(){ if(isSecureSession() && an.username){ adminCall('delete_user', { username: an.username, analystId: id }).catch(function(e){ console.warn('Falha ao excluir o login', e); }); } deleteAnalyst(id); if(ui.currentBoardId && !getBoard(ui.currentBoardId)) ui.currentBoardId = state.boards[0]?state.boards[0].id:null; });
   }
   else if(a==='toggle-entity-active'){
     const kind = el.dataset.kind; const id = el.dataset.id; const willBeActive = el.checked;
@@ -12181,6 +12364,7 @@ document.addEventListener('click', async function(e){
       const a2 = getAnalyst(id);
       if(a2 && a2.isAdmin && !willBeActive){ showAlert('O administrador não pode ser inativado.'); el.checked = true; return; }
       setAnalystActive(id, willBeActive);
+      if(a2 && a2.authReady && isSecureSession()){ syncAnalystLogin(a2, '').then(function(){ persist(); }).catch(function(e){ showAlert('Situação salva, mas o login seguro não foi atualizado: '+e.message); }); }
     } else { setEntityActive(kind, id, willBeActive); }
     render();
   }
@@ -12228,7 +12412,7 @@ document.addEventListener('click', async function(e){
     }
   }
   else if(a==='dashboard-clear-filters'){
-    ui.dashboardStart=''; ui.dashboardEnd=''; ui.dashboardAnalyst='all'; ui.dashboardSegment='all'; ui.dashboardCity='all'; ui.dashboardStatus='ativos'; render();
+    ui.dashboardStart=''; ui.dashboardEnd=''; ui.dashboardAnalyst='all'; ui.dashboardSegment='all'; ui.dashboardCity='all'; ui.dashboardStatus='todos'; render();
   }
   else if(a==='clients-clear-filters'){
     ui.clientsFilterSegment='all'; ui.clientsFilterCity='all'; ui.clientsFilterAccountant='all'; render();
@@ -12828,7 +13012,7 @@ document.addEventListener('submit', async function(e){
       if(!id && !password){ showAlert('Defina senha.'); return; }
       if(password || passwordConfirm){
         if(password !== passwordConfirm){ showAlert('Senhas diferentes.'); return; }
-        if(password.length < 4){ showAlert('Mínimo 4 caracteres.'); return; }
+        if(password.length < 8){ showAlert('A senha precisa ter pelo menos 8 caracteres.'); return; }
       }
     }
     let newPhoto;
@@ -12846,12 +13030,24 @@ document.addEventListener('submit', async function(e){
         a.isSupport = true; a.username = ''; a.password = '';
       } else {
         a.isSupport = false; a.username = username; if(canChangeProfile) a.isManager = wantsManager;
-        if(password) a.password = await hashPassword(password);
         if(!a.isAdmin && wantsAdmin) a.isAdmin = true;
+        if(isSecureSession() && isAdminUser()){
+          try{ await syncAnalystLogin(a, password); }
+          catch(err){ if(password) a.password = await hashPassword(password); showAlert('Dados salvos, mas o login seguro não foi atualizado: '+err.message); }
+        } else if(isSecureSession() && isSelfEdit && password){
+          try{ const ur = await getSb().auth.updateUser({ password: password }); if(ur.error) throw ur.error; }
+          catch(err){ showAlert('Não foi possível trocar a senha: '+(err.message||err)); return; }
+        } else if(password){ a.password = await hashPassword(password); }
       }
       const b = boardOfAnalyst(id); if(b) b.name = 'Quadro — '+name;
     } else {
-      const r = createAnalyst(name, color, username, password ? await hashPassword(password) : password, wantsAdmin, admissionDate, wantsSupport, email);
+      const secureNow = isSecureSession() && isAdminUser() && !wantsSupport;
+      const r = createAnalyst(name, color, username, (!secureNow && password) ? await hashPassword(password) : '', wantsAdmin, admissionDate, wantsSupport, email);
+      if(secureNow){
+        if(wantsManager) r.analyst.isManager = true;
+        try{ await syncAnalystLogin(r.analyst, password); }
+        catch(err){ r.analyst.password = await hashPassword(password); showAlert('Analista criado, mas o login seguro não foi criado: '+err.message); }
+      }
       if(newPhoto) r.analyst.photo = newPhoto;
       if(wantsManager) r.analyst.isManager = true;
       if(isAdminUser() && fd.has('monthlyGoal')) r.analyst.monthlyGoalHours = Math.max(0, parseFloat(fd.get('monthlyGoal'))||0);
@@ -12861,9 +13057,16 @@ document.addEventListener('submit', async function(e){
   else if(type==='change-password'){
     const id = form.dataset.id; const a = getAnalyst(id); if(!a) return;
     const cur = fd.get('currentPassword')||''; const nw = fd.get('newPassword')||''; const cf = fd.get('confirmPassword')||'';
-    if(a.password && !(await passwordMatches(a.password, cur))){ showAlert('Senha atual incorreta.'); return; }
-    if(nw.length < 4){ showAlert('Mínimo 4 caracteres.'); return; }
+    if(nw.length < 8){ showAlert('A nova senha precisa ter pelo menos 8 caracteres.'); return; }
     if(nw !== cf){ showAlert('Senhas diferentes.'); return; }
+    if(isSecureSession()){
+      const chk = await authLogin(currentUser.username, cur);
+      if(!chk.ok){ showAlert('Senha atual incorreta.'); return; }
+      try{ const ur = await getSb().auth.updateUser({ password: nw }); if(ur.error) throw ur.error; }
+      catch(err){ showAlert('Não foi possível trocar a senha: '+(err.message||err)); return; }
+      render(); showAlert('Senha alterada.'); return;
+    }
+    if(a.password && !(await passwordMatches(a.password, cur))){ showAlert('Senha atual incorreta.'); return; }
     a.password = await hashPassword(nw); render(); showAlert('Senha alterada.');
   }
   else if(type==='client'){
