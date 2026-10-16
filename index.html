@@ -227,6 +227,15 @@ h1,h2,h3,h4{ font-family:var(--font-head); margin:0; color:var(--ink); }
 .faq-result-title{ font-weight:700; font-size:13.5px; color:var(--brand-ink); margin-bottom:3px; }
 .faq-result-snippet{ font-size:12px; color:var(--ink-soft); line-height:1.4; }
 .faq-result-snippet em{ font-style:normal; font-weight:700; color:var(--ink); background:var(--gold-soft); }
+.gs-group{ margin-top:6px; }
+.gs-group h4{ margin:10px 0 6px; font-size:12px; font-weight:800; color:var(--ink-soft); }
+.gs-group h4 small{ font-weight:600; color:var(--ink-faint); }
+.gs-row{ display:flex; align-items:center; gap:10px; width:100%; text-align:left; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:8px 10px; margin-bottom:6px; cursor:pointer; color:var(--ink); font:inherit; }
+.gs-row:hover, .gs-row:focus-visible{ background:var(--surface-2); border-color:var(--brand); outline:none; }
+.gs-ico{ width:26px; text-align:center; flex:none; }
+.gs-main{ flex:1; min-width:0; }
+.gs-main b{ display:block; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.gs-main span{ display:block; font-size:11.5px; color:var(--ink-soft); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .faq-search-footer{ text-align:center; padding-top:4px; border-top:1px solid var(--border); }
 .faq-search-footer a{ font-size:12.5px; font-weight:700; color:var(--brand); text-decoration:none; }
 .faq-search-footer a:hover{ text-decoration:underline; }
@@ -544,7 +553,7 @@ tr.row-inactive{ opacity:.55; }
   .login-card .field input,
   .board-analyst-filter, #cal-analyst-filter, #cal-category-filter,
   .client-picker-input, #search-input, #client-search-input,
-  #faq-search-input, #jira-search, #contracts-search,
+  #faq-search-input, #global-search-input, #jira-search, #contracts-search,
   #reports-client-search-input, #additional-client-search-input,
   #reports-date-start, #reports-date-end{ font-size:16px !important; }
 
@@ -1774,8 +1783,32 @@ function getSb(){
     sbShared.auth.onAuthStateChange(function(ev){
       if(ev==='SIGNED_OUT' && currentUser && currentUser.secure && !window.__loggingOut){ logout('Sua sessão terminou. Entre novamente.'); }
     });
+    startSessionKeepAlive();
   }catch(e){ console.warn('Falha ao criar o cliente Supabase', e); sbShared = null; }
   return sbShared;
+}
+/* Mantém o login "para sempre": renova o token de acesso (que dura pouco) de tempos em tempos, ao voltar para a aba,
+   ao reconectar à internet e ao reabrir o aparelho. O login só termina se a pessoa clicar em Sair. */
+var __keepAliveStarted = false;
+async function keepSessionAlive(){
+  try{
+    if(!currentUser || !currentUser.secure || !sbShared || window.__loggingOut) return;
+    const g = await sbShared.auth.getSession();                 // renova sozinho se estiver perto de vencer
+    if(g && g.data && g.data.session){
+      const exp = (g.data.session.expires_at||0)*1000;
+      if(exp && exp - Date.now() < 15*60*1000){ await sbShared.auth.refreshSession(); }   // renova com folga
+      return;
+    }
+    if(navigator.onLine === false) return;                       // sem internet: tenta de novo depois, não desloga
+    await sbShared.auth.refreshSession();                        // última tentativa antes de o login cair
+  }catch(e){ /* falha de rede: tenta no próximo ciclo */ }
+}
+function startSessionKeepAlive(){
+  if(__keepAliveStarted) return; __keepAliveStarted = true;
+  setInterval(keepSessionAlive, 10*60*1000);
+  window.addEventListener('online', keepSessionAlive);
+  window.addEventListener('focus', keepSessionAlive);
+  document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') keepSessionAlive(); });
 }
 async function authLogin(u, p){
   const sb = getSb();
@@ -1849,6 +1882,7 @@ function defaultState(){
     schedules: [],
     jiraRequirements: [],
     serviceContracts: [],
+    checklistTemplates: [],
     vacationEntries: [],
     productTags: [
       {id:uid('pt'), name:'PDV', color:'#0E6655', inactive:false},
@@ -1967,7 +2001,7 @@ function normalizeState(raw){
   if(s.mgmt.staleDays==null) s.mgmt.staleDays = 15;
   if(s.mgmt.alertPct==null) s.mgmt.alertPct = 80;
   if(!Array.isArray(s.trainingTemplates)) s.trainingTemplates = [];
-  ['analysts','boards','clients','cards','schedules','jiraRequirements','serviceContracts','vacationEntries','productTags','modules','screens','agendaTypes'].forEach(k=>{ if(!Array.isArray(s[k])) s[k]=defaultState()[k]; });
+  ['analysts','boards','clients','cards','schedules','jiraRequirements','serviceContracts','checklistTemplates','vacationEntries','productTags','modules','screens','agendaTypes'].forEach(k=>{ if(!Array.isArray(s[k])) s[k]=defaultState()[k]; });
   /* Integração com Outlook/Teams via Microsoft Graph (MSAL, login direto no
      navegador) foi desfeita a pedido do usuário — o Azure AD não pôde ser
      configurado, então a sincronização de agenda com o Teams passou a ser
@@ -2110,6 +2144,9 @@ function icsFeedUrl(analyst){
   return base + '/functions/v1/ics-feed?analystId=' + encodeURIComponent(analyst.id) + '&token=' + encodeURIComponent(analyst.icsToken||'');
 }
 
+/* Tabelas "opcionais": se ainda não existirem na nuvem (ou o acesso for negado), o app segue funcionando e guarda os dados só neste navegador. */
+const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates'];
+function isOptionalTableKey(k){ return OPTIONAL_TABLE_KEYS.indexOf(k)>=0; }
 const ENTITY_TABLES = [
   {key:'clients', table:'clients'},
   {key:'analysts', table:'analysts'},
@@ -2124,7 +2161,9 @@ const ENTITY_TABLES = [
   // da sincronização. Antes eles ficavam somente no localStorage; ao recarregar
   // com a nuvem conectada, loadStateFromTables substituía o estado local e
   // apagava os contratos da memória da aplicação.
-  {key:'serviceContracts', table:'service_contracts'}
+  {key:'serviceContracts', table:'service_contracts'},
+  // Modelos de checklist (implantação / encerramento). Veja servidor/17_checklists.sql.
+  {key:'checklistTemplates', table:'checklist_templates'}
 ];
 const LAZY_TABLES = [
   {key:'jiraRequirements', table:'jira_requirements'},
@@ -2167,8 +2206,8 @@ async function loadStateFromTables(sb){
       // service_contracts pode não existir em instalações antigas. Nesse caso
       // mantemos os contratos locais e permitimos que o restante da aplicação
       // continue carregando normalmente.
-      if(r.key==='serviceContracts'){
-        console.warn('Tabela service_contracts ainda não existe; mantendo contratos locais.');
+      if(isOptionalTableKey(r.key)){
+        console.warn('Tabela '+r.table+' ainda não existe ou está sem acesso; mantendo os dados locais.');
         return;
       }
       throw r.error;
@@ -2352,7 +2391,7 @@ async function saveChangedTables(sb, st){
           const rowsNew = chunk.map(it=>({id:String(it.id), data:Object.assign({}, it, {_v:(it._v||0)+1})}));
           const { error } = await sb.from(table).insert(rowsNew);
           if(!error){ chunk.forEach((it,j)=>{ it._v = rowsNew[j].data._v; savedStr[String(it.id)] = JSON.stringify(rowsNew[j].data); }); continue; }
-          if(key==='serviceContracts'){ console.warn('Tabela service_contracts não disponível; contratos permanecem salvos localmente.', error); throw {__skipTable:true}; }
+          if(isOptionalTableKey(key)){ console.warn('Tabela '+table+' não disponível; os dados permanecem salvos localmente.', error); throw {__skipTable:true}; }
           for(const it of chunk){ savedStr[String(it.id)] = await saveRowSafe(sb, table, it, null, saveReport); }   // linhas que já existiam: mescla uma a uma
         }
         for(let i=0;i<withBase.length;i+=5){
@@ -2376,8 +2415,8 @@ async function saveChangedTables(sb, st){
       for(let i=0;i<idsToDelete.length;i+=200){
         const { error } = await sb.from(table).delete().in('id', idsToDelete.slice(i,i+200));
         if(error){
-          if(key==='serviceContracts'){
-            console.warn('Tabela service_contracts não disponível; exclusão ficará apenas no navegador.', error);
+          if(isOptionalTableKey(key)){
+            console.warn('Tabela '+table+' não disponível; exclusão ficará apenas no navegador.', error);
             break;
           }
           throw error;
@@ -2530,7 +2569,7 @@ function startRealtimeSync(){
   if(!sbClient || cloudStatus!=='connected') return;
   try{
     realtimeChannel = sbClient.channel('implanta-tables-live');
-    ENTITY_TABLES.concat(LAZY_TABLES).forEach(({table})=>{
+    ENTITY_TABLES.concat(LAZY_TABLES).filter(t=>!isOptionalTableKey(t.key) || t.key==='serviceContracts').forEach(({table})=>{
       realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table:table},
         ()=>{ refreshFromCloudIfChanged('realtime'); });
     });
@@ -2583,7 +2622,7 @@ var saveRetryCount = 0, saveRetryTimer = null;
 window.addEventListener('online', function(){ if(saveStatus==='error' && sbClient){ saveRetryCount = 0; cloudSave(); } });
 function mergeStates(remote, local){
   const merged = Object.assign({}, local);
-  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts'].forEach(key=>{
+  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates'].forEach(key=>{
     const byId = new Map();
     (remote[key]||[]).forEach(item=> byId.set(item.id, item));
     (local[key]||[]).forEach(item=> byId.set(item.id, item));
@@ -2661,7 +2700,7 @@ function disconnectCloud(){
 const BACKUP_ENTITY_KEYS = ENTITY_TABLES.concat(LAZY_TABLES).map(t=>t.key);
 const BACKUP_LABELS = { clients:'clientes', analysts:'analistas', boards:'quadros', cards:'cards',
   schedules:'agendas', productTags:'produtos', modules:'módulos', screens:'telas',
-  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço',
+  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist',
   jiraRequirements:'requisitos do Jira', vacationEntries:'lançamentos de férias' };
 async function exportBackupJson(){
   if(!isAdminUser()) return;
@@ -2850,7 +2889,12 @@ async function boot(){
   /* Sessão "segura" salva neste aparelho: só vale se o servidor ainda reconhece o login. */
   if(currentUser.secure && cloudConfig && window.supabase){
     let okSession = false;
-    try{ const sb = getSb(); const g = sb && await sb.auth.getSession(); okSession = !!(g && g.data && g.data.session); }catch(e){ okSession = navigator.onLine === false; }
+    try{
+      const sb = getSb(); let g = sb && await sb.auth.getSession(); okSession = !!(g && g.data && g.data.session);
+      if(!okSession && sb && navigator.onLine !== false){ const r = await sb.auth.refreshSession(); okSession = !!(r && r.data && r.data.session);
+        if(!okSession && r && r.error && (r.error.name==='AuthRetryableFetchError' || !r.error.status || r.error.status>=500)) okSession = true;   // falha de rede/servidor: não desloga
+      }   // tenta renovar antes de pedir login
+    }catch(e){ okSession = navigator.onLine === false; }
     if(!okSession){ setStoredUser(null); document.getElementById('app').innerHTML = renderLoginScreen('Sua sessão expirou. Entre novamente.'); return; }
   }
   if(cloudConfig && !window.supabase){
@@ -2871,6 +2915,9 @@ async function boot(){
         // foram migrados para a nuvem, não deixe o reload apagá-los do navegador.
         if(!(loaded.serviceContracts||[]).length && (localBeforeCloud.serviceContracts||[]).length){
           state.serviceContracts = localBeforeCloud.serviceContracts;
+        }
+        if(!(loaded.checklistTemplates||[]).length && (localBeforeCloud.checklistTemplates||[]).length){
+          state.checklistTemplates = localBeforeCloud.checklistTemplates;
         }
 
         tableSnapshots = snapshotTables(state);
@@ -2918,6 +2965,8 @@ var ui = {
   scheduleModuleTab: null,
   cardForecastModuleTab: null,
   reportsTab: 'saldo',
+  agTipoType: 'all',
+  agTipoStatus: 'concluida',
   analistasStatusFilter: 'active',
   distribuicaoStatus: 'todos',
   prazoAnalyst: 'all',
@@ -2969,6 +3018,8 @@ var ui = {
   boardCardView: 'full',
   contractsSearch: '',
   faqQuery: '',
+  gsQuery: '',
+  notifTab: 'pend',
   faqResults: null,
   faqLoading: false,
   faqError: '',
@@ -3126,6 +3177,29 @@ function renderTemplatesSettings(){
   }
   return h+'</div>';
 }
+function renderChecklistSettings(){
+  const admin = isAdminUser(), list = checklistTemplatesList();
+  const kindSel = (v)=>'<select name="kind" '+(admin?'':'disabled')+'><option value="implantacao"'+(v==='implantacao'?' selected':'')+'>Implantação (acompanhamento)</option><option value="encerramento"'+(v==='encerramento'?' selected':'')+'>Encerramento (itens obrigatórios ao concluir)</option></select>';
+  let h = '<div class="section-card"><h3 style="margin:0 0 6px;">Modelos de checklist</h3><p class="hint" style="margin-top:0;">Crie listas de verificação para a implantação e para o encerramento. Elas são aplicadas na guia <strong>✅ Checklist</strong> do card (ou automaticamente nos cards novos). Itens de <strong>encerramento</strong> pendentes geram um aviso ao concluir a implantação.</p>';
+  list.forEach(t=>{
+    h += '<form data-form="checklist-template" data-id="'+t.id+'" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">'
+      + '<div class="field-row"><div class="field"><label>Nome</label><input type="text" name="name" value="'+esc(t.name)+'" '+(admin?'':'disabled')+' required></div>'
+      + '<div class="field"><label>Tipo</label>'+kindSel(t.kind)+'</div></div>'
+      + '<div class="field"><label>Itens (um por linha)</label><textarea name="items" rows="'+Math.max(4,(t.items||[]).length+1)+'" '+(admin?'':'disabled')+'>'+esc((t.items||[]).join('\n'))+'</textarea></div>'
+      + '<label class="allday-toggle" style="margin-bottom:8px;"><input type="checkbox" name="auto" '+(t.auto?'checked ':'')+(admin?'':'disabled')+'> Aplicar automaticamente em cards novos</label>'
+      + (admin ? '<div class="row-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar</button><button type="button" class="btn btn-danger btn-sm" data-action="delete-checklist-template" data-id="'+t.id+'">Excluir</button></div>' : '')
+      + '</form>';
+  });
+  if(!list.length) h += '<p class="hint">Nenhum modelo cadastrado ainda.</p>';
+  if(admin){
+    h += '<form data-form="checklist-template" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;"><h4 style="margin:0 0 8px;">Novo modelo</h4>'
+      + '<div class="field-row"><div class="field"><label>Nome</label><input type="text" name="name" placeholder="Ex.: Encerramento padrão" required></div><div class="field"><label>Tipo</label>'+kindSel('implantacao')+'</div></div>'
+      + '<div class="field"><label>Itens (um por linha)</label><textarea name="items" rows="5" placeholder="Documentação entregue ao cliente&#10;Treinamento dos usuários-chave concluído&#10;Aceite do cliente registrado" required></textarea></div>'
+      + '<label class="allday-toggle" style="margin-bottom:8px;"><input type="checkbox" name="auto"> Aplicar automaticamente em cards novos</label>'
+      + '<button type="submit" class="btn btn-primary btn-sm">Criar modelo</button></form>';
+  }
+  return h+'</div>';
+}
 function renderMgmtSettings(){
   const m = mgmt(); const checks = ui.backupChecks;
   let h = '<div class="section-card"><h3>Alertas</h3><form data-form="mgmt-config"><div class="field-row">'
@@ -3174,7 +3248,7 @@ function goalData(){
   const mr = monthRangeISO(), today = todayISO();
   const elapsed = Math.max(1, weekdaysBetweenISO(mr.start, today > mr.end ? mr.end : today));
   const totalWd = weekdaysBetweenISO(mr.start, mr.end);
-  return state.analysts.filter(a=>!a.inactive && !a.isSupport && Number(a.monthlyGoalHours)>0).map(a=>{
+  return state.analysts.filter(a=>!a.inactive && isReportAnalyst(a) && Number(a.monthlyGoalHours)>0).map(a=>{
     const done = analystBillableMinutes(a.id, mr.start, mr.end)/60;
     const goal = Number(a.monthlyGoalHours);
     const projected = done/elapsed*totalWd;
@@ -3651,7 +3725,7 @@ function renderPrazoReport(){
   if(!state.analysts.some(a=>a.id===ui.prazoAnalyst)) ui.prazoAnalyst = 'all';
   html += '<div class="cal-toolbar" style="margin-bottom:16px;"><span class="hint" style="margin:0;">Analista:</span>'
     + '<select id="prazo-analyst-filter" style="max-width:220px;"><option value="all">Todos</option>'
-    + state.analysts.filter(a=>!a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>'<option value="'+a.id+'"'+(ui.prazoAnalyst===a.id?' selected':'')+'>'+esc(a.name)+(a.inactive?' (inativo)':'')+'</option>').join('')
+    + state.analysts.filter(isReportAnalyst).slice().sort((a,b)=>a.name.localeCompare(b.name)).map(a=>'<option value="'+a.id+'"'+(ui.prazoAnalyst===a.id?' selected':'')+'>'+esc(a.name)+(a.inactive?' (inativo)':'')+'</option>').join('')
     + '</select></div>';
   const all = state.cards.map(c=>{
     const board = getBoard(c.boardId); const analyst = board ? getAnalyst(board.analystId) : null;
@@ -3960,10 +4034,10 @@ function scheduleOverlapsRange(s, start, end){
   if(s.allDay) return (s.endDate||s.date) >= start && s.date <= end;
   return s.date >= start && s.date <= end;
 }
-/* Horas trabalhadas (min) de TODOS os analistas (exceto Suporte) no intervalo, pela regra única (dia a dia). Painel Geral,
+/* Horas trabalhadas (min) de TODOS os analistas de relatório (exceto Suporte e Gestor) no intervalo, pela regra única (dia a dia). Painel Geral,
    Relatórios e Dashboard da TV usam esta mesma conta, então "horas dos analistas" nunca diverge. */
 function workedMinutesAllAnalysts(start, end, pred, onlyAnalystId){
-  return state.analysts.filter(a=>!a.isSupport && (!onlyAnalystId || a.id===onlyAnalystId))
+  return state.analysts.filter(a=>isReportAnalyst(a) && (!onlyAnalystId || a.id===onlyAnalystId))
     .reduce((sum,a)=> sum + analystMinutesInRange(a.id, start, end, pred), 0);
 }
 /* Nº de sessões (agendas) concluídas do analista no intervalo, mesma seleção usada nas horas acima. */
@@ -4350,7 +4424,7 @@ function reconciliationRows(){
 function capacityData(weeks){
   weeks = weeks||4;
   const start = startOfWeekISO(todayISO());
-  const analysts = state.analysts.filter(a=>!a.inactive && !a.isSupport);
+  const analysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a));
   const out = [];
   analysts.forEach(a=>{
     const row = {analyst:a, weeks:[]};
@@ -4400,6 +4474,64 @@ function exportReportXls(name, headers, rows){
 }
 function auditActor(){
   return (typeof currentUser!=='undefined' && currentUser) ? (currentUser.displayName||currentUser.username||'') : '';
+}
+/* ============================= CHECKLISTS DO CARD =============================
+   Modelos (state.checklistTemplates: {id,name,kind:'implantacao'|'encerramento',items:[texto],auto}) são copiados para o card
+   (card.checklists), então mudar o modelo depois não altera cards que já usam o checklist. Itens de "encerramento" são
+   obrigatórios: ao concluir a implantação com itens pendentes o sistema avisa e registra no histórico. */
+const CHECKLIST_KIND_LABEL = { implantacao:'Implantação', encerramento:'Encerramento' };
+function checklistTemplatesList(){ return (state.checklistTemplates||[]).slice().sort((a,b)=> (a.kind===b.kind?0:(a.kind==='implantacao'?-1:1)) || String(a.name||'').localeCompare(String(b.name||''),'pt-BR')); }
+function applyChecklistTemplate(card, tpl, silent){
+  if(!card || !tpl) return null;
+  card.checklists = card.checklists || [];
+  const cl = { id:uid('cl'), templateId:tpl.id, kind:tpl.kind||'implantacao', name:tpl.name||'Checklist',
+    items:(tpl.items||[]).map(t=>({ id:uid('ci'), text:String(t), required: tpl.kind==='encerramento', done:false })) };
+  card.checklists.push(cl);
+  if(!silent) addHistory(card, 'Checklist "'+cl.name+'" aplicado ('+cl.items.length+' itens)');
+  return cl;
+}
+function applyAutoChecklists(card){
+  (state.checklistTemplates||[]).filter(t=>t.auto).forEach(t=>applyChecklistTemplate(card, t, true));
+}
+function checklistProgress(card){
+  let done=0, total=0;
+  (card.checklists||[]).forEach(cl=>(cl.items||[]).forEach(it=>{ total++; if(it.done) done++; }));
+  return {done, total};
+}
+function checklistPendingRequired(card){
+  const out=[];
+  (card.checklists||[]).forEach(cl=>(cl.items||[]).forEach(it=>{ if(it.required && !it.done) out.push({list:cl.name, text:it.text}); }));
+  return out;
+}
+function renderChecklistTab(card){
+  const readOnly = isManagerUser() || card.isConcluded;
+  let h = '';
+  const lists = card.checklists||[];
+  if(!lists.length) h += '<p class="hint" style="margin-top:0;">Este card ainda não tem checklist. Aplique um modelo abaixo'+(isAdminUser()?' ou crie modelos em Configurações → Checklists.':'.')+'</p>';
+  lists.forEach(cl=>{
+    const total=(cl.items||[]).length, done=(cl.items||[]).filter(i=>i.done).length, pct = total?Math.round(done/total*100):0;
+    h += '<div class="section-card" style="margin-bottom:12px;"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+      + '<h4 style="margin:0;flex:1;min-width:160px;">'+(cl.kind==='encerramento'?'🏁':'✅')+' '+esc(cl.name)+' <small style="color:var(--ink-soft);font-weight:600;">· '+esc(CHECKLIST_KIND_LABEL[cl.kind]||'')+' · '+done+'/'+total+'</small></h4>'
+      + (readOnly?'':'<button type="button" class="btn btn-sm btn-ghost" data-action="checklist-remove" data-card="'+card.id+'" data-id="'+cl.id+'" title="Remover este checklist do card">🗑</button>')
+      + '</div><div class="dash-bar-track" style="margin:8px 0 10px;"><div class="dash-bar-fill" style="width:'+pct+'%;background:var(--ok);"></div></div>';
+    (cl.items||[]).forEach(it=>{
+      h += '<label style="display:flex;gap:8px;align-items:flex-start;padding:5px 2px;'+(readOnly?'':'cursor:pointer;')+'">'
+        + '<input type="checkbox" '+(it.done?'checked ':'')+(readOnly?'disabled ':'')+'data-action="checklist-toggle" data-card="'+card.id+'" data-list="'+cl.id+'" data-id="'+it.id+'" style="margin-top:3px;">'
+        + '<span style="'+(it.done?'text-decoration:line-through;color:var(--ink-soft);':'')+'">'+esc(it.text)+(it.required&&!it.done?' <span style="color:var(--danger);font-size:11px;font-weight:700;">obrigatório</span>':'')
+        + (it.done&&it.doneAt?' <small style="color:var(--ink-faint);">'+esc(new Date(it.doneAt).toLocaleDateString('pt-BR'))+(it.doneBy?' · '+esc(it.doneBy):'')+'</small>':'')+'</span></label>';
+    });
+    if(!readOnly) h += '<form data-form="checklist-item" data-card="'+card.id+'" data-list="'+cl.id+'" style="display:flex;gap:6px;margin-top:8px;"><input type="text" name="text" placeholder="Adicionar item neste checklist..." style="flex:1;min-width:0;"><button type="submit" class="btn btn-sm">＋</button></form>';
+    h += '</div>';
+  });
+  if(!readOnly){
+    const tpls = checklistTemplatesList();
+    if(tpls.length){
+      h += '<div class="section-card"><h4 style="margin:0 0 8px;">Aplicar modelo</h4><div class="row-actions" style="flex-wrap:wrap;">'
+        + tpls.map(t=>'<button type="button" class="btn btn-sm" data-action="checklist-apply" data-card="'+card.id+'" data-id="'+t.id+'">＋ '+esc(t.name)+' <small>('+esc(CHECKLIST_KIND_LABEL[t.kind]||'')+')</small></button>').join('')
+        + '</div></div>';
+    }
+  }
+  return h;
 }
 function addHistory(card, text, meta){
   card.history = card.history||[];
@@ -4657,6 +4789,14 @@ function checkBrowserScheduleNotifications(force){
 }
 
 function activeAnalysts(){ return state.analysts.filter(a=> !a.inactive && !a.isSupport); }
+/* Quem aparece em Relatórios e no Painel Geral: analistas comuns (nem Suporte, nem Gestor). */
+function isReportAnalyst(a){ return !!a && !a.isSupport && !a.isManager; }
+/* A agenda entra nos números de relatório se tiver algum analista "de relatório" (ou nenhum analista cadastrado). */
+function scheduleCountsForReports(s){
+  const ids = scheduleAnalystIds(s);
+  if(!ids.length) return true;
+  return ids.some(id=>{ const a=getAnalyst(id); return !a || isReportAnalyst(a); });
+}
 function activeModules(){ return state.modules.filter(m=> !m.inactive); }
 function activeScreens(){ return state.screens.filter(s=> !s.inactive); }
 function activeAgendaTypes(){ return state.agendaTypes.filter(t=> !t.inactive); }
@@ -4968,6 +5108,7 @@ function createCard(boardId, listId, clientId, extra){
     attachments:[], commercialReports:[]
   }, extra||{});
   state.cards.push(card);
+  try{ applyAutoChecklists(card); }catch(e){}
   return card;
 }
 function firstLinkedScheduleForCard(cardId){
@@ -5011,6 +5152,8 @@ function concludeCard(cardId, keepBalance){
   c.isConcluded = true;
   c.conclusionDate = todayISO();
   addHistory(c, 'Implantação concluída em '+fmtDateBR(c.conclusionDate));
+  const pendCk = checklistPendingRequired(c);
+  if(pendCk.length) addHistory(c, 'Concluída com '+pendCk.length+' item(ns) obrigatório(s) do checklist pendente(s): '+pendCk.slice(0,5).map(x=>x.text).join('; ')+(pendCk.length>5?'…':''));
   if(keepBalance===false){
     c.balanceForfeited = true;
     addHistory(c, 'Saldo de horas remanescente zerado — não ficou disponível para o cliente');
@@ -5067,6 +5210,7 @@ function updateSchedule(id, patch){
 function completeSchedule(id, deductMinutes, note){
   const s=byId(state.schedules,id); if(!s) return;
   s.status='concluida'; s.deductMinutes=deductMinutes; if(note) s.notes = note;
+  logNotifHandled('schedule', scheduleDisplayTitle(s), scheduleDateText(s)+' · '+(s.allDay?'Dia todo':s.startTime+'–'+s.endTime), 'Confirmada', s.id);
   scheduleCardIds(s).forEach(cid=>{
     const c=getCard(cid);
     if(c) addHistory(c, 'Agenda concluída ('+scheduleDateText(s)+(s.allDay? ' (dia todo)' : ' '+s.startTime+'–'+s.endTime)+') — '+minToHM(deductMinutes)+' abatido(s)');
@@ -5075,6 +5219,7 @@ function completeSchedule(id, deductMinutes, note){
 function markNotDone(id){
   const s=byId(state.schedules,id); if(!s) return;
   s.status='nao_realizada';
+  logNotifHandled('schedule', scheduleDisplayTitle(s), scheduleDateText(s)+' · '+(s.allDay?'Dia todo':s.startTime+'–'+s.endTime), 'Não realizada', s.id);
   scheduleCardIds(s).forEach(cid=>{ const c=getCard(cid); if(c) addHistory(c, 'Agenda marcada como não realizada ('+scheduleDateText(s)+')'); });
 }
 function revertToPending(id){
@@ -5242,13 +5387,13 @@ function renderSidebar(){
     + '<span>▦</span><span style="flex:1;">Todos os analistas</span>'
     + (totalPendingBoardBadge()? '<span class="side-badge">'+totalPendingBoardBadge()+'</span>' : '')
     + '</button>';
-  state.analysts.filter(a=>!a.inactive).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
+  state.analysts.filter(a=>!a.inactive && !a.isSupport && !a.isManager).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
     const myId = myAnalystId();
     const pend = (!myId || a.id===myId) ? notificationItemsForAnalyst(a.id).length : 0;
     const active = ui.view==='board' && ui.boardAnalystFilter===a.id;
     html += '<button class="side-item'+(active?' active':'')+'" data-action="board-analyst-filter" data-id="'+a.id+'">'
       + (a.photo ? analystAvatar(a,22) : '<span class="side-dot" style="background:'+a.color+'"></span>')
-      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+(a.isAdmin?' <span style="font-size:9px;font-weight:800;color:#F0A72F;letter-spacing:.5px;">ADMIN</span>':(a.isSupport?' <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.5px;">SUPORTE</span>':(a.isManager?' <span style="font-size:9px;font-weight:800;color:var(--muted);letter-spacing:.5px;">GESTOR</span>':'')))+'</span>'
+      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+(a.isAdmin?' <span style="font-size:9px;font-weight:800;color:#F0A72F;letter-spacing:.5px;">ADMIN</span>':'')+'</span>'
       + (pend? '<span class="side-badge">'+pend+'</span>' : '')
       + '</button>';
   });
@@ -5326,8 +5471,8 @@ function renderTopbar(){
         : 'Quadro consolidado • Todos os analistas')+'</div></div>'
       + '<div class="board-tools"><select class="board-analyst-filter" data-action="board-analyst-filter" title="Filtrar analista">'
       + '<option value="all"'+(ui.boardAnalystFilter==='all'?' selected':'')+'>Todos</option>';
-    state.analysts.filter(a=>!a.inactive).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
-      left += '<option value="'+a.id+'"'+(ui.boardAnalystFilter===a.id?' selected':'')+'>'+esc(a.name)+(a.isSupport?' (Suporte)':(a.isManager?' (Gestor)':''))+'</option>';
+    state.analysts.filter(a=>!a.inactive && !a.isSupport && !a.isManager).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
+      left += '<option value="'+a.id+'"'+(ui.boardAnalystFilter===a.id?' selected':'')+'>'+esc(a.name)+'</option>';
     });
     left += '</select>'
       + '<div class="search-box" style="margin-left:8px;"><span>🔎</span><input id="search-input" placeholder="Buscar cliente..." value="'+esc(ui.search)+'"></div>'
@@ -5368,6 +5513,7 @@ function renderTopbar(){
       + (ui.showUserMenu ? renderUserMenu() : '')
       + '</div>';
   }
+  right += '<button type="button" class="icon-btn" data-action="open-global-search" title="Busca global (Ctrl+K)">🔎</button>';
   right += '<button type="button" class="icon-btn" data-action="open-faq-search" title="Perguntas frequentes (FAQ)">❓</button>';
   if(!isManagerUser() && currentUser && myAnalystId()){
     const tl = timerLabel();
@@ -5389,52 +5535,103 @@ function renderUserMenu(){
   html += '</div>';
   return html;
 }
+/* Histórico de notificações tratadas, guardado no próprio analista (últimas 60) para aparecer na Central de notificações. */
+const NOTIF_LOG_MAX = 60;
+function logNotifHandled(kind, title, sub, result, refId){
+  try{
+    const me = getAnalyst(myAnalystId()); if(!me) return;
+    if(kind==='schedule' && refId){ const sc = byId(state.schedules, refId); if(sc && !scheduleAnalystIds(sc).includes(me.id)) return; }   // só registra o que era "meu"
+    me.notifLog = Array.isArray(me.notifLog) ? me.notifLog : [];
+    me.notifLog.unshift({ id:uid('nl'), kind, title:String(title||''), sub:String(sub||''), result:String(result||''), at:Date.now() });
+    if(me.notifLog.length > NOTIF_LOG_MAX) me.notifLog.length = NOTIF_LOG_MAX;
+  }catch(e){}
+}
+function notifItemHtml(s){
+  if(s._notifKind==='jira'){
+    const done = s.jiraBucket==='concluido';
+    const cl = s.clientId ? getClient(s.clientId) : null;
+    return '<div class="notif-item">'
+      + '<div style="font-weight:800;font-size:13px;">'+(done?'✅ Requisito concluído':'⛔ Requisito desconforme')+'</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.jiraNumber||'')+(cl?' · '+esc(cl.name||''):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Status no Jira: '+esc(s.jiraStatus||'')+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="jira-notice-seen" data-id="'+s.id+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="goto-view" data-view="jira">Ver requisitos</button></div>'
+      + '</div>';
+  }
+  if(s._notifKind==='balance'){
+    const cl = s.clientId ? getClient(s.clientId) : null;
+    return '<div class="notif-item">'
+      + '<div style="font-weight:800;font-size:13px;">'+(s.level>=100?'🔴 Saldo de horas esgotado':'🟠 Saldo de horas acabando')+'</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(cl?cl.name:'Cliente')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">'+s.used.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h de '+s.contracted.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h usadas ('+Math.round(s.used/s.contracted*100)+'%) · saldo '+s.balance.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="balance-notice-seen" data-id="'+s.id+'" data-level="'+s.level+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="notif-open-card" data-id="'+s.id+'">Abrir card</button></div>'
+      + '</div>';
+  }
+  const title = scheduleDisplayTitle(s);
+  const isUpcoming = s._notifKind==='upcoming';
+  const start = (!s.allDay && s.startTime) ? new Date(s.date+'T'+s.startTime+':00') : null;
+  const mins = start ? Math.max(0, Math.floor((start.getTime()-Date.now())/60000)) : null;
+  const head = isUpcoming ? '⏰ Próxima agenda em '+(mins===0 ? 'menos de 1 minuto' : mins+' min') : '⚠️ Agenda pendente de confirmação';
+  return '<div class="notif-item">'
+    + '<div style="font-weight:800;font-size:13px;">'+head+'</div>'
+    + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(title)+'</div>'
+    + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">'+scheduleDateText(s)+' '+(s.allDay?'(dia todo)':s.startTime+'–'+s.endTime)+' · Você</div>'
+    + (isUpcoming
+      ? '<div style="font-size:11.5px;color:var(--brand);font-weight:700;">Sua próxima agenda começa em até 30 minutos.</div>'
+      : '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="open-modal" data-modal="confirm-complete" data-id="'+s.id+'">Confirmar</button><button class="btn btn-sm btn-ghost" data-action="mark-not-done" data-id="'+s.id+'">Não realizada</button></div>')
+    + '</div>';
+}
+function notifNeedsAction(s){ return !s._notifKind || s._notifKind==='due'; }
 function renderNotifPanel(){
   const items = notifItems();
   let html = '<div class="notif-panel">';
   if(!items.length){
-    html += '<div class="notif-empty">Nenhuma notificação de agenda.</div>';
+    html += '<div class="notif-empty">Nenhuma notificação pendente.</div>';
   } else {
     items.sort((a,b)=> (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
-    items.forEach(s=>{
-      if(s._notifKind==='jira'){
-        const done = s.jiraBucket==='concluido';
-        const cl = s.clientId ? getClient(s.clientId) : null;
-        html += '<div class="notif-item">'
-          + '<div style="font-weight:800;font-size:13px;">'+(done?'✅ Requisito concluído':'⛔ Requisito desconforme')+'</div>'
-          + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.jiraNumber||'')+(cl?' · '+esc(cl.name||''):'')+'</div>'
-          + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Status no Jira: '+esc(s.jiraStatus||'')+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
-          + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="jira-notice-seen" data-id="'+s.id+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="goto-view" data-view="jira">Ver requisitos</button></div>'
-          + '</div>';
-        return;
-      }
-      if(s._notifKind==='balance'){
-        const cl = s.clientId ? getClient(s.clientId) : null;
-        html += '<div class="notif-item">'
-          + '<div style="font-weight:800;font-size:13px;">'+(s.level>=100?'🔴 Saldo de horas esgotado':'🟠 Saldo de horas acabando')+'</div>'
-          + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(cl?cl.name:'Cliente')+'</div>'
-          + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">'+s.used.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h de '+s.contracted.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h usadas ('+Math.round(s.used/s.contracted*100)+'%) · saldo '+s.balance.toLocaleString('pt-BR',{maximumFractionDigits:1})+'h</div>'
-          + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="balance-notice-seen" data-id="'+s.id+'" data-level="'+s.level+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="notif-open-card" data-id="'+s.id+'">Abrir card</button></div>'
-          + '</div>';
-        return;
-      }
-      const title = scheduleDisplayTitle(s);
-      const isUpcoming = s._notifKind==='upcoming';
-      const start = (!s.allDay && s.startTime) ? new Date(s.date+'T'+s.startTime+':00') : null;
-      const mins = start ? Math.max(0, Math.floor((start.getTime()-Date.now())/60000)) : null;
-      const head = isUpcoming ? '⏰ Próxima agenda em '+(mins===0 ? 'menos de 1 minuto' : mins+' min') : '⚠️ Agenda pendente de confirmação';
-      html += '<div class="notif-item">'
-        + '<div style="font-weight:800;font-size:13px;">'+head+'</div>'
-        + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(title)+'</div>'
-        + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">'+scheduleDateText(s)+' '+(s.allDay?'(dia todo)':s.startTime+'–'+s.endTime)+' · Você</div>'
-        + (isUpcoming
-          ? '<div style="font-size:11.5px;color:var(--brand);font-weight:700;">Sua próxima agenda começa em até 30 minutos.</div>'
-          : '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="open-modal" data-modal="confirm-complete" data-id="'+s.id+'">Confirmar</button><button class="btn btn-sm btn-ghost" data-action="mark-not-done" data-id="'+s.id+'">Não realizada</button></div>')
-        + '</div>';
-    });
+    items.forEach(s=>{ html += notifItemHtml(s); });
   }
+  html += '<div style="padding:6px 4px 2px;border-top:1px solid var(--border);margin-top:6px;text-align:center;"><button type="button" class="btn btn-sm btn-ghost" data-action="open-notif-center">Abrir central de notificações e histórico</button></div>';
   html += '</div>';
   return html;
+}
+function renderNotifCenterModal(){
+  const tab = ui.notifTab==='hist' ? 'hist' : 'pend';
+  const items = notifItems().sort((a,b)=> (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
+  const needAct = items.filter(notifNeedsAction), infos = items.filter(x=>!notifNeedsAction(x));
+  const me = getAnalyst(myAnalystId());
+  const log = (me && me.notifLog) || [];
+  let h = '<div class="modal-header"><h3>🔔 Central de notificações</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  h += '<div class="settings-tabs" style="margin-bottom:10px;">'
+    + '<button type="button" class="btn btn-sm'+(tab==='pend'?' btn-primary':'')+'" data-action="notif-tab" data-tab="pend">Pendentes ('+items.length+')</button>'
+    + '<button type="button" class="btn btn-sm'+(tab==='hist'?' btn-primary':'')+'" data-action="notif-tab" data-tab="hist">Histórico ('+log.length+')</button></div>';
+  if(!me){
+    h += '<div class="faq-search-status">As notificações são pessoais de cada analista. Entre com o usuário de um analista para ver as suas.</div>';
+    return h;
+  }
+  h += '<div style="max-height:62vh;overflow-y:auto;">';
+  if(tab==='pend'){
+    if(!items.length) h += '<div class="faq-search-status">Tudo em dia. Nenhuma notificação pendente.</div>';
+    if(needAct.length){
+      h += '<h4 style="margin:4px 0 6px;font-size:12px;color:var(--danger);">Exigem ação ('+needAct.length+')</h4>';
+      needAct.forEach(x=>{ h += notifItemHtml(x); });
+    }
+    if(infos.length){
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 6px;"><h4 style="margin:0;font-size:12px;color:var(--ink-soft);">Avisos ('+infos.length+')</h4>'
+        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
+      infos.forEach(x=>{ h += notifItemHtml(x); });
+    }
+  } else {
+    if(!log.length) h += '<div class="faq-search-status">Nada tratado ainda. Aqui aparecem as agendas confirmadas ou marcadas como não realizadas e os avisos que você marcou como lidos (últimos '+NOTIF_LOG_MAX+').</div>';
+    log.forEach(x=>{
+      const ico = x.kind==='schedule' ? (x.result==='Confirmada'?'✅':'🚫') : (x.kind==='balance'?'💰':'🧩');
+      h += '<div class="notif-item" style="display:flex;gap:10px;align-items:flex-start;"><span style="width:22px;text-align:center;">'+ico+'</span><div style="flex:1;min-width:0;">'
+        + '<div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.title)+'</div>'
+        + '<div style="font-size:11.5px;color:var(--ink-soft);">'+esc(x.sub)+'</div></div>'
+        + '<div style="text-align:right;font-size:11px;color:var(--ink-soft);white-space:nowrap;"><b>'+esc(x.result)+'</b><br>'+esc(new Date(x.at).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}))+'</div></div>';
+    });
+  }
+  h += '</div>';
+  return h;
 }
 
 /* ============================= FAQ (BUSCA NA CENTRAL DE AJUDA ZENDESK) =============================
@@ -5508,6 +5705,57 @@ function renderFaqSearchModal(){
   }
 
   html += '<div class="faq-search-footer"><a href="'+esc(FAQ_CATEGORY_URL)+'" target="_blank" rel="noopener noreferrer">Ver toda a central de ajuda (FAQ) ↗</a></div>';
+  html += '</div>';
+  return html;
+}
+
+/* ============================= BUSCA GLOBAL =============================
+   Uma caixa só para achar clientes, cards, agendas e requisitos Jira (Ctrl+K). Só lê os dados já carregados. */
+const GSEARCH_LIMIT = 8;
+function normSearch(v){ return String(v==null?'':v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,''); }
+function globalSearchResults(q){
+  const nq = normSearch(q).trim();
+  if(nq.length < 2) return null;
+  const has = function(){ for(let i=0;i<arguments.length;i++){ if(normSearch(arguments[i]).indexOf(nq)>=0) return true; } return false; };
+  const clientHit = cl => !!cl && has(cl.name, cl.code, cl.companyName, cl.cnpj, cl.contact);
+  const clients = state.clients.filter(clientHit).sort((a,b)=>String(a.name||'').localeCompare(String(b.name||''),'pt-BR'));
+  const cards = state.cards.filter(c=> clientHit(getClient(c.clientId)))
+    .sort((a,b)=>{ const x=cardIsActive(a)?0:1, y=cardIsActive(b)?0:1; return x-y; });
+  const schedules = state.schedules.filter(sc=>{
+    const names = scheduleClientIds(sc).map(id=>{ const c=getClient(id); return c?(c.name+' '+(c.code||'')):''; }).join(' ');
+    return has(sc.title, sc.type, names, sc.notes, sc.trainedUsers);
+  }).sort((a,b)=> (b.date+(b.startTime||'')).localeCompare(a.date+(a.startTime||'')));
+  const jira = (state.jiraRequirements||[]).filter(r=>{ const c=r.clientId?getClient(r.clientId):null; return has(r.number, r.link, r.status, c?c.name:'', c?c.code:''); });
+  return { clients, cards, schedules, jira };
+}
+function renderGlobalSearchModal(){
+  let html = '<div class="modal-header"><h3><span class="faq-modal-icon">🔎</span> Busca global</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  html += '<div class="faq-search">'
+    + '<div class="search-box faq-search-box"><span>🔎</span><input type="text" id="global-search-input" placeholder="Cliente, código, CNPJ, card, agenda ou requisito Jira..." value="'+esc(ui.gsQuery||'')+'" autocomplete="off"></div>';
+  const res = globalSearchResults(ui.gsQuery||'');
+  if(!res){
+    html += '<div class="faq-search-status faq-search-hint">Digite pelo menos 2 letras. Procura em clientes, cards, agendas e requisitos Jira.</div>';
+  } else {
+    const total = res.clients.length + res.cards.length + res.schedules.length + res.jira.length;
+    if(!total){
+      html += '<div class="faq-search-status">Nada encontrado para "'+esc(ui.gsQuery)+'".</div>';
+    } else {
+      html += '<div class="faq-search-results" id="gs-results">';
+      const group = (title, ico, list, rowFn)=>{
+        if(!list.length) return;
+        html += '<div class="gs-group"><h4>'+title+' <small>('+list.length+(list.length>GSEARCH_LIMIT?', mostrando '+GSEARCH_LIMIT:'')+')</small></h4>';
+        list.slice(0,GSEARCH_LIMIT).forEach(it=>{ const r = rowFn(it);
+          html += '<button type="button" class="gs-row" data-action="gsearch-open" data-kind="'+r.kind+'" data-id="'+esc(it.id)+'"><span class="gs-ico">'+ico+'</span><span class="gs-main"><b>'+esc(r.title)+'</b><span>'+esc(r.sub)+'</span></span></button>'; });
+        html += '</div>';
+      };
+      group('Clientes','🏢',res.clients, cl=>({kind:'client', title:cl.name, sub:[cl.code?('Cód. '+cl.code):'', cl.companyName||'', cl.cnpj||''].filter(Boolean).join(' · ')}));
+      group('Cards','🗂',res.cards, c=>{ const cl=getClient(c.clientId), b=getBoard(c.boardId), an=b?getAnalyst(b.analystId):null, ls=b?(b.lists||[]).find(l=>l.id===c.listId):null;
+        return {kind:'card', title:(cl?cl.name:'Card'), sub:[an?an.name:'', ls?ls.name:'', cardStatus(c).label].filter(Boolean).join(' · ')}; });
+      group('Agendas','🗓',res.schedules, sc=>{ return {kind:'schedule', title:scheduleDisplayTitle(sc), sub:[scheduleDateText(sc), sc.allDay?'Dia todo':((sc.startTime||'')+'–'+(sc.endTime||'')), scheduleAnalystNames(sc), ({concluida:'Confirmada',pendente:'Pendente',nao_realizada:'Não realizada'})[sc.status]||''].filter(Boolean).join(' · ')}; });
+      group('Requisitos Jira','🧩',res.jira, r=>{ const c=r.clientId?getClient(r.clientId):null; return {kind:'jira', title:r.number||'(sem número)', sub:[c?c.name:'', r.status||''].filter(Boolean).join(' · ')}; });
+      html += '</div>';
+    }
+  }
   html += '</div>';
   return html;
 }
@@ -6061,7 +6309,7 @@ function renderCategoryVsNewCardsChart(dashboardClientIds){
   // dependem do filtro "Analista" do Painel Geral, pra permitir fatiar este
   // gráfico especificamente sem mudar o resto da tela. Cidade e segmento
   // continuam vindo do Painel Geral (via dashboardClientIds).
-  const localAnalysts = state.analysts.filter(a=>!a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const localAnalysts = state.analysts.filter(isReportAnalyst).slice().sort((a,b)=>a.name.localeCompare(b.name));
   if(!localAnalysts.some(a=>a.id===ui.dashboardCatChartAnalyst)) ui.dashboardCatChartAnalyst = 'all';
   const localAnalyst = ui.dashboardCatChartAnalyst!=='all' ? getAnalyst(ui.dashboardCatChartAnalyst) : null;
 
@@ -6631,7 +6879,7 @@ function renderDashboardView(){
   html += '<div class="field"><label>Data inicial</label><input type="date" id="dash-start-filter" data-dash-date="1" value="'+esc(periodStart)+'"></div>';
   html += '<div class="field"><label>Data final</label><input type="date" id="dash-end-filter" data-dash-date="1" value="'+esc(periodEnd)+'"></div>';
   html += '<div class="field"><label>Analista</label><select id="dash-analyst-filter" data-action="dashboard-filter"><option value="all">Todos</option>';
-  state.analysts.filter(a=>!a.inactive && !a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=> html += '<option value="'+esc(a.id)+'" '+(ui.dashboardAnalyst===a.id?'selected':'')+'>'+esc(a.name)+'</option>');
+  state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=> html += '<option value="'+esc(a.id)+'" '+(ui.dashboardAnalyst===a.id?'selected':'')+'>'+esc(a.name)+'</option>');
   html += '</select></div>';
   const segmentOptions=[...new Set(state.clients.map(c=>String(c.segment||'').trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
   html += '<div class="field"><label>Segmento</label><select id="dash-segment-filter" data-action="dashboard-filter"><option value="all">Todos</option>';
@@ -6648,7 +6896,7 @@ function renderDashboardView(){
   html += '<div class="kpi-grid" style="margin-bottom:22px;">';
   const statusKpiLabel = {ativos:'Projetos em andamento', todos:'Projetos (todas as situações)', concluidos:'Projetos concluídos', parados:'Projetos parados', cancelados:'Projetos cancelados'}[ui.dashboardStatus] || 'Projetos em andamento';
   html += kpiCard('📁', statusKpiLabel, activeCards.length, dashboardReportClients.length+' cliente(s) no filtro · '+dashboardCardsAll.filter(c=>cardIsActive(c)).length+' em andamento', 'var(--brand)');
-  html += kpiCard('👤','Analistas ativos', state.analysts.filter(a=>!a.inactive && !a.isSupport).length, state.analysts.filter(a=>!a.isSupport).length+' no total', 'var(--brand)');
+  html += kpiCard('👤','Analistas ativos', state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).length, state.analysts.filter(isReportAnalyst).length+' no total', 'var(--brand)');
   html += kpiCard('⏳','Saldo total disponível', minToHM(totalBalance*60), totalBalance<0?'atenção: saldo negativo':'dentro do contratado', totalBalance<0?'var(--danger)':'var(--ok)');
   html += kpiCard('🔔','Confirmações pendentes', pendConf, pendConf?'requer atenção':'tudo em dia', pendConf?'var(--danger)':'var(--ok)');
   html += '</div>';
@@ -6738,9 +6986,9 @@ function renderDashboardView(){
   });
   html += '</div>';
 
-  const filteredAnalysts = state.analysts.filter(a=>!a.inactive && !a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id));
+  const filteredAnalysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a) && (!selectedAnalyst || a.id===selectedAnalyst.id));
   // Todos os analistas (exceto Suporte) que contam nas horas; inativo só aparece se trabalhou no período.
-  const hoursAnalysts = state.analysts.filter(a=>!a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id));
+  const hoursAnalysts = state.analysts.filter(a=>isReportAnalyst(a) && (!selectedAnalyst || a.id===selectedAnalyst.id));
   const analystWork = hoursAnalysts.map(a=>{
     const mins = analystMinutesInRange(a.id, periodStart, periodEnd, hoursPredDash);
     const cards=dashboardCardsAll.filter(c=>{ const b=getBoard(c.boardId); return cardIsActive(c) && b && b.analystId===a.id; });
@@ -6844,6 +7092,7 @@ function renderDashboardView(){
   const dashboardHourSchedules = state.schedules.filter(s=>{
     if(s.status!=='concluida') return false;   // somente agendas confirmadas
     if(!scheduleInPeriod(s)) return false;
+    if(!scheduleCountsForReports(s)) return false;
     if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return false;
     return hoursPredDash(s);
   });
@@ -6854,7 +7103,7 @@ function renderDashboardView(){
   } else if(!analystSchedules.length){
     horasAnalistasHtml += '<div class="report-empty">Nenhuma agenda encontrada no período selecionado.</div>';
   } else {
-    const analystMin = state.analysts.filter(a=>!a.isSupport && (!selectedAnalyst || a.id===selectedAnalyst.id)).map(a=>{
+    const analystMin = state.analysts.filter(a=>isReportAnalyst(a) && (!selectedAnalyst || a.id===selectedAnalyst.id)).map(a=>{
       const scheds = analystSchedules.filter(s=>scheduleAnalystIds(s).includes(a.id));
       const mins = analystMinutesInRange(a.id, periodStart, periodEnd, hoursPred);
       return {a, mins, count:scheds.length};
@@ -6924,10 +7173,10 @@ function renderDashboardView(){
   let horasTipoHtml = '<div class="report-section dash-card">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:#E7F5EE;color:var(--ok);">🗓</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Horas por tipo de agenda</h2>'
-    + '<p class="report-section-desc">Horas de todas as agendas cadastradas <strong>'+periodLabel+'</strong>, separadas por tipo. Férias, agendas pendentes e concluídas aparecem; somente agendas não realizadas são desconsideradas. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
-  const periodScheds = dashboardHourSchedules;
+    + '<p class="report-section-desc">Horas das agendas <strong>confirmadas (concluídas)</strong> <strong>'+periodLabel+'</strong>, separadas por tipo. Agendas pendentes, não realizadas e férias não confirmadas ficam de fora. Os filtros de analista, cidade e segmento continuam valendo.</p></div></div>';
+  const periodScheds = dashboardHourSchedules.filter(s=>s.status==='concluida');
   if(!periodScheds.length){
-    horasTipoHtml += '<div class="report-empty">Nenhuma agenda encontrada no período selecionado.</div>';
+    horasTipoHtml += '<div class="report-empty">Nenhuma agenda confirmada encontrada no período selecionado.</div>';
   } else {
     const byType = {};
     periodScheds.forEach(s=>{
@@ -7256,6 +7505,7 @@ function renderCardModalContent(card){
     + tabBtn('forecast','Previstos × Treinados')
     + tabBtn('workflow','Fluxo de trabalho')
     + tabBtn('attach','Anexos ('+((card.attachments||[]).length)+')')
+    + tabBtn('checklist','✅ Checklist'+(checklistProgress(card).total?' ('+checklistProgress(card).done+'/'+checklistProgress(card).total+')':''))
     + tabBtn('risks','⚠️ Riscos ('+openRisks(card).length+')')
     + tabBtn('commercial','Histórico / 📣 Comercial ('+commercialCount+')')
     + tabBtn('history','Histórico')
@@ -7380,6 +7630,8 @@ function renderCardModalContent(card){
     html += renderCardWorkflowFlow(card);
   } else if(ui.cardTab==='attach'){
     html += renderCardAttachmentsTab(card);
+  } else if(ui.cardTab==='checklist'){
+    html += renderChecklistTab(card);
   } else if(ui.cardTab==='risks'){
     html += renderRisksTab(card);
   } else if(ui.cardTab==='commercial'){
@@ -8318,6 +8570,7 @@ function renderReportsView(){
     {k:'saldo', l:'💼 Saldo de horas'},
     {k:'fechados', l:'🏁 Fechados no mês'},
     {k:'internas', l:'⚑ Horas internas não abatidas'},
+    {k:'agendas-tipo', l:'🗂 Agendas por tipo'},
     {k:'modulos', l:'🎓 Módulos treinados'},
     {k:'analistas', l:'👤 Desempenho por analista'},
     {k:'agenda-mensal', l:'🗓 Agenda mensal'},
@@ -8338,7 +8591,7 @@ function renderReportsView(){
   html += '</div>';
 
   const dateRange = getReportsDateRange();
-  const dateFilterApplies = ['fechados','internas','modulos','analistas','agenda-mensal','extrato','auditoria'].includes(ui.reportsTab);
+  const dateFilterApplies = ['fechados','internas','agendas-tipo','modulos','analistas','agenda-mensal','extrato','auditoria'].includes(ui.reportsTab);
   if(!state.clients.some(cl=>cl.id===ui.reportsClientFilter)) ui.reportsClientFilter = 'all';
   html += '<div class="cal-toolbar" style="margin-bottom:12px;">'
     + '<span class="hint" style="margin:0;">Filtrar tudo por cliente:</span>'+renderReportsClientPicker()
@@ -8542,6 +8795,90 @@ function renderReportsView(){
   html += '</div>';
   }
 
+
+  if(ui.reportsTab==='agendas-tipo'){
+    const STATUS_LABEL = { concluida:'Confirmada', pendente:'Pendente', nao_realizada:'Não realizada' };
+    const stFilter = ['concluida','pendente','nao_realizada','all'].includes(ui.agTipoStatus) ? ui.agTipoStatus : 'concluida';
+    const baseScheds = state.schedules.filter(s=>
+      dateInRange(s.date, dateRange)
+      && scheduleCountsForReports(s)
+      && (ui.reportsClientFilter==='all' || scheduleClientIds(s).includes(ui.reportsClientFilter))
+      && (stFilter==='all' || s.status===stFilter));
+    const typeOf = s => (String(s.type||'Sem tipo').trim() || 'Sem tipo');
+    const typeNames = Array.from(new Set(baseScheds.map(typeOf))).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+    if(ui.agTipoType!=='all' && !typeNames.includes(ui.agTipoType)) ui.agTipoType = 'all';
+    const shown = baseScheds.filter(s=> ui.agTipoType==='all' || typeOf(s)===ui.agTipoType);
+    const totalMin = shown.reduce((sum,x)=> sum + scheduleActualMinutes(x), 0);
+
+    html += '<div class="report-section">';
+    html += '<div class="report-section-head">'
+      + '<div class="report-section-icon" style="background:var(--brand-soft);color:var(--brand);">🗂</div>'
+      + '<div style="flex:1;">'
+      +   '<h2 class="report-section-title">Agendas por tipo de agenda</h2>'
+      +   '<p class="report-section-desc">Lista as agendas do período, separadas por tipo. Por padrão só aparecem as <strong>confirmadas</strong> (concluídas), as mesmas que entram nas horas do Painel Geral. Analistas com privilégio de Gestor ou Suporte não entram. Total exibido: <strong>'+shown.length+' agenda'+(shown.length===1?'':'s')+'</strong> • <strong>'+minToHM(totalMin)+'</strong>.</p>'
+      + '</div>'
+      + '</div>';
+    html += '<div class="cal-toolbar" style="margin-bottom:12px;">'
+      + '<span class="hint" style="margin:0;">Tipo:</span>'
+      + '<select id="agtipo-type" style="max-width:240px;"><option value="all">Todos os tipos</option>'
+      + typeNames.map(n=>'<option value="'+esc(n)+'"'+(ui.agTipoType===n?' selected':'')+'>'+esc(n)+'</option>').join('')
+      + '</select>'
+      + '<span class="hint" style="margin:0;">Situação:</span>'
+      + '<select id="agtipo-status" style="max-width:200px;">'
+      + [['concluida','Confirmadas'],['pendente','Pendentes'],['nao_realizada','Não realizadas'],['all','Todas']].map(o=>'<option value="'+o[0]+'"'+(stFilter===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')
+      + '</select></div>';
+
+    if(!shown.length){
+      html += '<div class="report-empty">Nenhuma agenda encontrada com esses filtros no período selecionado.</div></div>';
+    } else {
+      // Resumo por tipo
+      const sum = {};
+      baseScheds.forEach(s=>{ const t=typeOf(s); if(!sum[t]) sum[t]={n:0,min:0}; sum[t].n++; sum[t].min += scheduleActualMinutes(s); });
+      const sumRows = Object.entries(sum).filter(([t])=> ui.agTipoType==='all' || t===ui.agTipoType).sort((a,b)=>b[1].min-a[1].min || a[0].localeCompare(b[0],'pt-BR'));
+      html += '<div class="report-table-wrap" style="margin-bottom:14px;"><table class="report-table"><thead><tr><th>Tipo</th><th class="num">Agendas</th><th class="num">Horas</th></tr></thead><tbody>';
+      sumRows.forEach(([t,v])=>{ html += '<tr><td><strong>'+esc(t)+'</strong></td><td class="num">'+v.n+'</td><td class="num">'+minToHM(v.min)+'</td></tr>'; });
+      html += '<tr><td><strong>Total</strong></td><td class="num"><strong>'+shown.length+'</strong></td><td class="num"><strong>'+minToHM(totalMin)+'</strong></td></tr>';
+      html += '</tbody></table></div>';
+
+      // Lista detalhada
+      const agSort = getTableSort('agendastipo', 'type', 'asc');
+      const agAccessor = (s,key)=>{
+        switch(key){
+          case 'type': return typeOf(s).toLowerCase()+'|'+s.date+(s.startTime||'');
+          case 'date': return s.date+(s.startTime||'');
+          case 'client': return scheduleClientIds(s).map(id=>{ const c=getClient(id); return c?c.name:''; }).join(', ');
+          case 'analyst': return scheduleAnalystNames(s);
+          case 'duration': return scheduleActualMinutes(s);
+          case 'status': return STATUS_LABEL[s.status]||'';
+          default: return '';
+        }
+      };
+      const sorted = sortRowsBy(shown, agSort, agAccessor);
+      html += '<div class="report-table-wrap"><table class="report-table"><thead><tr>'
+        + sortableTh('agendastipo','type','Tipo',agSort)
+        + sortableTh('agendastipo','date','Data',agSort)
+        + '<th>Horário</th>'
+        + sortableTh('agendastipo','client','Cliente(s)',agSort)
+        + sortableTh('agendastipo','analyst','Analista(s)',agSort)
+        + sortableTh('agendastipo','status','Situação',agSort)
+        + sortableTh('agendastipo','duration','Duração',agSort,' class="num"')
+        + '</tr></thead><tbody>';
+      sorted.forEach(s=>{
+        const cls = scheduleClientIds(s).map(id=>{ const c=getClient(id); return c?c.name:''; }).filter(Boolean).join(', ');
+        html += '<tr>'
+          + '<td><span class="report-tag">'+esc(typeOf(s))+'</span></td>'
+          + '<td>'+scheduleDateText(s)+'</td>'
+          + '<td>'+(s.allDay?'Dia todo':esc((s.startTime||'')+'–'+(s.endTime||'')))+'</td>'
+          + '<td>'+(cls?esc(cls):'—')+'</td>'
+          + '<td>'+esc(scheduleAnalystNames(s)||'—')+'</td>'
+          + '<td>'+esc(STATUS_LABEL[s.status]||s.status||'')+'</td>'
+          + '<td class="num">'+minToHM(scheduleActualMinutes(s))+'</td>'
+          + '</tr>';
+      });
+      html += '</tbody></table></div></div>';
+    }
+  }
+
   if(ui.reportsTab==='internas'){
   const allUnlinked = state.schedules
     .filter(s=> isInternalType(s.type) && scheduleClientIds(s).length && !scheduleCardIds(s).length && s.status==='concluida' && dateInRange(s.date, dateRange) && (ui.reportsClientFilter==='all' || scheduleClientIds(s).includes(ui.reportsClientFilter)))
@@ -8667,7 +9004,7 @@ function renderReportsView(){
     + '</div>';
   const analistasStatusFilter = ['active','inactive','all'].includes(ui.analistasStatusFilter) ? ui.analistasStatusFilter : 'active';
   const analystsForGrid = state.analysts.filter(a=>{
-    if(a.isSupport) return false;
+    if(!isReportAnalyst(a)) return false;
     if(analistasStatusFilter==='active') return !a.inactive;
     if(analistasStatusFilter==='inactive') return !!a.inactive;
     return true;
@@ -8765,7 +9102,7 @@ function renderReportsView(){
     html += '<div class="report-empty">Nenhum analista cadastrado.</div>';
   } else {
     const distSort = getTableSort('distribuicao', 'analyst', 'asc');
-    const distRows = state.analysts.filter(a=>!a.isSupport).map(a=>{
+    const distRows = state.analysts.filter(isReportAnalyst).map(a=>{
       const board = boardOfAnalyst(a.id);
       let cards = board ? cardsInBoard(board.id) : [];
       if(ui.reportsClientFilter!=='all') cards = cards.filter(c=> c.clientId===ui.reportsClientFilter);
@@ -8829,7 +9166,7 @@ function renderAgendaMensalReport(dateRange){
     + '</div>'
     + '</div>';
 
-  const activeAnalysts = state.analysts.filter(a=>!a.inactive && !a.isSupport);
+  const activeAnalysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a));
   if(!activeAnalysts.length){
     html += '<div class="report-empty">Nenhum analista ativo cadastrado.</div></div>';
     return html;
@@ -9738,6 +10075,7 @@ function renderSettingsView(){
     {k:'tipos',     l:'Tipos de agenda', adminOnly:false},
     {k:'notificacoes', l:'Notificações', adminOnly:false},
     {k:'modelos',   l:'Modelos de treinamento', adminOnly:false},
+    {k:'checklists', l:'Checklists', adminOnly:false},
     {k:'gestao',    l:'Alertas e backup', adminOnly:true},
     {k:'ferias',    l:'Férias',    adminOnly:true},
     {k:'acesso',    l:'Acesso',    adminOnly:true},
@@ -9769,6 +10107,7 @@ function renderSettingsView(){
   }
 
   if(ui.settingsTab==='modelos'){ html += renderTemplatesSettings(); }
+  if(ui.settingsTab==='checklists'){ html += renderChecklistSettings(); }
   if(ui.settingsTab==='gestao' && admin){ html += renderMgmtSettings(); }
 
   if(ui.settingsTab==='analistas'){
@@ -10676,6 +11015,7 @@ function renderModal(){
         + '<div class="choice-desc">Saldo atual: <strong style="color:'+(bal<0?'var(--danger)':'var(--ok)')+';">'+minToHM(bal*60)+'</strong>.</div>'
         + '<div class="choice-desc" style="margin-top:10px;font-weight:700;">Deixar esse saldo de horas disponível para o cliente depois da conclusão?</div>'
         + '<div class="choice-desc">Se "Não", o saldo remanescente será zerado e não poderá mais ser usado por este cliente.</div>'
+        + (checklistPendingRequired(c).length ? '<div class="error-msg" style="margin:10px 0;"><strong>⚠ Checklist com pendências ('+checklistPendingRequired(c).length+'):</strong><br>'+checklistPendingRequired(c).slice(0,8).map(x=>'• '+esc(x.text)).join('<br>')+'<br><small>Você pode concluir mesmo assim; as pendências ficam registradas no histórico do card.</small></div>' : '')
         + '<div class="choice-desc" style="margin-top:8px;">Ao confirmar, geraremos o <strong>relatório de fechamento</strong> com dados do cliente, produtos, módulos/telas e tempo gasto.</div>'
       + '</div>'
       + '<div class="choice-actions"><button class="btn btn-ghost" data-action="close-modal">Cancelar</button>'
@@ -10728,6 +11068,10 @@ function renderModal(){
     inner = renderServiceContractPrint(m.id);
   } else if(m.type==='faq-search'){
     inner = renderFaqSearchModal();
+  } else if(m.type==='global-search'){
+    inner = renderGlobalSearchModal();
+  } else if(m.type==='notif-center'){
+    inner = renderNotifCenterModal();
   }
   return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='commercial-report-view' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+'">'+inner+'</div></div>';
 }
@@ -11265,7 +11609,7 @@ function renderScheduleForm(m){
     allDay: draft ? formValuesAllDay(draft) : (editing ? !!editing.allDay : false),
     startTime: draft ? draft.startTime : (editing ? editing.startTime : (m.prefillStart || '09:00')),
     endTime: draft ? draft.endTime : (editing ? editing.endTime : (m.prefillEnd || '10:00')),
-    type: draft ? draft.type : (editing ? editing.type : (activeAgendaTypes().find(t=>!t.isInternal && !t.isServico) ? activeAgendaTypes().find(t=>!t.isInternal && !t.isServico).name : (activeAgendaTypes()[0]?activeAgendaTypes()[0].name:''))),
+    type: draft ? (draft.type||'') : (editing ? editing.type : ''),   // nova agenda: tipo em branco, o usuário é obrigado a escolher
     category: draft ? (draft.category||'implantacao') : (editing ? (editing.category||'implantacao') : 'implantacao'),
     contactType: draft ? (draft.contactType||'whatsapp') : (editing ? (editing.contactType||'whatsapp') : 'whatsapp'),
     modules: draft ? (draft.modules||[]) : (editing ? (editing.modules||[]) : []),
@@ -11395,7 +11739,8 @@ function renderScheduleForm(m){
     }
   }
 
-  html += '<div class="field"><label>Tipo</label><select name="type">';
+  html += '<div class="field"><label>Tipo <span style="color:var(--danger)" title="Obrigatório">*</span></label><select name="type" required>'
+    + '<option value=""'+(!eff.type?' selected':'')+'>— Selecione o tipo —</option>';
   const catFilter = eff.category;
   state.agendaTypes.forEach(t=>{
     let matchCat = false;
@@ -11800,7 +12145,7 @@ const FORM_MODAL_TYPES = new Set([
 ]);
 
 ['click','submit','change'].forEach(function(t){ document.addEventListener(t, function(){ window.__mgrInteracted = true; }, true); });
-const MANAGER_BLOCKED_RE = /^(delete-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-)/;
+const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-)/;
 document.addEventListener('click', async function(e){
   let needsRender = false;
   const notifPanelClick = e.target.closest('.notif-panel');
@@ -11934,7 +12279,35 @@ document.addEventListener('click', async function(e){
   else if(a==='confirm-ok'){ const d=ui.confirmDialog; ui.confirmDialog=null; if(d && d.onConfirm) d.onConfirm(); render(); }
   else if(a==='confirm-cancel'){ ui.confirmDialog=null; render(); }
   else if(a==='close-card'){ ui.openCardId=null; ui.cardDraft=null; ui.cardModuleTab=null; ui.cardForecastModuleTab=null; render(); }
+  else if(a==='open-notif-center'){ ui.showNotif=false; ui.showUserMenu=false; ui.notifTab='pend'; ui.modal={type:'notif-center'}; render(); }
+  else if(a==='notif-tab'){ ui.notifTab = el.dataset.tab==='hist' ? 'hist' : 'pend'; render(); }
+  else if(a==='notif-mark-all-read'){
+    const me = myAnalystId();
+    if(me){
+      notifItems().forEach(x=>{
+        if(x._notifKind==='balance'){ const c=getCard(x.id); if(c){ c.balanceAlertSeen = c.balanceAlertSeen||{}; c.balanceAlertSeen[me]=x.level; const cl0=getClient(c.clientId); logNotifHandled('balance',(x.level>=100?'Saldo de horas esgotado':'Saldo de horas acabando'),cl0?cl0.name:'Cliente','Lido',c.id); } }
+        else if(x._notifKind==='jira'){ const r=getJiraRequirement(x.id); if(r && r.statusNotice){ r.statusNotice.seen = Array.isArray(r.statusNotice.seen)?r.statusNotice.seen:[]; if(!r.statusNotice.seen.includes(me)){ r.statusNotice.seen.push(me); const cl1=r.clientId?getClient(r.clientId):null; logNotifHandled('jira','Requisito '+(r.number||''),(cl1?cl1.name:''),'Lido',r.id); } } }
+      });
+      persist();
+    }
+    render();
+  }
   else if(a==='toggle-notif'){ ui.showNotif = !ui.showNotif; render(); }
+  else if(a==='open-global-search'){
+    ui.showNotif=false; ui.showUserMenu=false; ui.gsQuery='';
+    ui.modal = {type:'global-search'}; ui._focus = {id:'global-search-input', pos:0};
+    render();
+    ensureLazyTableLoaded('jiraRequirements');
+  }
+  else if(a==='gsearch-open'){
+    const kind = el.dataset.kind, id = el.dataset.id;
+    ui.gsQuery=''; ui.formErr=''; ui.formSuccess='';
+    if(kind==='client'){ ui.modal = {type:'client-view', id}; }
+    else if(kind==='card'){ ui.modal=null; ui.view='board'; ui.boardAnalystFilter='all'; ui.openCardId=id; ui.cardTab='info'; ui.cardModuleTab=null; ui.cardForecastModuleTab=null; }
+    else if(kind==='schedule'){ ui.modal = {type:'schedule-edit', id}; }
+    else if(kind==='jira'){ ui.modal = {type:'jira-requirement', id}; }
+    render();
+  }
   else if(a==='open-faq-search'){
     ui.showNotif=false; ui.showUserMenu=false;
     ui.faqQuery=''; ui.faqResults=null; ui.faqLoading=false; ui.faqError='';
@@ -11976,6 +12349,25 @@ document.addEventListener('click', async function(e){
     const deleteSchedules = el.dataset.deleteSchedules==='1';
     deleteCard(id, deleteSchedules);
     ui.openCardId=null; ui.cardDraft=null; ui.modal=null; render();
+  }
+  else if(a==='checklist-toggle'){
+    const c = getCard(el.dataset.card); const cl = c && (c.checklists||[]).find(x=>x.id===el.dataset.list); const it = cl && (cl.items||[]).find(x=>x.id===el.dataset.id);
+    if(it){ it.done = !it.done; if(it.done){ it.doneAt = Date.now(); it.doneBy = (getAnalyst(myAnalystId())||{}).name || (currentUser&&currentUser.displayName) || ''; } else { delete it.doneAt; delete it.doneBy; }
+      addHistory(c, (it.done?'Checklist ✓ ':'Checklist ↺ ')+'"'+it.text+'" ('+cl.name+')'); persist(); }
+    render();
+  }
+  else if(a==='checklist-apply'){
+    const c = getCard(el.dataset.card); const t = (state.checklistTemplates||[]).find(x=>x.id===el.dataset.id);
+    if(c && t){ applyChecklistTemplate(c, t); persist(); }
+    render();
+  }
+  else if(a==='checklist-remove'){
+    const c = getCard(el.dataset.card); const id = el.dataset.id;
+    if(c) showConfirm('Remover este checklist do card?', function(){ c.checklists = (c.checklists||[]).filter(x=>x.id!==id); addHistory(c,'Checklist removido do card'); persist(); render(); });
+  }
+  else if(a==='delete-checklist-template'){
+    const id = el.dataset.id;
+    showConfirm('Excluir este modelo de checklist? Cards que já o usam não são alterados.', function(){ state.checklistTemplates = (state.checklistTemplates||[]).filter(t=>t.id!==id); persist(); render(); });
   }
   else if(a==='card-conclude'){ ui.modal = {type:'card-conclude-confirm', payload:{cardId: el.dataset.id}}; render(); }
   else if(a==='card-conclude-confirm'){
@@ -12231,14 +12623,15 @@ document.addEventListener('click', async function(e){
   }
   else if(a==='balance-notice-seen'){
     const c = getCard(el.dataset.id), me = myAnalystId();
-    if(c && me){ c.balanceAlertSeen = c.balanceAlertSeen || {}; c.balanceAlertSeen[me] = Number(el.dataset.level)||LOW_BALANCE_PCT; persist(); }
+    if(c && me){ c.balanceAlertSeen = c.balanceAlertSeen || {}; c.balanceAlertSeen[me] = Number(el.dataset.level)||LOW_BALANCE_PCT;
+      const cl0 = getClient(c.clientId); logNotifHandled('balance', (Number(el.dataset.level)>=100?'Saldo de horas esgotado':'Saldo de horas acabando'), cl0?cl0.name:'Cliente', 'Lido', c.id); persist(); }
     render();
   }
   else if(a==='jira-notice-seen'){
     const r = getJiraRequirement(el.dataset.id), me = myAnalystId();
     if(r && r.statusNotice && me){
       r.statusNotice.seen = Array.isArray(r.statusNotice.seen) ? r.statusNotice.seen : [];
-      if(!r.statusNotice.seen.includes(me)) r.statusNotice.seen.push(me);
+      if(!r.statusNotice.seen.includes(me)){ r.statusNotice.seen.push(me); const cl1 = r.clientId?getClient(r.clientId):null; logNotifHandled('jira', 'Requisito '+(r.number||''), (cl1?cl1.name+' · ':'')+(r.statusNotice.status||r.status||''), 'Lido', r.id); }
       persist();
     }
     render();
@@ -12631,6 +13024,8 @@ document.addEventListener('change', function(e){
   else if(e.target.id==='cal-analyst-filter'){ ui.calAnalyst = e.target.value; render(); }
   else if(e.target.id==='conf-only-issues'){ ui.confOnlyIssues = e.target.checked; render(); }
   else if(e.target.id==='prazo-analyst-filter'){ ui.prazoAnalyst = e.target.value; render(); }
+  else if(e.target.id==='agtipo-type'){ ui.agTipoType = e.target.value; render(); }
+  else if(e.target.id==='agtipo-status'){ ui.agTipoStatus = e.target.value; render(); }
   else if(e.target.id==='cal-category-filter'){ ui.calCategory = e.target.value; render(); }
   else if(e.target.id==='reports-date-start'){
     // IMPORTANTE: o evento "change" de <input type="date"> dispara a cada
@@ -12755,7 +13150,7 @@ document.addEventListener('change', function(e){
       if(newCategory==='servico') return !!t.isServico;
       return !t.isInternal && !t.isServico;
     });
-    if(!validTypes.some(t=>t.name===values.type)){ values.type = validTypes.length ? validTypes[0].name : ''; }
+    if(!validTypes.some(t=>t.name===values.type)){ values.type = ''; }
     values.category = newCategory;
     if(ui.modal){ ui.modal.values = values; render(); }
   }
@@ -12881,6 +13276,11 @@ document.addEventListener('input', function(e){
     const form = e.target.closest('form'); const values = captureFormValues(form);
     if(ui.modal){ ui.modal.additionalClientQuery = e.target.value; ui.modal.values = values; ui._focus = {id:'additional-client-search-input', pos: e.target.selectionStart}; render(); }
   }
+  else if(e.target.id==='global-search-input'){
+    ui.gsQuery = e.target.value;
+    ui._focus = {id:'global-search-input', pos: e.target.selectionStart};
+    render();
+  }
   else if(e.target.id==='faq-search-input'){
     const q = e.target.value;
     ui.faqQuery = q;
@@ -12929,8 +13329,9 @@ function appShortcuts(e){
   }
   if(mod && (e.key==='k' || e.key==='K')){
     if(topOverlayEl()) return;
-    const inp = document.getElementById('search-input') || document.getElementById('client-search-input') || document.getElementById('faq-search-input');
-    if(inp){ e.preventDefault(); inp.focus(); inp.select(); }
+    e.preventDefault();
+    ui.showNotif=false; ui.showUserMenu=false; ui.gsQuery=''; ui.modal = {type:'global-search'}; ui._focus = {id:'global-search-input', pos:0}; render();
+    ensureLazyTableLoaded('jiraRequirements');
   }
 }
 
@@ -13331,6 +13732,7 @@ document.addEventListener('submit', async function(e){
     const startTime = allDay ? '00:00' : (fd.get('startTime')||'09:00');
     const endTime = allDay ? '23:59' : (fd.get('endTime')||'10:00');
     const typeName = fd.get('type'); const title = (fd.get('title')||'').trim();
+    if(!typeName){ ui.formErr = 'Selecione o tipo da agenda.'; render(); return; }
     let analystIds = fd.getAll('analystIds');
     if(!analystIds.length && card){
       const cardBoard = getBoard(card.boardId);
@@ -13508,6 +13910,25 @@ document.addEventListener('submit', async function(e){
     if(id){ const t = state.trainingTemplates.find(x=>x.id===id); if(t){ t.name=name; t.sessions=parsed.sessions; } }
     else state.trainingTemplates.push({id:uid('tp'), name, sessions:parsed.sessions});
     persist(); render(); showAlert('Modelo salvo.');
+  }
+  else if(type==='checklist-template'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const name = (fd.get('name')||'').trim();
+    const items = String(fd.get('items')||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+    if(!name){ showAlert('Dê um nome ao modelo.'); return; }
+    if(!items.length){ showAlert('Informe ao menos um item.'); return; }
+    const kind = fd.get('kind')==='encerramento' ? 'encerramento' : 'implantacao';
+    state.checklistTemplates = state.checklistTemplates||[];
+    const id = form.dataset.id;
+    if(id){ const t = state.checklistTemplates.find(x=>x.id===id); if(t){ t.name=name; t.kind=kind; t.items=items; t.auto = fd.get('auto')==='on'; } }
+    else state.checklistTemplates.push({id:uid('ct'), name, kind, items, auto: fd.get('auto')==='on'});
+    persist(); render(); showAlert('Modelo salvo.');
+  }
+  else if(type==='checklist-item'){
+    const c = getCard(form.dataset.card); const cl = c && (c.checklists||[]).find(x=>x.id===form.dataset.list);
+    const text = (fd.get('text')||'').trim();
+    if(cl && text){ cl.items.push({id:uid('ci'), text, required: cl.kind==='encerramento', done:false}); addHistory(c,'Item adicionado ao checklist "'+cl.name+'": '+text); persist(); }
+    render();
   }
   else if(type==='mgmt-config'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
