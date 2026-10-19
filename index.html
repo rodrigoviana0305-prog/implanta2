@@ -2034,6 +2034,7 @@ function normalizeState(raw){
   if(s.mgmt.staleDays==null) s.mgmt.staleDays = 15;
   if(s.mgmt.alertPct==null) s.mgmt.alertPct = 80;
   if(!Array.isArray(s.trainingTemplates)) s.trainingTemplates = [];
+  if(!Array.isArray(s.cardTemplates)) s.cardTemplates = [];
   if(!Array.isArray(s.mgmtSettings)) s.mgmtSettings = [];
   /* Configuração de gestão guardada na nuvem (1 linha): vale sobre a cópia local. */
   if(s.mgmtSettings[0]){ if(s.mgmtSettings[0].staleDays!=null) s.mgmt.staleDays = s.mgmtSettings[0].staleDays; if(s.mgmtSettings[0].alertPct!=null) s.mgmt.alertPct = s.mgmtSettings[0].alertPct; }
@@ -2181,7 +2182,7 @@ function icsFeedUrl(analyst){
 }
 
 /* Tabelas "opcionais": se ainda não existirem na nuvem (ou o acesso for negado), o app segue funcionando e guarda os dados só neste navegador. */
-const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings'];
+const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates'];
 function isOptionalTableKey(k){ return OPTIONAL_TABLE_KEYS.indexOf(k)>=0; }
 const ENTITY_TABLES = [
   {key:'clients', table:'clients'},
@@ -2203,7 +2204,9 @@ const ENTITY_TABLES = [
   // Modelos de treinamento e configuração de gestão (dias de card parado / % de alerta de saldo).
   // Veja servidor/19_modelos_treinamento_e_config.sql. Enquanto as tabelas não existirem, ficam só no navegador.
   {key:'trainingTemplates', table:'training_templates'},
-  {key:'mgmtSettings', table:'app_settings'}
+  {key:'mgmtSettings', table:'app_settings'},
+  // Modelos de card (segmento + persona → produtos, módulos e telas pré-marcados). Veja servidor/21_modelos_de_card.sql.
+  {key:'cardTemplates', table:'card_templates'}
 ];
 /* Mantém a linha de configuração de gestão (nuvem) igual a state.mgmt. */
 function syncMgmtRow(st){
@@ -2673,7 +2676,7 @@ var saveRetryCount = 0, saveRetryTimer = null;
 window.addEventListener('online', function(){ if(saveStatus==='error' && sbClient){ saveRetryCount = 0; cloudSave(); } });
 function mergeStates(remote, local){
   const merged = Object.assign({}, local);
-  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings'].forEach(key=>{
+  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates'].forEach(key=>{
     const byId = new Map();
     (remote[key]||[]).forEach(item=> byId.set(item.id, item));
     (local[key]||[]).forEach(item=> byId.set(item.id, item));
@@ -2796,7 +2799,7 @@ function disconnectCloud(){
 const BACKUP_ENTITY_KEYS = ENTITY_TABLES.concat(LAZY_TABLES).map(t=>t.key);
 const BACKUP_LABELS = { clients:'clientes', analysts:'analistas', boards:'quadros', cards:'cards',
   schedules:'agendas', productTags:'produtos', modules:'módulos', screens:'telas',
-  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist', trainingTemplates:'modelos de treinamento', mgmtSettings:'configuração de gestão',
+  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist', trainingTemplates:'modelos de treinamento', cardTemplates:'modelos de card', mgmtSettings:'configuração de gestão',
   jiraRequirements:'requisitos do Jira', vacationEntries:'lançamentos de férias' };
 async function exportBackupJson(){
   if(!isAdminUser()) return;
@@ -3019,6 +3022,9 @@ async function boot(){
         if(!(loaded.trainingTemplates||[]).length && (localBeforeCloud.trainingTemplates||[]).length){
           state.trainingTemplates = localBeforeCloud.trainingTemplates;
         }
+        if(!(loaded.cardTemplates||[]).length && (localBeforeCloud.cardTemplates||[]).length){
+          state.cardTemplates = localBeforeCloud.cardTemplates;
+        }
         if(!(loaded.mgmtSettings||[]).length && localBeforeCloud.mgmt){
           state.mgmt = Object.assign({}, state.mgmt, {staleDays:localBeforeCloud.mgmt.staleDays, alertPct:localBeforeCloud.mgmt.alertPct});
         }
@@ -3065,6 +3071,8 @@ var ui = {
   cardTab: 'info',
   cardDraft: null,
   cardModuleTab: null,
+  cardTplModuleTab: null,
+  cardNewModuleTab: null,
   scheduleModuleTab: null,
   cardForecastModuleTab: null,
   reportsTab: 'saldo',
@@ -3261,6 +3269,45 @@ const TIMER_KEY = 'neo_quick_timer_v1';
 function readTimer(){ try{ const v = JSON.parse(localStorage.getItem(TIMER_KEY)||'null'); return v && v.cardId && v.start ? v : null; }catch(e){ return null; } }
 function writeTimer(v){ try{ if(v) localStorage.setItem(TIMER_KEY, JSON.stringify(v)); else localStorage.removeItem(TIMER_KEY); }catch(e){} }
 function timerLabel(){ const t = readTimer(); if(!t) return ''; const m = Math.max(0, Math.floor((Date.now()-t.start)/60000)); return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+/* ── Modelos de card: segmento + persona → produtos, módulos e telas já marcados na criação do card ── */
+const CARD_PERSONAS = ['BRONZE','PRATA','OURO','DIAMANTE'];
+const PERSONA_COLORS = {BRONZE:'#b4733a', PRATA:'#8a97a6', OURO:'#d4a017', DIAMANTE:'#2fa4d6'};
+function personaChip(p){ if(!p) return ''; const c = PERSONA_COLORS[p]||'#888'; return '<span class="chip" style="background:'+c+';">'+esc(p)+'</span>'; }
+function cardTemplateLabel(t){ return t.name+(t.segment?' — '+t.segment:'')+(t.persona?' · '+t.persona:''); }
+function cardTemplateSegments(){
+  const set = new Set();
+  state.clients.forEach(c=>{ if(c.segment) set.add(c.segment); });
+  (state.cardTemplates||[]).forEach(t=>{ if(t.segment) set.add(t.segment); });
+  return [...set].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+}
+function renderProductPills(selectedIds){
+  selectedIds = selectedIds || [];
+  let html = '<div class="check-grid">';
+  activeProductTags().forEach(t=>{
+    html += '<label class="check-pill" style="border-color:'+t.color+'55;"><input type="checkbox" name="productTags" value="'+t.id+'" '+(selectedIds.includes(t.id)?'checked':'')+'><span style="color:'+t.color+';font-weight:700;">'+esc(t.name)+'</span></label>';
+  });
+  selectedIds.forEach(tid=>{
+    const t = byId(state.productTags, tid);
+    if(t && t.inactive) html += '<label class="check-pill" style="opacity:.6;"><input type="checkbox" name="productTags" value="'+t.id+'" checked><span style="font-weight:700;">'+esc(t.name)+' <small>(inativo)</small></span></label>';
+  });
+  if(!state.productTags.length) html += '<span class="hint">Nenhum produto cadastrado.</span>';
+  return html + '</div>';
+}
+function renderCardTemplatesSettings(){
+  const admin = isAdminUser(), list = (state.cardTemplates||[]).slice().sort((a,b)=> cardTemplateLabel(a).localeCompare(cardTemplateLabel(b),'pt-BR'));
+  let h = '<div class="section-card"><h3 style="margin:0 0 6px;">Modelos de card</h3><p class="hint" style="margin-top:0;">Defina, por <strong>segmento</strong> e <strong>persona</strong> (Bronze, Prata, Ouro, Diamante), quais produtos, módulos e telas o cliente contratou. Ao criar um card novo e escolher o modelo, tudo já vem marcado — dá para desmarcar ou incluir outros itens naquele card sem alterar o modelo.</p>';
+  if(!list.length) h += '<p class="hint">Nenhum modelo cadastrado ainda.'+(admin?' Use o botão <strong>+ Novo modelo de card</strong>.':'')+'</p>';
+  list.forEach(t=>{
+    const prods = (t.productTags||[]).map(id=>byId(state.productTags,id)).filter(Boolean);
+    h += '<div style="border-top:1px solid var(--border);padding:12px 0;display:flex;gap:12px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;">'
+      + '<div style="min-width:0;flex:1;"><div style="font-weight:800;">'+esc(t.name)+' '+personaChip(t.persona)+(t.segment?' <span class="chip" style="background:var(--ink-faint,#777);">'+esc(t.segment)+'</span>':'')+'</div>'
+      + '<div style="margin-top:6px;">'+(prods.length? prods.map(pt=>'<span class="chip" style="background:'+pt.color+';">'+esc(pt.name)+'</span>').join(' ') : '<span class="hint">Sem produtos</span>')+'</div>'
+      + '<div class="hint" style="margin-top:6px;">'+(t.expectedModules||[]).length+' módulo(s) · '+(t.expectedScreens||[]).length+' tela(s)'+((t.expectedModules||[]).length? ': '+esc((t.expectedModules||[]).join(', ')) : '')+'</div></div>'
+      + (admin ? '<div class="row-actions"><button class="btn btn-sm" data-action="open-modal" data-modal="cardtpl-edit" data-id="'+t.id+'">Editar</button><button class="btn btn-sm" data-action="duplicate-cardtpl" data-id="'+t.id+'">Duplicar</button><button class="btn btn-danger btn-sm" data-action="delete-cardtpl" data-id="'+t.id+'">Excluir</button></div>' : '')
+      + '</div>';
+  });
+  return h+'</div>';
+}
 function renderTemplatesSettings(){
   const admin = isAdminUser(), list = state.trainingTemplates||[];
   const toLines = t=>(t.sessions||[]).map(x=>x.day+' | '+x.hours+' | '+(x.title||'')).join('\n');
@@ -4357,6 +4404,7 @@ function naoAbatidoTotalMinutes(opts, clientIdSet){
 function renameScreenEverywhere(oldName, newName){
   if(oldName===newName) return;
   state.schedules.forEach(s=>{ if(Array.isArray(s.trainedScreens) && s.trainedScreens.includes(oldName)){ s.trainedScreens = s.trainedScreens.map(n=> n===oldName?newName:n); } });
+  (state.cardTemplates||[]).forEach(t=>{ if((t.expectedScreens||[]).includes(oldName)) t.expectedScreens = t.expectedScreens.map(n=> n===oldName?newName:n); });
 }
 function clientNamesForSchedules(scheds){
   const names = new Set();
@@ -4366,6 +4414,7 @@ function clientNamesForSchedules(scheds){
 function renameModuleEverywhere(oldName, newName){
   if(oldName===newName) return;
   state.schedules.forEach(s=>{ if(Array.isArray(s.modules) && s.modules.includes(oldName)){ s.modules = s.modules.map(m=> m===oldName?newName:m); } });
+  (state.cardTemplates||[]).forEach(t=>{ if((t.expectedModules||[]).includes(oldName)) t.expectedModules = t.expectedModules.map(m=> m===oldName?newName:m); });
 }
 function renameTypeEverywhere(oldName, newName){
   if(oldName===newName) return;
@@ -10380,6 +10429,7 @@ function renderSettingsView(){
     {k:'tipos',     l:'Tipos de agenda', adminOnly:false},
     {k:'notificacoes', l:'Notificações', adminOnly:false},
     {k:'modelos',   l:'Modelos de treinamento', adminOnly:false},
+    {k:'cardtpl',   l:'Modelos de card', adminOnly:false},
     {k:'checklists', l:'Checklists', adminOnly:false},
     {k:'gestao',    l:'Alertas e backup', adminOnly:true},
     {k:'ferias',    l:'Férias',    adminOnly:true},
@@ -10401,7 +10451,8 @@ function renderSettingsView(){
       produtos: ['product-new','+ Novo produto'],
       modulos:  ['module-new','+ Novo módulo'],
       telas:    state.modules.length ? ['screen-new','+ Nova tela'] : null,
-      tipos:    ['type-new','+ Novo tipo']
+      tipos:    ['type-new','+ Novo tipo'],
+      cardtpl:  admin ? ['cardtpl-new','+ Novo modelo de card'] : null
     };
     const newBtn = newBtnByTab[ui.settingsTab];
     html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">'
@@ -10412,6 +10463,7 @@ function renderSettingsView(){
   }
 
   if(ui.settingsTab==='modelos'){ html += renderTemplatesSettings(); }
+  if(ui.settingsTab==='cardtpl'){ html += renderCardTemplatesSettings(); }
   if(ui.settingsTab==='checklists'){ html += renderChecklistSettings(); }
   if(ui.settingsTab==='gestao' && admin){ html += renderMgmtSettings(); }
 
@@ -11059,6 +11111,17 @@ function renderModal(){
       + '<p style="font-size:12.5px;color:var(--ink-soft);margin:-4px 0 12px;">O novo nome vale para todos os analistas que têm essa lista.</p>'
       + '<form data-form="list-rename" data-old-name="'+esc(currentName)+'"><div class="field"><label>Nome da lista</label><input type="text" name="name" value="'+esc(currentName)+'" required></div>'
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar</button></div></form>';
+  } else if(m.type==='cardtpl-new' || m.type==='cardtpl-edit'){
+    const t0 = m.type==='cardtpl-edit' ? (state.cardTemplates||[]).find(x=>x.id===m.id) : null;
+    const v = m.values || (t0 ? {name:t0.name, segment:t0.segment||'', persona:t0.persona||'', productTags:(t0.productTags||[]).slice(), expectedModules:(t0.expectedModules||[]).slice(), expectedScreens:(t0.expectedScreens||[]).slice()} : {name:'',segment:'',persona:'',productTags:[],expectedModules:[],expectedScreens:[]});
+    inner = '<div class="modal-header"><h3>'+(t0?'Editar modelo de card':'Novo modelo de card')+'</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
+      + '<form data-form="cardtpl" data-id="'+(t0?t0.id:'')+'">'
+      + '<div class="field"><label>Nome do modelo</label><input type="text" name="name" value="'+esc(v.name||'')+'" placeholder="Ex.: Contábil completo" required></div>'
+      + '<div class="field-row"><div class="field"><label>Segmento</label><input type="text" name="segment" list="cardtpl-segments" value="'+esc(v.segment||'')+'" placeholder="Ex.: Escritório contábil"><datalist id="cardtpl-segments">'+cardTemplateSegments().map(s=>'<option value="'+esc(s)+'"></option>').join('')+'</datalist></div>'
+      + '<div class="field"><label>Persona</label><select name="persona"><option value="">Sem persona</option>'+CARD_PERSONAS.map(p=>'<option value="'+p+'" '+(v.persona===p?'selected':'')+'>'+p+'</option>').join('')+'</select></div></div>'
+      + '<div class="field"><label>Produtos contratados</label>'+renderProductPills(v.productTags)+'</div>'
+      + renderModuleScreenTabs('expectedModules','expectedScreens', v.expectedModules||[], v.expectedScreens||[], 'Módulos previstos','Telas previstas (por módulo)', ui.cardTplModuleTab, 'cardtpl')
+      + '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar modelo</button></div></form>';
   } else if(m.type==='card-new'){
     const board = getBoard(m.board);
     const cdraft = m.values || {};
@@ -11066,7 +11129,9 @@ function renderModal(){
     const cnHours = cdraft.contractedHours!=null ? cdraft.contractedHours : 0;
     const cnStart = cdraft.startDate || todayISO();
     const cnNewName = cdraft.newClientName || '';
-    const cnUseBalance = cdraft.useExistingBalance === 'on' || cdraft.useExistingBalance === true;
+    const cnUseBalance = cdraft.useExistingBalance === 'on' || cdraft.useExistingBalance === true || (Array.isArray(cdraft.useExistingBalance) && cdraft.useExistingBalance.length>0);
+    const cnTplId = cdraft.cardTemplateId || '';
+    const cnTpls = (state.cardTemplates||[]).slice().sort((a,b)=> cardTemplateLabel(a).localeCompare(cardTemplateLabel(b),'pt-BR'));
     const selClient = cnClientId ? getClient(cnClientId) : null;
     const previousBalance = selClient ? clientConsolidatedBalanceHours(selClient.id) : 0;
     const hasPrevious = selClient ? clientHasPastCards(selClient.id) : false;
@@ -11090,6 +11155,9 @@ function renderModal(){
       + '<div class="field"><label>Hora do Comercial</label><input type="time" name="commercialTime" value="'+esc(cdraft.commercialTime||'')+'"></div></div>'
       + '<div class="field-row"><div class="field"><label>Expectativa de início da implantação</label><input type="date" name="expectedStartDate" value="'+esc(cdraft.expectedStartDate||'')+'"></div>'
       + '<div class="field"><label>Expectativa de fim da implantação</label><input type="date" name="expectedEndDate" value="'+esc(cdraft.expectedEndDate||'')+'"></div></div>'
+      + '<div class="field"><label>Modelo de card (segmento / persona)</label><select name="cardTemplateId"><option value="">'+(cnTpls.length?'Sem modelo — escolher manualmente':'Nenhum modelo cadastrado')+'</option>'+cnTpls.map(t=>'<option value="'+t.id+'" '+(t.id===cnTplId?'selected':'')+'>'+esc(cardTemplateLabel(t))+'</option>').join('')+'</select><div class="hint">'+(cnTpls.length?'Ao escolher um modelo, produtos, módulos e telas já vêm marcados. Você pode desmarcar ou incluir outros só para este card.':'Cadastre os modelos em Configurações → Modelos de card. Se já cadastrou e não aparecem, recarregue a página (Ctrl+F5).')+'</div></div>'
+      + '<div class="field"><label>Produtos contratados</label>'+renderProductPills(cdraft.productTags||[])+'</div>'
+      + renderModuleScreenTabs('expectedModules','expectedScreens', cdraft.expectedModules||[], cdraft.expectedScreens||[], 'Módulos previstos (o que o cliente deve utilizar)','Telas previstas (por módulo)', ui.cardNewModuleTab, 'cardnew')
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Criar card</button></div></form>';
   } else if(m.type==='risk-form'){
     const card = getCard(m.card); const rk = card ? (card.risks||[]).find(x=>x.id===m.id) : null;
@@ -12544,6 +12612,16 @@ document.addEventListener('click', async function(e){
   else if(a==='risk-report-filter'){
     if(el.dataset.kind==='level') ui.riskLevelFilter = el.dataset.value; else ui.riskStatusFilter = el.dataset.value; render();
   }
+  else if(a==='delete-cardtpl'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const id = el.dataset.id; const t = (state.cardTemplates||[]).find(x=>x.id===id); if(!t) return;
+    showConfirm('Excluir o modelo "'+cardTemplateLabel(t)+'"? Os cards já criados com ele não mudam.', function(){ state.cardTemplates = state.cardTemplates.filter(x=>x.id!==id); });
+  }
+  else if(a==='duplicate-cardtpl'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const t = (state.cardTemplates||[]).find(x=>x.id===el.dataset.id); if(!t) return;
+    state.cardTemplates.push(Object.assign({}, JSON.parse(JSON.stringify(t)), {id:uid('ct'), name:t.name+' (cópia)'})); persist(); render();
+  }
   else if(a==='delete-template'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
     state.trainingTemplates = (state.trainingTemplates||[]).filter(t=>t.id!==el.dataset.id); persist(); render();
@@ -12824,6 +12902,8 @@ document.addEventListener('click', async function(e){
     const context = el.dataset.context;
     if(context==='card') ui.cardModuleTab = moduleId;
     else if(context==='schedule') ui.scheduleModuleTab = moduleId;
+    else if(context==='cardtpl') ui.cardTplModuleTab = moduleId;
+    else if(context==='cardnew') ui.cardNewModuleTab = moduleId;
     else if(context==='forecast') ui.cardForecastModuleTab = moduleId;
     const wrap = el.closest('.field') || el.closest('.compare-sections');
     if(wrap){
@@ -13505,6 +13585,26 @@ document.addEventListener('change', function(e){
     }
     if(ui.modal){ ui.modal.values = values; render(); }
   }
+  else if(e.target.matches('form[data-form="cardtpl"] input[name="expectedModules"], form[data-form="card-new"] input[name="expectedModules"]')){
+    const form = e.target.closest('form'); const values = captureFormValues(form);
+    if(e.target.checked){ const mod = state.modules.find(m=>m.name===e.target.value); if(mod){ if(form.dataset.form==='cardtpl') ui.cardTplModuleTab = mod.id; else ui.cardNewModuleTab = mod.id; } }
+    if(ui.modal){ ui.modal.values = values; render(); }
+  }
+  else if(e.target.matches('form[data-form="cardtpl"] input[name="expectedScreens"], form[data-form="cardtpl"] input[name="productTags"], form[data-form="card-new"] input[name="expectedScreens"], form[data-form="card-new"] input[name="productTags"], form[data-form="card-new"] input[name="useExistingBalance"]')){
+    const form = e.target.closest('form'); const values = captureFormValues(form);
+    if(ui.modal){ ui.modal.values = values; render(); }
+  }
+  else if(e.target.matches('form[data-form="card-new"] select[name="cardTemplateId"]')){
+    const form = e.target.closest('form'); const values = captureFormValues(form);
+    const t = (state.cardTemplates||[]).find(x=>x.id===e.target.value);
+    values.productTags = t ? (t.productTags||[]).slice() : [];
+    values.expectedModules = t ? (t.expectedModules||[]).slice() : [];
+    values.expectedScreens = t ? (t.expectedScreens||[]).slice() : [];
+    values.cardTemplateId = e.target.value;
+    const first = t ? state.modules.find(mo=> (t.expectedModules||[]).includes(mo.name)) : null;
+    ui.cardNewModuleTab = first ? first.id : null;
+    if(ui.modal){ ui.modal.values = values; render(); }
+  }
   else if(e.target.matches('form[data-form="card-info"] input[name="expectedScreens"]')){
     const form = e.target.closest('form'); const cardId = form.dataset.card;
     ui.cardDraft = {cardId, values: captureFormValues(form)};
@@ -13857,8 +13957,14 @@ document.addEventListener('submit', async function(e){
       commercialDate: fd.get('commercialDate')||'',
       commercialTime: fd.get('commercialTime')||'',
       expectedStartDate: fd.get('expectedStartDate')||'',
-      expectedEndDate: fd.get('expectedEndDate')||''
+      expectedEndDate: fd.get('expectedEndDate')||'',
+      productTags: fd.getAll('productTags'),
+      expectedModules: fd.getAll('expectedModules'),
+      expectedScreens: fd.getAll('expectedScreens')
     });
+    { const tpl = (state.cardTemplates||[]).find(x=>x.id===fd.get('cardTemplateId'));
+      if(tpl && newCard) addHistory(newCard, 'Modelo de card aplicado: '+cardTemplateLabel(tpl)+'.'); }
+    ui.cardNewModuleTab = null;
     if(importedFromCards.length && newCard){
       importedFromCards.forEach(({card,bal})=>{
         addHistory(card, 'Saldo de '+minToHM(bal*60)+' transferido para um novo card deste cliente ('+minToHM(hours*60)+' contratadas).');
@@ -14254,6 +14360,19 @@ document.addEventListener('submit', async function(e){
     card.csat = Object.assign({}, card.csat||{}, {score, comment:(fd.get('comment')||'').trim(), analystScore:(as>=0&&as<=10?as:null), trainingOpinion:(fd.get('trainingOpinion')||'').trim(), at:Date.now(), by:auditActor()});
     addHistory(card, 'Avaliação do cliente registrada: nota '+score+'/10');
     persist(); ui.modal=null; render();
+  }
+  else if(type==='cardtpl'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const name = (fd.get('name')||'').trim();
+    if(!name){ showAlert('Dê um nome ao modelo.'); return; }
+    const data = {name, segment:(fd.get('segment')||'').trim(), persona:fd.get('persona')||'',
+      productTags:fd.getAll('productTags'), expectedModules:fd.getAll('expectedModules'), expectedScreens:fd.getAll('expectedScreens')};
+    if(!data.productTags.length && !data.expectedModules.length){ showAlert('Marque ao menos um produto ou módulo no modelo.'); return; }
+    state.cardTemplates = state.cardTemplates||[];
+    const id = form.dataset.id;
+    if(id){ const t = state.cardTemplates.find(x=>x.id===id); if(t) Object.assign(t, data); }
+    else state.cardTemplates.push(Object.assign({id:uid('ct')}, data));
+    ui.modal=null; ui.cardTplModuleTab=null; persist(); render();
   }
   else if(type==='template'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
