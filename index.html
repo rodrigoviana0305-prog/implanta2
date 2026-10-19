@@ -3936,13 +3936,19 @@ function moduleProductIds(mod){
   return [];
 }
 function modulesForProduct(productId){ return state.modules.filter(m=> moduleProductIds(m).includes(productId)); }
-function renderModuleScreenTabs(moduleFieldName, screenFieldName, selectedModuleNames, selectedScreenNames, moduleLabel, screenLabel, activeModuleId, contextKey){
+function renderModuleScreenTabs(moduleFieldName, screenFieldName, selectedModuleNames, selectedScreenNames, moduleLabel, screenLabel, activeModuleId, contextKey, opts){
+  opts = opts || {};
+  const lockM = opts.lockedModules || new Set(), lockS = opts.lockedScreens || new Set();
   selectedModuleNames = selectedModuleNames || [];
   selectedScreenNames = selectedScreenNames || [];
-  let html = '<div class="field"><label>'+esc(moduleLabel)+'</label><div class="check-grid">';
+  const reqMark = opts.required ? ' <span style="color:var(--danger)" title="Obrigatório">*</span>' : '';
+  let html = '<div class="field"><label>'+esc(moduleLabel)+reqMark+'</label><div class="check-grid">';
   state.modules.forEach(mod=>{
     const checked = selectedModuleNames.includes(mod.name);
     if(mod.inactive && !checked) return;
+    if(lockM.has(mod.name)){
+      html += '<label class="check-pill" title="Módulo já usado em agenda deste card — não pode ser desmarcado" style="opacity:.85;"><input type="checkbox" checked disabled><input type="hidden" name="'+moduleFieldName+'" value="'+esc(mod.name)+'">🔒 '+esc(mod.name)+'</label>';
+    } else
     html += '<label class="check-pill"><input type="checkbox" name="'+moduleFieldName+'" value="'+esc(mod.name)+'" '+(checked?'checked':'')+'>'+esc(mod.name)+'</label>';
   });
   if(!state.modules.length) html += '<span class="hint">Nenhum módulo cadastrado.</span>';
@@ -3951,7 +3957,7 @@ function renderModuleScreenTabs(moduleFieldName, screenFieldName, selectedModule
   const checkedModules = state.modules.filter(mo=> selectedModuleNames.includes(mo.name));
   if(checkedModules.length){
     const activeId = (activeModuleId && checkedModules.some(m=>m.id===activeModuleId)) ? activeModuleId : checkedModules[0].id;
-    html += '<div class="field"><label>'+esc(screenLabel)+'</label>';
+    html += '<div class="field"><label>'+esc(screenLabel)+reqMark+'</label>';
     html += '<div class="module-tabs">';
     checkedModules.forEach(mod=>{
       const screensForMod = screensForModule(mod.id);
@@ -3970,6 +3976,9 @@ function renderModuleScreenTabs(moduleFieldName, screenFieldName, selectedModule
         screensForMod.forEach(scr=>{
           const sChecked = selectedScreenNames.includes(scr.name);
           if(scr.inactive && !sChecked) return;
+          if(lockS.has(scr.name)){
+            html += '<label class="check-pill" title="Tela já usada em agenda deste card — não pode ser desmarcada" style="opacity:.85;"><input type="checkbox" checked disabled><input type="hidden" name="'+screenFieldName+'" value="'+esc(scr.name)+'">🔒 '+esc(scr.name)+'</label>';
+          } else
           html += '<label class="check-pill"><input type="checkbox" name="'+screenFieldName+'" value="'+esc(scr.name)+'" '+(sChecked?'checked':'')+'>'+esc(scr.name)+'</label>';
         });
         html += '</div>';
@@ -3979,6 +3988,25 @@ function renderModuleScreenTabs(moduleFieldName, screenFieldName, selectedModule
     html += '</div></div>';
   }
   return html;
+}
+/* Telas/módulos previstos do card: travas e retiradas.
+   - Agendas vinculadas ao card (exceto "não realizadas") que já usam um módulo/tela travam a marcação.
+   - Só depois que o card passa a ter agendas vinculadas, desmarcar uma tela exige motivo e fica registrado. */
+function cardLinkedSchedules(card){ return state.schedules.filter(s=> scheduleCardIds(s).includes(card.id)); }
+function cardHasLinkedSchedules(card){ return cardLinkedSchedules(card).length>0; }
+function cardScreenLocks(card){
+  const mods = new Set(), scrs = new Set();
+  cardLinkedSchedules(card).forEach(s=>{
+    if(s.status==='nao_realizada') return;
+    (s.modules||[]).forEach(m=> mods.add(m));
+    (s.trainedScreens||[]).forEach(n=> scrs.add(n));
+  });
+  return {modules:mods, screens:scrs};
+}
+function cardPendingScreenRemovals(card, newScreens){
+  if(!cardHasLinkedSchedules(card)) return [];
+  const locks = cardScreenLocks(card);
+  return (card.expectedScreens||[]).filter(n=> !newScreens.includes(n) && !locks.screens.has(n));
 }
 function schedulesUsingScreen(name){ return state.schedules.filter(s=> (s.trainedScreens||[]).includes(name)); }
 function schedulesForAnalyst(analystId){
@@ -5393,7 +5421,7 @@ function renderSidebar(){
     const active = ui.view==='board' && ui.boardAnalystFilter===a.id;
     html += '<button class="side-item'+(active?' active':'')+'" data-action="board-analyst-filter" data-id="'+a.id+'">'
       + (a.photo ? analystAvatar(a,22) : '<span class="side-dot" style="background:'+a.color+'"></span>')
-      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+(a.isAdmin?' <span style="font-size:9px;font-weight:800;color:#F0A72F;letter-spacing:.5px;">ADMIN</span>':'')+'</span>'
+      + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+'</span>'
       + (pend? '<span class="side-badge">'+pend+'</span>' : '')
       + '</button>';
   });
@@ -5536,14 +5564,20 @@ function renderUserMenu(){
   return html;
 }
 /* Histórico de notificações tratadas, guardado no próprio analista (últimas 60) para aparecer na Central de notificações. */
-const NOTIF_LOG_MAX = 60;
+const NOTIF_LOG_MAX = 30;            // guarda só os últimos 30 itens
+function pruneNotifLog(me){
+  if(!me || !Array.isArray(me.notifLog)) return false;
+  if(me.notifLog.length <= NOTIF_LOG_MAX) return false;
+  me.notifLog = me.notifLog.slice(0, NOTIF_LOG_MAX);
+  return true;
+}
 function logNotifHandled(kind, title, sub, result, refId){
   try{
     const me = getAnalyst(myAnalystId()); if(!me) return;
     if(kind==='schedule' && refId){ const sc = byId(state.schedules, refId); if(sc && !scheduleAnalystIds(sc).includes(me.id)) return; }   // só registra o que era "meu"
     me.notifLog = Array.isArray(me.notifLog) ? me.notifLog : [];
     me.notifLog.unshift({ id:uid('nl'), kind, title:String(title||''), sub:String(sub||''), result:String(result||''), at:Date.now() });
-    if(me.notifLog.length > NOTIF_LOG_MAX) me.notifLog.length = NOTIF_LOG_MAX;
+    pruneNotifLog(me);
   }catch(e){}
 }
 function notifItemHtml(s){
@@ -5599,6 +5633,7 @@ function renderNotifCenterModal(){
   const items = notifItems().sort((a,b)=> (a.date+(a.startTime||'')).localeCompare(b.date+(b.startTime||'')));
   const needAct = items.filter(notifNeedsAction), infos = items.filter(x=>!notifNeedsAction(x));
   const me = getAnalyst(myAnalystId());
+  if(me && pruneNotifLog(me)) persist();
   const log = (me && me.notifLog) || [];
   let h = '<div class="modal-header"><h3>🔔 Central de notificações</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
   h += '<div class="settings-tabs" style="margin-bottom:10px;">'
@@ -7570,8 +7605,22 @@ function renderCardModalContent(card){
     html += '</div>';
     html += '</div>';
 
+    const scrLocks = cardScreenLocks(card);
     html += renderModuleScreenTabs('expectedModules', 'expectedScreens', effExpectedModules, effExpectedScreens,
-      'Módulos previstos (o que o cliente deve utilizar)', 'Telas previstas (por módulo)', ui.cardModuleTab, 'card');
+      'Módulos previstos (o que o cliente deve utilizar)', 'Telas previstas (por módulo)', ui.cardModuleTab, 'card',
+      {lockedModules:scrLocks.modules, lockedScreens:scrLocks.screens});
+    const pendRem = cardPendingScreenRemovals(card, effExpectedScreens);
+    if(pendRem.length){
+      html += '<div class="field" style="border:1px solid var(--danger);border-radius:8px;padding:10px;"><label style="color:var(--danger);">Motivo da retirada de tela(s) da implantação (obrigatório)</label>';
+      pendRem.forEach(n=>{
+        const v = cardDraftVals ? (cardDraftVals['screenReason::'+n]||'') : '';
+        html += '<div style="margin-top:6px;"><div class="hint" style="margin-bottom:2px;">Tela: <strong>'+esc(n)+'</strong></div><input type="text" name="screenReason::'+esc(n)+'" value="'+esc(v)+'" placeholder="Por que esta tela saiu da implantação?" maxlength="300"></div>';
+      });
+      html += '<div class="hint" style="margin-top:6px;">Fica registrado no histórico do card e no relatório de fechamento.</div></div>';
+    }
+    if((card.screenRemovals||[]).length){
+      html += '<div class="hint" style="margin:-4px 0 8px;">Telas retiradas anteriormente: '+(card.screenRemovals||[]).filter(r=>!r.restoredAt).map(r=>esc(r.screen)+' ('+fmtDateBR(new Date(r.at).toISOString().slice(0,10))+')').join(', ')+'</div>';
+    }
 
     const linkedContracts = state.serviceContracts.filter(sc=>sc.cardId===card.id);
     html += '<div class="field"><label>Contratos de serviço vinculados</label>';
@@ -8314,6 +8363,11 @@ function layoutDayEvents(scheds){
   return result;
 }
 function isInternalType(typeName){ const t = state.agendaTypes.find(t=>t.name===typeName); return !!(t && t.isInternal); }
+/* Agendas "Treinamento" e "Treinamento - Serviço" exigem módulo(s) e tela(s). */
+function typeNeedsModuleScreen(typeName){
+  const t = String(typeName||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+  return t.startsWith('treinamento');
+}
 function isServicoType(typeName){ const t = state.agendaTypes.find(t=>t.name===typeName); return !!(t && t.isServico); }
 
 function renderCalendarView(){
@@ -8331,7 +8385,7 @@ function renderCalendarView(){
       + '</div>'
     + '<select id="cal-analyst-filter" data-action="cal-filter">'
       + '<option value="all"'+(ui.calAnalyst==='all'?' selected':'')+'>Todos os analistas</option>';
-  state.analysts.filter(a=>!a.isSupport).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=> html += '<option value="'+a.id+'"'+(ui.calAnalyst===a.id?' selected':'')+'>'+esc(a.name)+(a.inactive?' (inativo)':'')+'</option>');
+  state.analysts.filter(a=>isReportAnalyst(a)).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=> html += '<option value="'+a.id+'"'+(ui.calAnalyst===a.id?' selected':'')+'>'+esc(a.name)+(a.inactive?' (inativo)':'')+'</option>');
   html += '</select>'
     + '<select id="cal-category-filter" data-action="cal-category-filter">'
       + '<option value="all"'+(ui.calCategory==='all'?' selected':'')+'>Todas as categorias</option>'
@@ -8349,7 +8403,7 @@ function renderCalendarView(){
     + '</div>';
   if(!isListView){
     html += '<div class="cal-reassign" id="cal-reassign"><span class="hint" style="margin:0;">Solte aqui para passar a agenda para:</span>'
-      + state.analysts.filter(a=>!a.inactive && !a.isSupport).slice().sort((x,y)=>x.name.localeCompare(y.name)).map(a=>'<span class="cal-reassign-chip" data-analyst="'+a.id+'" style="border-color:'+esc(a.color||'#888')+';"><span class="m-dot" style="background:'+esc(a.color||'#888')+'"></span>'+esc(a.name)+'</span>').join('')
+      + state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).slice().sort((x,y)=>x.name.localeCompare(y.name)).map(a=>'<span class="cal-reassign-chip" data-analyst="'+a.id+'" style="border-color:'+esc(a.color||'#888')+';"><span class="m-dot" style="background:'+esc(a.color||'#888')+'"></span>'+esc(a.name)+'</span>').join('')
       + '</div>';
   }
 
@@ -8501,7 +8555,7 @@ function renderCalendarView(){
 
   html += '<div class="cal-tg-footerrow">';
   html += '<div class="cal-tg-footer-label">Carga do dia</div>';
-  const relevantAnalysts = ui.calAnalyst==='all' ? state.analysts.filter(a=>!a.inactive && !a.isSupport) : [getAnalyst(ui.calAnalyst)].filter(Boolean);
+  const relevantAnalysts = ui.calAnalyst==='all' ? state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)) : [getAnalyst(ui.calAnalyst)].filter(Boolean);
   days.forEach(d=>{
     html += '<div class="cal-tg-footer-day">';
     let any = false;
@@ -9056,7 +9110,7 @@ function renderReportsView(){
         + '<div class="analyst-card-head">'
         +   '<div class="analyst-avatar" style="background:'+(a.inactive?'#B9CAD5':a.color)+'">'+(a.photo?'<img src="'+esc(a.photo)+'" alt="">':esc(a.name.charAt(0).toUpperCase()))+'</div>'
         +   '<div style="flex:1;min-width:0;">'
-        +     '<div class="analyst-card-name">'+esc(a.name)+(a.isAdmin?' <span class="report-tag gold">ADMIN</span>':'')+'</div>'
+        +     '<div class="analyst-card-name">'+esc(a.name)+'</div>'
         +     (a.inactive ? '<span class="report-tag">Inativo</span>' : '<span class="report-tag ok">Ativo</span>')
         +   '</div>'
         + '</div>'
@@ -10340,7 +10394,7 @@ function renderSettingsView(){
       html += '<table><thead><tr><th>Nome</th><th>Usuário</th><th>Login</th><th>Perfil</th><th>Situação</th><th></th></tr></thead><tbody>';
       state.analysts.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
         html += '<tr'+(a.inactive?' class="row-inactive"':'')+'>'
-          + '<td style="font-weight:700;">'+esc(a.name)+(a.isAdmin?' <span class="badge" style="background:var(--gold-soft);color:var(--gold);">ADMIN</span>':'')+'</td>'
+          + '<td style="font-weight:700;">'+esc(a.name)+'</td>'
           + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
           + '<td>'+(a.authReady ? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">🔒 seguro</span>' : (a.password ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);" title="Edite o usuário e defina uma nova senha para ativar o login seguro">⚠ senha antiga</span>' : '<span class="hint">—</span>'))+'</td>'
           + '<td>'+(a.isAdmin?'Administrador':(a.isSupport?'Suporte':(a.isManager?'Gestor':'Analista')))+'</td>'
@@ -11147,6 +11201,7 @@ function renderCardClosingReport(cardId){
     + '</tbody><thead><tr><th>Telas previstas</th><th>Telas treinadas</th></tr></thead><tbody>'
     + '<tr><td>'+((c.expectedScreens||[]).map(esc).join(', ') || '—')+'</td><td>'+((trained.screens||[]).map(esc).join(', ') || '—')+'</td></tr>'
     + '</tbody></table>'
+    + screenRemovalsReportHtml(c)
     + '<div class="closing-report-section-bar">4. HORAS E ATIVIDADES REALIZADAS</div>'
     + '<table class="closing-report-table closing-report-agenda"><thead><tr><th>Data</th><th>Título / Tipo</th><th>Analista(s)</th><th>Duração</th></tr></thead><tbody>'
     + (cardSchedules.length ? cardSchedules.map(s=>{
@@ -11175,6 +11230,14 @@ function renderCardClosingReport(cardId){
   return html;
 }
 
+/* Telas retiradas da implantação (com o motivo), para os relatórios. */
+function screenRemovalsReportHtml(c){
+  const rem = (c.screenRemovals||[]).filter(r=>!r.restoredAt);
+  if(!rem.length) return '';
+  return '<table class="closing-report-table closing-report-agenda"><thead><tr><th>Tela retirada da implantação</th><th>Módulo</th><th>Retirada em</th><th>Por</th><th>Motivo</th></tr></thead><tbody>'
+    + rem.map(r=>'<tr><td>'+esc(r.screen)+'</td><td>'+esc(r.module||'—')+'</td><td>'+fmtDateBR(new Date(r.at).toISOString().slice(0,10))+'</td><td>'+esc(r.by||'—')+'</td><td>'+esc(r.reason||'—')+'</td></tr>').join('')
+    + '</tbody></table>';
+}
 function renderCardForecastReport(cardId){
   const c = getCard(cardId);
   if(!c) return '<div class="modal-header"><h3>Card não encontrado</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
@@ -11244,7 +11307,7 @@ function renderCardForecastReport(cardId){
       });
     }
   }
-  html += '</tbody></table></div>';
+  html += '</tbody></table>' + screenRemovalsReportHtml(c) + '</div>';
   return html;
 }
 
@@ -11688,14 +11751,14 @@ function renderScheduleForm(m){
 
   html += '<div class="field"><label>Analista(s)</label><div class="multi-analyst-grid">';
   state.analysts.slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
-    if(a.isSupport) return;
     const checked = eff.analystIds.includes(a.id);
+    if(!isReportAnalyst(a) && !checked) return;   // Gestor e Suporte não aparecem (só se já estiverem na agenda editada)
     const showInactive = a.inactive && checked;
     if(a.inactive && !showInactive) return;
     html += '<label class="multi-analyst-item'+(checked?' checked':'')+'" style="'+(checked?'border-color:'+a.color+';background:'+a.color+'14;color:'+darkenColor(a.color,.25)+';':'')+'">'
       + '<input type="checkbox" name="analystIds" value="'+a.id+'" '+(checked?'checked':'')+'>'
       + '<span class="m-dot" style="background:'+(a.inactive?'#B9CAD5':a.color)+'"></span>'
-      + '<span>'+esc(a.name)+(a.isAdmin?' · ADMIN':'')+'</span>'
+      + '<span>'+esc(a.name)+'</span>'
       + '</label>';
   });
   html += '</div></div>';
@@ -11754,7 +11817,7 @@ function renderScheduleForm(m){
   html += '</select></div>';
 
   html += renderModuleScreenTabs('modules', 'trainedScreens', eff.modules, eff.trainedScreens,
-    'Módulo(s)', 'Telas treinadas (por módulo)', ui.scheduleModuleTab, 'schedule');
+    'Módulo(s)', 'Telas treinadas (por módulo)', ui.scheduleModuleTab, 'schedule', {required: typeNeedsModuleScreen(eff.type)});
 
   html += '<div class="field"><label>Usuários treinados'+(eff.category==='interna'?'':' <span style="color:var(--danger)" title="Obrigatório">*</span>')+'</label><textarea name="trainedUsers" onfocus="showTrainedUsersHint(this)">'+esc(eff.trainedUsers)+'</textarea>'
     + '<p class="hint" style="margin:4px 0 0;">Separe os nomes por ponto e vírgula ( ; ) para cadastrar mais de um usuário treinado. Ex: Maria Silva; João Souza.</p>'
@@ -13184,6 +13247,11 @@ document.addEventListener('change', function(e){
     }
     if(ui.modal){ ui.modal.values = values; render(); }
   }
+  else if(e.target.matches('form[data-form="card-info"] input[name="expectedScreens"]')){
+    const form = e.target.closest('form'); const cardId = form.dataset.card;
+    ui.cardDraft = {cardId, values: captureFormValues(form)};
+    render();
+  }
   else if(e.target.matches('form[data-form="card-info"] input[name="expectedModules"]')){
     const form = e.target.closest('form'); const cardId = form.dataset.card;
     const values = captureFormValues(form);
@@ -13554,8 +13622,20 @@ document.addEventListener('submit', async function(e){
     const newExpectedEnd = fd.get('expectedEndDate')||'';
     const newTags = fd.getAll('productTags');
     const expectedModules = fd.getAll('expectedModules');
-    const expectedScreens = fd.getAll('expectedScreens');
+    let expectedScreens = fd.getAll('expectedScreens');
     let histTexts = [];
+    /* travas: módulos/telas já usados em agendas do card não saem */
+    const locksSave = cardScreenLocks(card);
+    locksSave.modules.forEach(n=>{ if(!expectedModules.includes(n)) expectedModules.push(n); });
+    locksSave.screens.forEach(n=>{ if(!expectedScreens.includes(n)) expectedScreens.push(n); });
+    /* retirada de tela: com agendas no card, o motivo é obrigatório */
+    const removedNow = cardPendingScreenRemovals(card, expectedScreens);
+    const reasons = {};
+    for(const n of removedNow){
+      const r = String(fd.get('screenReason::'+n)||'').trim();
+      if(!r){ showAlert('Informe o motivo da retirada da tela "'+n+'".'); return; }
+      reasons[n] = r;
+    }
     if(newHours !== card.contractedHours) histTexts.push('Horas alteradas de '+card.contractedHours+'h para '+newHours+'h');
     if(newStart !== card.startDate) histTexts.push('Início alterado para '+fmtDateBR(newStart));
     if(newCommercial !== (card.commercialDate||'')) histTexts.push(newCommercial ? 'Data do Comercial alterada para '+fmtDateBR(newCommercial) : 'Data do Comercial removida');
@@ -13564,7 +13644,19 @@ document.addEventListener('submit', async function(e){
     if(newExpectedEnd !== (card.expectedEndDate||'')) histTexts.push(newExpectedEnd ? 'Expectativa de fim alterada para '+fmtDateBR(newExpectedEnd) : 'Expectativa de fim removida');
     card.contractedHours = newHours; card.startDate = newStart; card.commercialDate = newCommercial; card.commercialTime = newCommercialTime; card.expectedStartDate = newExpectedStart; card.expectedEndDate = newExpectedEnd; card.productTags = newTags;
     card.expectedModules = expectedModules;
+    const oldScreens = (card.expectedScreens||[]).slice();
     card.expectedScreens = expectedScreens;
+    card.screenRemovals = Array.isArray(card.screenRemovals) ? card.screenRemovals : [];
+    const modOfScreen = n=>{ const sc=state.screens.find(x=>x.name===n); const m=sc && state.modules.find(x=>x.id===sc.moduleId); return m?m.name:''; };
+    removedNow.forEach(n=>{
+      card.screenRemovals.push({id:uid('sr'), screen:n, module:modOfScreen(n), at:Date.now(), by:auditActor(), reason:reasons[n]});
+      histTexts.push('Tela "'+n+'" (marcada anteriormente) removida da implantação em '+fmtDateBR(todayISO())+' — motivo: '+reasons[n]);
+    });
+    expectedScreens.forEach(n=>{
+      if(oldScreens.includes(n)) return;
+      const open = card.screenRemovals.filter(r=>r.screen===n && !r.restoredAt).pop();
+      if(open){ open.restoredAt = Date.now(); histTexts.push('Tela "'+n+'" marcada novamente na implantação'); }
+    });
     histTexts.forEach(t=> addHistory(card, t));
     const moveVal = fd.get('moveTo');
     if(moveVal){
@@ -13739,6 +13831,12 @@ document.addEventListener('submit', async function(e){
       if(cardBoard && cardBoard.analystId) analystIds = [cardBoard.analystId];
     }
     if(!analystIds.length){ ui.formErr = 'Selecione analista(s).'; render(); return; }
+    if(typeNeedsModuleScreen(typeName)){
+      const mods = fd.getAll('modules'), scrs = fd.getAll('trainedScreens');
+      if(!mods.length){ ui.formErr = 'Selecione o(s) módulo(s) treinado(s) (obrigatório para agendas de '+typeName+').'; render(); return; }
+      const hasRegisteredScreens = state.modules.some(m=> mods.includes(m.name) && screensForModule(m.id).length);
+      if(hasRegisteredScreens && !scrs.length){ ui.formErr = 'Selecione a(s) tela(s) treinada(s) (obrigatório para agendas de '+typeName+').'; render(); return; }
+    }
     if(!isInternalType(typeName)){
       if(!(fd.get('trainedUsers')||'').trim()){ ui.formErr = 'Informe os usuários treinados (obrigatório para agendas de Implantação e Serviço).'; render(); return; }
       if(!(fd.get('notes')||'').trim()){ ui.formErr = 'Preencha as observações (obrigatório para agendas de Implantação e Serviço).'; render(); return; }
