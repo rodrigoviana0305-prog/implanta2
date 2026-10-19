@@ -760,6 +760,11 @@ th{background:var(--surface-2);color:var(--ink-soft);}
 
 #app.rt-live-update{animation:rtLiveUpdate .42s ease-out;}
 @keyframes rtLiveUpdate{ 0%{opacity:.88;} 100%{opacity:1;} }
+.sync-pill{ position:fixed;left:16px;bottom:16px;z-index:9998;display:none;align-items:center;gap:8px;max-width:calc(100vw - 32px);padding:7px 12px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink-soft);font:600 12px/1.2 var(--font-body);box-shadow:var(--shadow-1); }
+.sync-pill.show{display:flex;}
+.sync-pill.ok{color:var(--ok);} .sync-pill.warn{color:#9A6B00;border-color:#E8C46A;background:#FFF8E5;} .sync-pill.err{color:var(--danger);border-color:var(--danger);background:#FDECEC;}
+.sync-pill button{border:0;background:rgba(0,0,0,.08);color:inherit;font:700 11px var(--font-body);padding:4px 9px;border-radius:999px;cursor:pointer;}
+@media print{.sync-pill{display:none !important;}}
 .live-sync-indicator{ position:fixed;right:16px;bottom:16px;z-index:9999;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid var(--border);border-radius:999px;background:var(--surface);color:var(--ink-soft);font:500 11px/1.1 var(--font-body);box-shadow:var(--shadow-1);opacity:0;pointer-events:none;transform:translateY(5px);transition:opacity .22s ease,transform .22s ease; }
 .pdf-gen-overlay{ position:fixed; inset:0; z-index:20000; background:rgba(23,50,77,.6); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; color:#fff; font:600 15px/1.3 var(--font-body); text-align:center; padding:20px; }
 .pdf-gen-spinner{ width:38px; height:38px; border-radius:50%; border:4px solid rgba(255,255,255,.35); border-top-color:#fff; animation:pdfGenSpin .8s linear infinite; }
@@ -1606,18 +1611,46 @@ th{background:var(--surface-2);color:var(--ink-soft);}
 .attn-stale{background:#EEF1F4;color:#5B6770;}
 .attn-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:22px;}
 .attn-panel h3{margin:0 0 8px;font-size:14px;}
+.exec-panel{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin-bottom:22px;}
+.exec-panel h3{margin:0 0 8px;font-size:14px;}
 .attn-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;}
 @media (max-width:820px){.attn-cols{grid-template-columns:minmax(0,1fr);}}
 .attn-row{display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-top:1px solid var(--border);font-size:12.5px;cursor:pointer;}
 .attn-row:first-of-type{border-top:0;}
 .attn-row .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:700;}
 .hist-by{font-weight:700;color:var(--ink-soft);}
+#boot-loader{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg,#fff);}
+#boot-loader img{width:96px;height:96px;object-fit:contain;animation:boot-spin 1.2s linear infinite;}
+@keyframes boot-spin{to{transform:rotate(360deg);}}
+@media (prefers-reduced-motion:reduce){#boot-loader img{animation-duration:3s;}}
 </style>
 </head>
 <body>
 <div id="app">
-  <div style="min-height:100vh;display:flex;align-items:center;justify-content:center;color:#5A635D;font-family:'Inter',sans-serif;">Carregando...</div>
+  <div id="boot-loader" role="status" aria-label="Carregando">
+    <img id="boot-logo" alt="NEO" width="96" height="96">
+  </div>
+  <script>try{document.getElementById('boot-logo').src=document.querySelector('link[rel="icon"]').href;}catch(e){}</script>
 </div>
+<script>
+/* Se a tela ficar no logo girando (script que não carregou, erro na inicialização ou rede travada), mostra o motivo provável e um botão para tentar de novo. */
+(function(){
+  var firstErr = '';
+  window.addEventListener('error', function(e){ if(!firstErr) firstErr = (e && e.message) ? String(e.message).slice(0,160) : 'erro desconhecido'; });
+  window.addEventListener('unhandledrejection', function(e){ if(!firstErr){ var m = e && e.reason && (e.reason.message || e.reason); firstErr = String(m||'falha de rede').slice(0,160); } });
+  function stuck(){
+    var a = document.getElementById('app');
+    if(!a || !document.getElementById('boot-loader')) return;
+    var why = firstErr ? ('Detalhe técnico: '+firstErr.replace(/[<>&]/g,'')) : (navigator.onLine===false ? 'Parece que você está sem internet.' : 'A conexão está lenta ou alguma biblioteca externa não carregou.');
+    a.innerHTML = '<div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;color:#33413A;font-family:Inter,sans-serif;">'
+      + '<div style="font-size:18px;font-weight:700;">Não foi possível abrir o Implanta</div>'
+      + '<div style="max-width:420px;font-size:14px;color:#5A635D;">'+why+'</div>'
+      + '<button type="button" onclick="location.reload()" style="padding:10px 18px;font-size:15px;border:0;border-radius:10px;background:#0B5C8E;color:#fff;cursor:pointer;">Tentar de novo</button>'
+      + '<div style="font-size:12px;color:#8a948d;">Suas alterações salvas neste navegador não são perdidas ao tentar de novo.</div></div>';
+  }
+  setTimeout(stuck, 20000);
+})();
+</script>
 <div id="print-root"></div>
 
 <script>
@@ -1642,7 +1675,7 @@ const ADMIN_EMAIL = 'rsoaresrealtec@gmail.com';   // e-mail real do login do adm
 const MASTER_USER = 'administrador';           // apenas o NOME do usuário administrador geral (sem senha aqui)
 /* Fase 1 da migração: quem ainda não tem login seguro entra com a senha antiga (hash) até o administrador
    definir uma nova senha. Depois da Fase 2 (banco trancado) essa via deixa de dar acesso aos dados. */
-const LEGACY_LOGIN_FALLBACK = true;
+const LEGACY_LOGIN_FALLBACK = false;   // desligado em 19/10/2026: todos os acessos usam o login seguro (Supabase Auth)
 
 var currentUser = null;
 
@@ -2649,7 +2682,52 @@ function dedupeRegistries(s){
   s.screens = [...seenScreens.values()];
   return s;
 }
+/* Indicador fixo de sincronização: Salvando… / Pendente / Falha (com botão) / Sem internet / ✓ Salvo (some em 3s). */
+var syncPillLastState = '', syncPillSavedTimer = null;
+function syncPillState(){
+  if(!currentUser) return 'hidden';
+  if(cloudConfig && cloudStatus==='error') return 'conn-error';
+  if(cloudStatus!=='connected') return 'hidden';
+  if(navigator.onLine === false) return 'offline';
+  if(saveStatus==='error') return 'error';
+  if(saveStatus==='saving') return 'saving';
+  if(saveStatus==='pending') return 'pending';
+  return 'saved';
+}
+function updateSyncPill(){
+  let el = document.getElementById('sync-pill');
+  if(!el){ el = document.createElement('div'); el.id = 'sync-pill'; el.className = 'sync-pill'; el.setAttribute('role','status'); el.setAttribute('aria-live','polite'); document.body.appendChild(el); }
+  const st = syncPillState();
+  if(st === syncPillLastState && st!=='error' && st!=='conn-error') return;
+  const prev = syncPillLastState; syncPillLastState = st;
+  clearTimeout(syncPillSavedTimer);
+  const show = (cls, html)=>{ el.className = 'sync-pill show '+cls; el.innerHTML = html; };
+  if(st==='hidden'){ el.className = 'sync-pill'; return; }
+  if(st==='saved'){
+    if(prev==='saving' || prev==='pending' || prev==='error' || prev==='offline' || prev==='conn-error'){
+      show('ok','✓ Alterações salvas na nuvem');
+      syncPillSavedTimer = setTimeout(()=>{ if(syncPillLastState==='saved') el.className = 'sync-pill'; }, 3000);
+    } else el.className = 'sync-pill';
+    return;
+  }
+  if(st==='saving') return show('', '☁ Salvando…');
+  if(st==='pending') return show('', '☁ Alterações pendentes…');
+  if(st==='offline') return show('warn', '📴 Sem internet — suas alterações ficam guardadas neste aparelho e sobem quando voltar');
+  if(st==='error'){
+    show('err', '⚠ Falha ao salvar na nuvem — tentando de novo. Suas alterações estão guardadas neste navegador. <button type="button" id="sync-pill-retry">Tentar agora</button>');
+    const b = document.getElementById('sync-pill-retry'); if(b) b.onclick = function(){ saveRetryCount = 0; clearTimeout(saveRetryTimer); cloudSave(); };
+    return;
+  }
+  if(st==='conn-error'){
+    show('err', '⚠ Sem conexão com a nuvem — usando os dados deste navegador. <button type="button" id="sync-pill-retry">Tentar de novo</button>');
+    const b = document.getElementById('sync-pill-retry'); if(b) b.onclick = function(){ location.reload(); };
+  }
+}
+window.addEventListener('online', function(){ syncPillLastState=''; updateSyncPill(); });
+window.addEventListener('offline', function(){ syncPillLastState=''; updateSyncPill(); });
+setInterval(function(){ try{ updateSyncPill(); }catch(e){} }, 2500);
 function updateSaveStatusLine(){
+  try{ updateSyncPill(); }catch(e){}
   const el = document.getElementById('save-status-line');
   if(!el) return;
   if(cloudStatus!=='connected'){ el.textContent = 'Dados salvos neste navegador.'; return; }
@@ -2965,6 +3043,7 @@ var ui = {
   scheduleModuleTab: null,
   cardForecastModuleTab: null,
   reportsTab: 'saldo',
+  execFilter: '',
   agTipoType: 'all',
   agTipoStatus: 'concluida',
   analistasStatusFilter: 'active',
@@ -3216,7 +3295,68 @@ function renderMgmtSettings(){
       + checks.map(c=>'<tr><td>'+fmtDT(new Date(c.checked_at).getTime())+'</td><td>'+(c.ok?'<span class="badge" style="background:var(--ok-soft);color:var(--ok);">OK</span>':'<span class="badge" style="background:#FDECEC;color:var(--danger);">FALHOU</span>')+'</td><td style="font-size:12px;">'+esc(c.details||'')+'</td></tr>').join('')
       + '</tbody></table><button class="btn btn-sm" style="margin-top:8px;" data-action="backup-checks-load">Atualizar</button>';
   }
+  return h+'</div>'+renderBackupRestore();
+}
+/* ===== Restaurar backup (somente administrador; usa as funções do arquivo 18_restaurar_backup.sql) ===== */
+const BACKUP_TABLE_LABELS = {clients:'Clientes', analysts:'Analistas (inclui perfis e acessos)', boards:'Quadros', cards:'Cards', schedules:'Agendas', product_tags:'Produtos', modules:'Módulos', screens:'Telas', agenda_types:'Tipos de agenda', service_contracts:'Contratos de serviço', jira_requirements:'Requisitos Jira', vacation_entries:'Férias'};
+function renderBackupRestore(){
+  if(!isAdminUser()) return '';
+  const bl = ui.backupList, pv = ui.backupPreview;
+  let h = '<div class="section-card"><h3>Restaurar backup</h3><p class="hint">Volta tabelas inteiras para o estado de um backup diário (guardados por 14 dias). <strong>Tudo o que foi alterado depois do backup nas tabelas escolhidas é substituído.</strong> Antes de restaurar, o sistema tira um backup do estado atual, então dá para desfazer. Requer o arquivo <code>18_restaurar_backup.sql</code> rodado no Supabase.</p>';
+  if(!sbClient || cloudStatus!=='connected'){ return h+'<div class="hint" style="color:var(--danger);">Sem conexão com a nuvem agora.</div></div>'; }
+  if(bl===undefined || bl==='loading'){ h += '<button class="btn btn-sm" data-action="backup-list-load"'+(bl==='loading'?' disabled':'')+'>'+(bl==='loading'?'Carregando…':'Ver backups disponíveis')+'</button>'; }
+  else if(typeof bl==='string'){ h += '<div class="hint" style="color:var(--danger);">'+esc(bl)+'</div><button class="btn btn-sm" data-action="backup-list-load">Tentar de novo</button>'; }
+  else if(!bl.length){ h += '<div class="hint">Nenhum backup encontrado.</div><button class="btn btn-sm" data-action="backup-list-load">Atualizar</button>'; }
+  else {
+    h += '<table><thead><tr><th>Backup de</th><th>Tabelas</th><th>Registros</th><th></th></tr></thead><tbody>'
+      + bl.map(b=>'<tr'+(pv&&pv.at===b.taken_at?' style="background:var(--surface-2);"':'')+'><td>'+fmtDT(new Date(b.taken_at).getTime())+'</td><td>'+b.tabelas+'</td><td>'+b.registros+'</td><td><button class="btn btn-sm" data-action="backup-preview" data-at="'+esc(b.taken_at)+'">Ver / restaurar</button></td></tr>').join('')
+      + '</tbody></table>';
+  }
+  if(pv && pv.rows){
+    h += '<div style="margin-top:12px;"><strong>Backup de '+fmtDT(new Date(pv.at).getTime())+'</strong> — marque o que restaurar:</div><div id="backup-restore-tables" style="margin:6px 0;">';
+    pv.rows.forEach(x=>{
+      const lbl = BACKUP_TABLE_LABELS[x.table_name] || x.table_name;
+      const risky = x.table_name==='analysts';
+      h += '<label class="check-pill" style="display:flex;margin:4px 0;"><input type="checkbox" name="restoreTable" value="'+esc(x.table_name)+'"'+(risky?'':'')+'> '+esc(lbl)+' <span class="hint" style="margin:0 0 0 8px;">backup: '+x.no_backup+' · agora: '+x.agora+'</span></label>';
+    });
+    h += '</div><div class="hint">Dica: para desfazer um apagão de cards, normalmente basta marcar Cards e Agendas. "Analistas" volta também logins e perfis — só marque se for necessário.</div>'
+      + '<button class="btn btn-sm btn-primary" style="margin-top:8px;" data-action="backup-restore" data-at="'+esc(pv.at)+'">Restaurar as tabelas marcadas</button>';
+  }
+  if(ui.backupRestoreMsg) h += '<div class="hint" style="margin-top:8px;">'+esc(ui.backupRestoreMsg)+'</div>';
   return h+'</div>';
+}
+async function backupListLoad(){
+  ui.backupList = 'loading'; ui.backupRestoreMsg=''; render();
+  try{
+    const r = await sbClient.rpc('implanta_list_backups');
+    ui.backupList = r.error ? ('Não foi possível listar: '+(r.error.message||'erro')+' — rode o arquivo 18_restaurar_backup.sql no Supabase e confirme que você é administrador.') : (r.data||[]);
+  }catch(e){ ui.backupList = 'Não foi possível listar os backups: '+(e&&e.message||e); }
+  render();
+}
+async function backupPreviewLoad(at){
+  ui.backupRestoreMsg=''; ui.backupPreview = {at, rows:null}; render();
+  try{
+    const r = await sbClient.rpc('implanta_backup_preview', {p_taken_at: at});
+    if(r.error) throw r.error;
+    ui.backupPreview = {at, rows:(r.data||[])};
+  }catch(e){ ui.backupPreview = null; ui.backupRestoreMsg = 'Não foi possível abrir esse backup: '+(e&&e.message||e); }
+  render();
+}
+function backupRestoreAsk(at){
+  const tables = [...document.querySelectorAll('#backup-restore-tables input[name="restoreTable"]:checked')].map(i=>i.value);
+  if(!tables.length){ showAlert('Marque ao menos uma tabela para restaurar.'); return; }
+  const names = tables.map(t=>BACKUP_TABLE_LABELS[t]||t).join(', ');
+  showConfirm('Restaurar '+names+' para o backup de '+fmtDT(new Date(at).getTime())+'?\n\nO que foi alterado nessas tabelas depois desse backup será substituído. Um backup do estado atual é feito antes, para você poder desfazer.\nTodos os usuários conectados verão os dados restaurados.', async function(){
+    ui.backupRestoreMsg = 'Restaurando…'; render();
+    try{
+      clearTimeout(saveTimer);   // não deixa uma gravação pendente do navegador sobrescrever o que foi restaurado
+      const r = await sbClient.rpc('implanta_restore_backup', {p_taken_at: at, p_tables: tables});
+      if(r.error) throw r.error;
+      ui.backupRestoreMsg = 'Restaurado: '+Object.entries(r.data||{}).map(([k,v])=>(BACKUP_TABLE_LABELS[k]||k)+' ('+v+')').join(', ')+'. Recarregando…';
+      render();
+      setTimeout(function(){ location.reload(); }, 1500);
+    }catch(e){ ui.backupRestoreMsg = 'Falha ao restaurar: '+(e&&e.message||e)+'. Nada foi alterado se a mensagem indica erro antes da cópia.'; render(); }
+  });
 }
 async function loadBackupChecks(){
   if(!sbClient || cloudStatus!=='connected'){ ui.backupChecks = null; return; }
@@ -6819,6 +6959,71 @@ function renderAttentionPanel(analystId, clientIdSet){
   if(stale.length>12) h += '<div class="hint" style="margin:4px 0 0;">+ '+(stale.length-12)+' outros</div>';
   return h+'</div></div></div>';
 }
+/* ===== Painel executivo: situação das implantações (em andamento, atrasadas, paradas, em risco, perto de concluir) ===== */
+const EXEC_GROUPS = [
+  {key:'andamento', label:'Em andamento', icon:'📁', tone:'var(--brand)'},
+  {key:'atrasado',  label:'Atrasadas',    icon:'⏰', tone:'var(--danger)'},
+  {key:'parado',    label:'Paradas',      icon:'⏸', tone:'#9A6B00'},
+  {key:'risco',     label:'Em risco',     icon:'⚠️', tone:'var(--danger)'},
+  {key:'proximo',   label:'Perto de concluir', icon:'🏁', tone:'var(--ok)'}
+];
+function execClassify(cards){
+  const today = todayISO();
+  const out = {andamento:[], atrasado:[], parado:[], risco:[], proximo:[]};
+  cards.forEach(c=>{
+    const stKey = cardStatus(c).key;
+    if(stKey==='concluido' || stKey==='cancelado') return;
+    const b = getBoard(c.boardId), analyst = b ? getAnalyst(b.analystId) : null;
+    const client = getClient(c.clientId);
+    const f = cardForecast(c), risk = cardRisk(c), stale = cardStaleInfo(c);
+    const row = {card:c, client, analyst, forecast:f.date||'', expected:c.expectedEndDate||'', risk, stale, f};
+    if(stKey==='parado' || stale){ out.parado.push(Object.assign({why: stKey==='parado' ? 'Em fila de parados' : 'Sem movimentação há '+stale.days+' dias'}, row)); }
+    if(stKey!=='ativo') return;
+    out.andamento.push(row);
+    let late = 0;
+    if(c.expectedEndDate){
+      if(c.expectedEndDate < today) late = daysBetweenISO(c.expectedEndDate, today);
+      if(f.date && f.date > c.expectedEndDate) late = Math.max(late, daysBetweenISO(c.expectedEndDate, f.date));
+    }
+    if(late>0) out.atrasado.push(Object.assign({why:'Previsão '+late+' dia(s) após o fim esperado'}, row));
+    if(risk.level==='alto') out.risco.push(Object.assign({why: risk.reasons.slice(0,2).join(' · ')}, row));
+    const contracted = Number(c.contractedHours)||0;
+    if(contracted>0){
+      const pct = f.used/contracted*100;
+      if(pct>=85 && pct<=100) out.proximo.push(Object.assign({why: Math.round(pct)+'% das horas usadas'}, row));
+    }
+  });
+  return out;
+}
+function renderExecutivePanel(cards){
+  const g = execClassify(cards);
+  const sel = EXEC_GROUPS.some(x=>x.key===ui.execFilter) ? ui.execFilter : (g.atrasado.length ? 'atrasado' : (g.risco.length ? 'risco' : 'andamento'));
+  let h = '<div class="exec-panel"><h3>📊 Visão executiva das implantações <span class="hint" style="margin:0;font-weight:500;">— clique para ver os projetos</span></h3>';
+  h += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin-bottom:10px;">';
+  EXEC_GROUPS.forEach(x=>{
+    const n = g[x.key].length, on = x.key===sel;
+    h += '<button type="button" data-action="exec-filter" data-key="'+x.key+'" style="text-align:left;cursor:pointer;padding:10px 12px;border-radius:10px;border:1px solid '+(on?x.tone:'var(--border)')+';background:'+(on?'var(--surface-2)':'var(--surface)')+';font:inherit;color:inherit;">'
+      + '<div style="font-size:11px;color:var(--ink-soft);font-weight:700;">'+x.icon+' '+x.label+'</div>'
+      + '<div style="font-size:24px;font-weight:800;color:'+(n&&x.key!=='andamento'&&x.key!=='proximo'?x.tone:'inherit')+';">'+n+'</div></button>';
+  });
+  h += '</div>';
+  const rows = g[sel].slice().sort((a,b)=> (b.risk.score-a.risk.score) || String(a.expected||'9999').localeCompare(String(b.expected||'9999')));
+  const cur = EXEC_GROUPS.find(x=>x.key===sel);
+  if(!rows.length){ return h+'<div class="hint" style="margin:0;">Nenhum projeto em "'+cur.label+'". ✅</div></div>'; }
+  h += '<div style="overflow-x:auto;"><table><thead><tr><th>Cliente</th><th>Analista</th><th>Previsão de término</th><th>Fim esperado</th><th>Situação</th></tr></thead><tbody>';
+  rows.slice(0,15).forEach(x=>{
+    const lvl = x.risk.level==='alto' ? 'var(--danger)' : (x.risk.level==='medio' ? '#9A6B00' : 'var(--ok)');
+    h += '<tr style="cursor:pointer;" data-action="open-card" data-card-id="'+x.card.id+'">'
+      + '<td style="font-weight:700;">'+esc(x.client?x.client.name:'(cliente removido)')+'</td>'
+      + '<td>'+esc(x.analyst?x.analyst.name:'—')+'</td>'
+      + '<td>'+(x.forecast?fmtDateBR(x.forecast):'<span class="hint" style="margin:0;" title="'+esc(x.f.note||'')+'">sem previsão</span>')+'</td>'
+      + '<td>'+(x.expected?fmtDateBR(x.expected):'—')+'</td>'
+      + '<td><span style="color:'+lvl+';font-weight:700;">'+esc(x.why || (x.risk.reasons[0]||'Sem alertas'))+'</span></td></tr>';
+  });
+  h += '</tbody></table></div>';
+  if(rows.length>15) h += '<div class="hint" style="margin:6px 0 0;">+ '+(rows.length-15)+' outros. Veja todos em Relatórios → Projeção e risco.</div>';
+  return h+'</div>';
+}
 function renderDashboardView(){
   const today = todayISO();
   /* Período por datas (De / Até). Padrão: últimos 30 dias, terminando hoje. */
@@ -6936,6 +7141,7 @@ function renderDashboardView(){
   html += kpiCard('🔔','Confirmações pendentes', pendConf, pendConf?'requer atenção':'tudo em dia', pendConf?'var(--danger)':'var(--ok)');
   html += '</div>';
   html += backupBanner();
+  html += renderExecutivePanel(dashboardCardsAll);
   html += renderAttentionPanel(selectedAnalyst ? selectedAnalyst.id : null, dashboardClientIds);
   html += renderGoalsPanel();
 
@@ -12309,6 +12515,10 @@ document.addEventListener('click', async function(e){
   }
   else if(a==='timer-cancel'){ writeTimer(null); ui.modal=null; render(); }
   else if(a==='report-export-xls'){ const d = reportExportData(el.dataset.report); if(d) exportReportXls(d.name, d.headers, d.rows); }
+  else if(a==='backup-list-load'){ backupListLoad(); }
+  else if(a==='backup-preview'){ backupPreviewLoad(el.dataset.at); }
+  else if(a==='backup-restore'){ backupRestoreAsk(el.dataset.at); }
+  else if(a==='exec-filter'){ ui.execFilter = el.dataset.key; render(); }
   else if(a==='backup-checks-load'){ loadBackupChecks().then(()=>render()); }
   else if(a==='cap-weeks'){ ui.capWeeks = Number(el.dataset.n)||4; render(); }
   else if(a==='toggle-sidebar'){ ui.sidebarOpen = !ui.sidebarOpen; render(); }
