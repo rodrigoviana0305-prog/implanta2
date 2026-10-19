@@ -2034,6 +2034,9 @@ function normalizeState(raw){
   if(s.mgmt.staleDays==null) s.mgmt.staleDays = 15;
   if(s.mgmt.alertPct==null) s.mgmt.alertPct = 80;
   if(!Array.isArray(s.trainingTemplates)) s.trainingTemplates = [];
+  if(!Array.isArray(s.mgmtSettings)) s.mgmtSettings = [];
+  /* Configuração de gestão guardada na nuvem (1 linha): vale sobre a cópia local. */
+  if(s.mgmtSettings[0]){ if(s.mgmtSettings[0].staleDays!=null) s.mgmt.staleDays = s.mgmtSettings[0].staleDays; if(s.mgmtSettings[0].alertPct!=null) s.mgmt.alertPct = s.mgmtSettings[0].alertPct; }
   ['analysts','boards','clients','cards','schedules','jiraRequirements','serviceContracts','checklistTemplates','vacationEntries','productTags','modules','screens','agendaTypes'].forEach(k=>{ if(!Array.isArray(s[k])) s[k]=defaultState()[k]; });
   /* Integração com Outlook/Teams via Microsoft Graph (MSAL, login direto no
      navegador) foi desfeita a pedido do usuário — o Azure AD não pôde ser
@@ -2178,7 +2181,7 @@ function icsFeedUrl(analyst){
 }
 
 /* Tabelas "opcionais": se ainda não existirem na nuvem (ou o acesso for negado), o app segue funcionando e guarda os dados só neste navegador. */
-const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates'];
+const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings'];
 function isOptionalTableKey(k){ return OPTIONAL_TABLE_KEYS.indexOf(k)>=0; }
 const ENTITY_TABLES = [
   {key:'clients', table:'clients'},
@@ -2196,8 +2199,22 @@ const ENTITY_TABLES = [
   // apagava os contratos da memória da aplicação.
   {key:'serviceContracts', table:'service_contracts'},
   // Modelos de checklist (implantação / encerramento). Veja servidor/17_checklists.sql.
-  {key:'checklistTemplates', table:'checklist_templates'}
+  {key:'checklistTemplates', table:'checklist_templates'},
+  // Modelos de treinamento e configuração de gestão (dias de card parado / % de alerta de saldo).
+  // Veja servidor/19_modelos_treinamento_e_config.sql. Enquanto as tabelas não existirem, ficam só no navegador.
+  {key:'trainingTemplates', table:'training_templates'},
+  {key:'mgmtSettings', table:'app_settings'}
 ];
+/* Mantém a linha de configuração de gestão (nuvem) igual a state.mgmt. */
+function syncMgmtRow(st){
+  if(!st) return;
+  const m = st.mgmt || {};
+  if(!Array.isArray(st.mgmtSettings)) st.mgmtSettings = [];
+  let row = st.mgmtSettings[0];
+  if(!row){ row = {id:'mgmt'}; st.mgmtSettings.push(row); }
+  if(m.staleDays!=null) row.staleDays = m.staleDays;
+  if(m.alertPct!=null) row.alertPct = m.alertPct;
+}
 const LAZY_TABLES = [
   {key:'jiraRequirements', table:'jira_requirements'},
   {key:'vacationEntries', table:'vacation_entries'}
@@ -2397,6 +2414,7 @@ function notifyMergedSave(list){
 }
 async function saveChangedTables(sb, st){
   const saveReport = {merged:[]};
+  syncMgmtRow(st);
   for(const {key, table} of ENTITY_TABLES.concat(LAZY_TABLES)){
     const currentJson = JSON.stringify(st[key]||[]);
     if(currentJson === tableSnapshots[key]) continue;
@@ -2655,7 +2673,7 @@ var saveRetryCount = 0, saveRetryTimer = null;
 window.addEventListener('online', function(){ if(saveStatus==='error' && sbClient){ saveRetryCount = 0; cloudSave(); } });
 function mergeStates(remote, local){
   const merged = Object.assign({}, local);
-  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates'].forEach(key=>{
+  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings'].forEach(key=>{
     const byId = new Map();
     (remote[key]||[]).forEach(item=> byId.set(item.id, item));
     (local[key]||[]).forEach(item=> byId.set(item.id, item));
@@ -2778,7 +2796,7 @@ function disconnectCloud(){
 const BACKUP_ENTITY_KEYS = ENTITY_TABLES.concat(LAZY_TABLES).map(t=>t.key);
 const BACKUP_LABELS = { clients:'clientes', analysts:'analistas', boards:'quadros', cards:'cards',
   schedules:'agendas', productTags:'produtos', modules:'módulos', screens:'telas',
-  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist',
+  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist', trainingTemplates:'modelos de treinamento', mgmtSettings:'configuração de gestão',
   jiraRequirements:'requisitos do Jira', vacationEntries:'lançamentos de férias' };
 async function exportBackupJson(){
   if(!isAdminUser()) return;
@@ -2996,6 +3014,13 @@ async function boot(){
         }
         if(!(loaded.checklistTemplates||[]).length && (localBeforeCloud.checklistTemplates||[]).length){
           state.checklistTemplates = localBeforeCloud.checklistTemplates;
+        }
+        /* Primeira vez com as tabelas novas: sobe o que já existia neste navegador. */
+        if(!(loaded.trainingTemplates||[]).length && (localBeforeCloud.trainingTemplates||[]).length){
+          state.trainingTemplates = localBeforeCloud.trainingTemplates;
+        }
+        if(!(loaded.mgmtSettings||[]).length && localBeforeCloud.mgmt){
+          state.mgmt = Object.assign({}, state.mgmt, {staleDays:localBeforeCloud.mgmt.staleDays, alertPct:localBeforeCloud.mgmt.alertPct});
         }
 
         tableSnapshots = snapshotTables(state);
@@ -8574,6 +8599,16 @@ function typeNeedsModuleScreen(typeName){
   const t = String(typeName||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
   return t.startsWith('treinamento');
 }
+/* Agenda de Treinamento só pode ser concluída com módulo(s) e tela(s) preenchidos — vale também para agendas criadas
+   por modelo de treinamento ou registro rápido (que nascem sem esses dados). Devolve o motivo, ou '' se estiver ok. */
+function scheduleModuleScreenProblem(s){
+  if(!s || !typeNeedsModuleScreen(s.type)) return '';
+  const mods = s.modules||[], scrs = s.trainedScreens||[];
+  if(!mods.length) return 'Informe o(s) módulo(s) treinado(s) antes de concluir esta agenda de '+s.type+'.';
+  const hasRegisteredScreens = state.modules.some(m=> mods.includes(m.name) && screensForModule(m.id).length);
+  if(hasRegisteredScreens && !scrs.length) return 'Informe a(s) tela(s) treinada(s) antes de concluir esta agenda de '+s.type+'.';
+  return '';
+}
 function isServicoType(typeName){ const t = state.agendaTypes.find(t=>t.name===typeName); return !!(t && t.isServico); }
 
 function renderCalendarView(){
@@ -9705,6 +9740,16 @@ function jiraRequirementStatusOptions(current){
   const all = base.concat(extra);
   return jiraStatusCatalog.length ? all.sort((a,b)=>a.localeCompare(b,'pt-BR')) : all.slice(0,3).concat(all.slice(3).sort((a,b)=>a.localeCompare(b,'pt-BR')));
 }
+/* Cabeçalhos para chamar as Edge Functions que exigem login (Jira): inclui a sessão do login seguro. */
+async function authedFunctionHeaders(){
+  const hd = {'Content-Type':'application/json'};
+  try{
+    const sb = getSb(); const g = sb && await sb.auth.getSession();
+    const tok = g && g.data && g.data.session && g.data.session.access_token;
+    if(tok){ hd['Authorization'] = 'Bearer '+tok; hd['apikey'] = (cloudConfig && cloudConfig.anonKey) || DEFAULT_CLOUD_CONFIG.anonKey; }
+  }catch(e){}
+  return hd;
+}
 function jiraSyncEndpoint(){
   return (cloudConfig && cloudConfig.url ? cloudConfig.url : 'https://pfabqqdhvacakszoklxh.supabase.co') + '/functions/v1/jira-sync-status';
 }
@@ -9762,7 +9807,7 @@ async function syncJiraRequirements(opts){
   if(!opts.silent){ jiraSyncState.lastMsg = incremental ? 'Verificando alterações no Jira...' : 'Sincronizando tudo com o Jira...'; if(ui.view==='jira') render(); }
   let changed = 0;
   try{
-    const resp = await fetch(jiraSyncEndpoint(), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+    const resp = await fetch(jiraSyncEndpoint(), { method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify(body) });
     let data = null; try{ data = await resp.json(); }catch(e){}
     if(!resp.ok || !data || !data.issues){
       throw new Error((data && data.error) ? data.error : ('HTTP '+resp.status));
@@ -11198,7 +11243,10 @@ function renderModal(){
     const detailMsg = nAnalysts > 1 ? ' (base: '+minToHM(perAnalyst)+' × '+nAnalysts+' analistas)' : '';
     inner = '<div class="modal-header"><h3>Confirmar conclusão</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
       + '<p class="hint">'+(s.title? '<strong>'+esc(s.title)+'</strong> · ':'')+scheduleDateText(s)+' · '+(s.allDay?'Dia todo':s.startTime+'–'+s.endTime)+' · '+esc(s.type)+'</p>'
-      + '<form data-form="confirm-complete" data-id="'+s.id+'">'
+      + (scheduleModuleScreenProblem(s)
+        ? '<div class="error-msg">'+esc(scheduleModuleScreenProblem(s))+'</div><div class="form-actions"><button type="button" class="btn btn-primary" data-action="open-modal" data-modal="schedule-edit" data-id="'+s.id+'">Abrir agenda para preencher</button></div>'
+        : '')
+      + '<form data-form="confirm-complete" data-id="'+s.id+'"'+(scheduleModuleScreenProblem(s)?' style="display:none;"':'')+'>'
       + '<div class="field"><label>Minutos a abater'+detailMsg+'</label><input type="number" min="0" name="deductMinutes" value="'+dur+'"></div>'
       + '<div class="field"><label>Observação</label><textarea name="notes">'+esc(s.notes||'')+'</textarea></div>'
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Confirmar</button></div></form>';
@@ -14243,7 +14291,7 @@ document.addEventListener('submit', async function(e){
     const sd = parseInt(fd.get('staleDays'),10), ap = parseInt(fd.get('alertPct'),10);
     if(!(sd>=3 && sd<=180)){ showAlert('Dias para "card parado" deve estar entre 3 e 180.'); return; }
     if(!(ap>=50 && ap<=99)){ showAlert('Percentual de alerta de saldo deve estar entre 50 e 99.'); return; }
-    mgmt().staleDays = sd; mgmt().alertPct = ap; persist(); render(); showAlert('Configurações salvas.');
+    mgmt().staleDays = sd; mgmt().alertPct = ap; syncMgmtRow(state); persist(); render(); showAlert('Configurações salvas.');
   }
   else if(type==='apply-template'){
     const card = getCard(form.dataset.card); const t = (state.trainingTemplates||[]).find(x=>x.id===fd.get('templateId'));
@@ -14295,6 +14343,8 @@ document.addEventListener('submit', async function(e){
   else if(type==='confirm-complete'){
     const minutes = parseInt(fd.get('deductMinutes'),10)||0;
     const id = form.dataset.id;
+    const _msProblem = scheduleModuleScreenProblem(byId(state.schedules, id));
+    if(_msProblem){ ui.formErr = _msProblem; render(); return; }
     completeSchedule(id, minutes, fd.get('notes'));
     // Volta pra tela de Editar agendamento (em vez de ir direto pro
     // relatório de impressão) — essa tela já tem o botão "🖨 Relatório de
@@ -14351,8 +14401,15 @@ document.addEventListener('submit', async function(e){
     // já configurado nesta instalação do Implanta.
     const jiraEndpoint = (cloudConfig && cloudConfig.url ? cloudConfig.url : 'https://pfabqqdhvacakszoklxh.supabase.co') + '/functions/v1/jira-create-issue';
     try{
+      /* A função do Jira só aceita quem está logado: envia a sessão do login seguro. */
+      const jiraHeaders = {'Content-Type':'application/json'};
+      try{
+        const _sb = getSb(); const _g = _sb && await _sb.auth.getSession();
+        const _tok = _g && _g.data && _g.data.session && _g.data.session.access_token;
+        if(_tok){ jiraHeaders['Authorization'] = 'Bearer '+_tok; jiraHeaders['apikey'] = (cloudConfig && cloudConfig.anonKey) || DEFAULT_CLOUD_CONFIG.anonKey; }
+      }catch(_e){}
       const resp = await fetch(jiraEndpoint, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        method:'POST', headers:jiraHeaders, body: JSON.stringify(payload)
       });
       httpStatus = resp.status;
       ok = resp.ok;
