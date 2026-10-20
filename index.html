@@ -1744,6 +1744,35 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
   .bp-tab.on{ background:var(--brand); border-color:var(--brand); color:#fff; }
 }
 
+/* Gráfico "Categoria de horas × Cards de clientes novos": no celular o desenho de 900px encolhia e o texto ficava ilegível.
+   Agora ele mantém tamanho legível e rola para o lado; o cabeçalho (filtros) quebra em duas colunas. */
+@media screen and (max-width:820px){
+  #app .catchart-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
+  #app .catchart-wrap > .catchart-svg{ width:760px; max-width:none; min-width:760px; }
+}
+/* Painéis com filtros no cabeçalho: a descrição ocupa a largura toda embaixo (antes ficava espremida numa coluna estreita ao lado dos filtros). */
+#app .report-section-head:has(> .field){ flex-wrap:wrap; align-items:center; }
+#app .report-section-head:has(> .field) > div[style*="flex:1"]{ display:contents; }
+#app .report-section-head:has(> .field) .report-section-title{ flex:1 1 220px; min-width:0; margin:0; }
+#app .report-section-head:has(> .field) .report-section-desc{ flex:0 0 100%; width:100%; max-width:none; }
+@media screen and (min-width:601px){
+  #app .report-section-head:has(> .field) .report-section-icon{ order:0; }
+  #app .report-section-head:has(> .field) .report-section-title{ order:1; }
+  #app .report-section-head:has(> .field) > .field{ order:2; }
+  #app .report-section-head:has(> .field) > .report-section-share-btn{ order:3; }
+  #app .report-section-head:has(> .field) .report-section-desc{ order:4; margin-top:2px; }
+}
+@media screen and (max-width:600px){
+  /* ícone + título na primeira linha; descrição ocupa a largura toda embaixo; filtros em seguida */
+  #app .report-section-head > div[style*="flex:1"]{ display:contents; }
+  #app .report-section-head .report-section-title{ flex:1 1 calc(100% - 62px); min-width:0; align-self:center; margin:0; }
+  #app .report-section-head .report-section-desc{ flex:0 0 100%; width:100%; }
+  #app .report-section-head > .field{ flex:1 1 calc(50% - 8px); min-width:0 !important; }
+  #app .report-section-head > .field select{ width:100%; }
+  #app .report-section-desc{ overflow-wrap:anywhere; }
+  #app .hchart-legend{ gap:6px 12px; }
+}
+
 /* Botões maiores no toque */
 @media (pointer:coarse), screen and (max-width:820px){
   .btn{ min-height:44px; padding-left:18px; padding-right:18px; }
@@ -15357,7 +15386,7 @@ if('serviceWorker' in navigator){
       + it(ui.view==='dashboard', '🏠', 'Painel', 'data-action="goto-view" data-view="dashboard"')
       + it(ui.view==='board', '▦', 'Quadro', 'data-action="board-analyst-filter" data-id="'+mine+'"')
       + it(ui.view==='calendar', '◷', 'Agenda', 'data-action="goto-view" data-view="calendar"', pend)
-      + it(ui.view==='clients', '◉', 'Cadastros', 'data-action="goto-view" data-view="clients"')
+      + it(ui.view==='jira', '⌁', 'Jira', 'data-action="goto-view" data-view="jira"')
       + it(false, '☰', 'Mais', 'data-action="toggle-sidebar"')
       + '</nav>';
   };
