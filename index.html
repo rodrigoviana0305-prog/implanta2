@@ -15426,7 +15426,8 @@ if('serviceWorker' in navigator){
   window.renderBottomNav = function(){
     if(!currentUser) return '';
     var pend = 0; try{ pend = notifItems().length; }catch(e){}
-    var mine = ''; try{ mine = myAnalystId() || 'all'; }catch(e){ mine = 'all'; }
+    /* Quadro no menu inferior: por padrão, todos os analistas. */
+    var mine = 'all';
     function it(active, icon, label, attrs, badge){
       return '<button type="button" class="bn-item'+(active?' active':'')+'" '+attrs+'><span class="bn-ico">'+icon+'</span><span>'+label+'</span>'+(badge?'<span class="bn-badge">'+(badge>99?'99+':badge)+'</span>':'')+'</button>';
     }
