@@ -2247,6 +2247,8 @@ function normalizeState(raw){
     if(!copy.password) copy.password = '';
     if(copy.isAdmin===undefined) copy.isAdmin = false;
     if(copy.isSupport===undefined) copy.isSupport = false;
+    /* Coordenação: admin completo, mas só aparece nos cards/quadro (não entra em filtros nem em resultados). Sabrina já nasce coordenadora. */
+    if(copy.isCoordinator===undefined) copy.isCoordinator = !!(copy.isAdmin && /^\s*sabrina\b/i.test(copy.name||''));
     if(copy.inactive===undefined) copy.inactive = false;
     if(copy.admissionDate===undefined) copy.admissionDate = '';
     if(copy.email===undefined) copy.email = '';
@@ -5222,7 +5224,7 @@ function checkBrowserScheduleNotifications(force){
 
 function activeAnalysts(){ return state.analysts.filter(a=> !a.inactive && !a.isSupport); }
 /* Quem aparece em Relatórios e no Painel Geral: analistas comuns (nem Suporte, nem Gestor). */
-function isReportAnalyst(a){ return !!a && !a.isSupport && !a.isManager; }
+function isReportAnalyst(a){ return !!a && !a.isSupport && !a.isManager && !a.isCoordinator; }
 /* A agenda entra nos números de relatório se tiver algum analista "de relatório" (ou nenhum analista cadastrado). */
 function scheduleCountsForReports(s){
   const ids = scheduleAnalystIds(s);
@@ -10329,7 +10331,7 @@ function renderJiraAnalysisPanel(){
       row[st] = (row[st]||0) + 1;
     });
   });
-  const rowIds = Object.keys(rowsMap).sort((x,y)=>{
+  const rowIds = Object.keys(rowsMap).filter(id=>{ const an=getAnalyst(id); return !(an && an.isCoordinator); }).sort((x,y)=>{
     if(x==='__none__') return 1; if(y==='__none__') return -1;
     const ax = getAnalyst(x), ay = getAnalyst(y);
     return String(ax?ax.name:'').localeCompare(String(ay?ay.name:''),'pt-BR');
@@ -10729,7 +10731,7 @@ function renderSettingsView(){
         + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
         + '<td>'+esc(board?board.name:'—')+'</td>'
         + '<td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:'+a.color+';border:1px solid rgba(0,0,0,.15);"></span><code style="font-size:11.5px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+a.color+'</code></span></td>'
-        + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">Administrador</span>' : (a.isSupport ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>' : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Consulta</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>')))+'</td>'
+        + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">'+(a.isCoordinator?'Coordenadora':'Administrador')+'</span>' : (a.isSupport ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>' : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Consulta</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>')))+'</td>'
         + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">Ativo</span>' : switchCell('analyst', a.id, a.inactive, 'Ativo', 'Inativo'))+'</td>'
         + '<td><div class="row-actions">'
           + '<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="analyst-edit" data-id="'+a.id+'">Editar</button>'
@@ -10928,7 +10930,7 @@ function renderSettingsView(){
           + '<td style="font-weight:700;">'+esc(a.name)+'</td>'
           + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
           + '<td>'+(a.authReady ? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">🔒 seguro</span>' : (a.password ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);" title="Edite o usuário e defina uma nova senha para ativar o login seguro">⚠ senha antiga</span>' : '<span class="hint">—</span>'))+'</td>'
-          + '<td>'+(a.isAdmin?'Administrador':(a.isSupport?'Suporte':(a.isManager?'Consulta':'Analista')))+'</td>'
+          + '<td>'+(a.isAdmin?(a.isCoordinator?'Coordenadora':'Administrador'):(a.isSupport?'Suporte':(a.isManager?'Consulta':'Analista')))+'</td>'
           + '<td>'+(a.inactive? '<span class="badge" style="background:#B9CAD5;color:#fff;">Inativo</span>' : '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">Ativo</span>')+'</td>'
           + '<td><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="analyst-edit" data-id="'+a.id+'">Editar</button></td>'
           + '</tr>';
@@ -11024,7 +11026,7 @@ function renderFeriasReportTable(){
     + '<th></th></tr></thead><tbody>';
   sortedRows.forEach(({a, hasAdmission, saldo, pendingPeriods})=>{
     const profileBadge = a.isAdmin
-      ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">Administrador</span>'
+      ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">'+(a.isCoordinator?'Coordenadora':'Administrador')+'</span>'
       : (a.isSupport
         ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>'
         : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Consulta</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>'));
@@ -11158,8 +11160,8 @@ function renderModal(){
        analistas nem editar os colegas; isso continua exclusivo do admin. */
     if(!isAdminUser() && !isSelf){ return '<div class="overlay"><div class="modal"><p>Sem permissão.</p></div></div>'; }
     const editingAdmin = a && a.isAdmin;
-    const canChangeProfile = isAdminUser() && !editingAdmin;
-    const currentProfile = a ? (a.isAdmin?'administrador':(a.isSupport?'suporte':(a.isManager?'gestor':'analista'))) : 'analista';
+    const canChangeProfile = isAdminUser() && (!editingAdmin || !!(a && a.isCoordinator));
+    const currentProfile = a ? (a.isCoordinator?'coordenadora':a.isAdmin?'administrador':(a.isSupport?'suporte':(a.isManager?'gestor':'analista'))) : 'analista';
     const draft = m.values || null;
     const effProfile = canChangeProfile ? (draft ? (draft.profile||currentProfile) : currentProfile) : currentProfile;
     const isSupportProfile = effProfile==='suporte';
@@ -11182,6 +11184,7 @@ function renderModal(){
         + '<option value="gestor" '+(effProfile==='gestor'?'selected':'')+'>Consulta (vê tudo, não altera)</option>'
         + '<option value="suporte" '+(effProfile==='suporte'?'selected':'')+'>Suporte</option>'
         + '<option value="administrador" '+(effProfile==='administrador'?'selected':'')+'>Administrador</option>'
+        + '<option value="coordenadora" '+(effProfile==='coordenadora'?'selected':'')+'>Coordenadora (faz tudo que o Administrador faz, mas só aparece nos cards)</option>'
         + '</select><span class="hint">Suporte não tem login no site — o nome só fica disponível pra escolher na tela de Férias.</span></div>';
     }
     if(isSupportProfile){
@@ -14061,10 +14064,11 @@ document.addEventListener('submit', async function(e){
     const name = fd.get('name').trim(); const color = fd.get('color');
     const email = (fd.get('email')||'').trim();
     if(id && !existing) return;
-    const canChangeProfile = isAdminUser() && !(existing && existing.isAdmin);
-    const currentProfile = existing ? (existing.isAdmin?'administrador':(existing.isSupport?'suporte':(existing.isManager?'gestor':'analista'))) : 'analista';
+    const canChangeProfile = isAdminUser() && !(existing && existing.isAdmin && !existing.isCoordinator);
+    const currentProfile = existing ? (existing.isCoordinator?'coordenadora':existing.isAdmin?'administrador':(existing.isSupport?'suporte':(existing.isManager?'gestor':'analista'))) : 'analista';
     const profile = canChangeProfile ? (fd.get('profile')||'analista') : currentProfile;
-    const wantsAdmin = profile==='administrador';
+    const wantsCoordinator = profile==='coordenadora';
+    const wantsAdmin = profile==='administrador' || wantsCoordinator;
     const wantsSupport = profile==='suporte';
     const wantsManager = profile==='gestor';
     /* O campo de data de admissão só é exibido pra admins (ver renderModal) —
@@ -14099,7 +14103,7 @@ document.addEventListener('submit', async function(e){
       if(wantsSupport){
         a.isSupport = true; a.username = ''; a.password = '';
       } else {
-        a.isSupport = false; a.username = username; if(canChangeProfile) a.isManager = wantsManager;
+        a.isSupport = false; a.username = username; if(canChangeProfile){ a.isManager = wantsManager; a.isCoordinator = wantsCoordinator; }
         if(!a.isAdmin && wantsAdmin) a.isAdmin = true;
         if(isSecureSession() && isAdminUser()){
           try{ await syncAnalystLogin(a, password); }
@@ -14120,6 +14124,7 @@ document.addEventListener('submit', async function(e){
       }
       if(newPhoto) r.analyst.photo = newPhoto;
       if(wantsManager) r.analyst.isManager = true;
+      if(wantsCoordinator) r.analyst.isCoordinator = true;
       if(isAdminUser() && fd.has('monthlyGoal')) r.analyst.monthlyGoalHours = Math.max(0, parseFloat(fd.get('monthlyGoal'))||0);
     }
     ui.modal=null; render();
