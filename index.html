@@ -1747,8 +1747,7 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
 /* Gráfico "Categoria de horas × Cards de clientes novos": no celular o desenho de 900px encolhia e o texto ficava ilegível.
    Agora ele mantém tamanho legível e rola para o lado; o cabeçalho (filtros) quebra em duas colunas. */
 @media screen and (max-width:820px){
-  #app .catchart-wrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:6px; }
-  #app .catchart-wrap > .catchart-svg{ width:760px; max-width:none; min-width:760px; }
+  #app .catchart-wrap > .catchart-svg{ width:100%; height:auto; }
 }
 /* Painéis com filtros no cabeçalho: a descrição ocupa a largura toda embaixo (antes ficava espremida numa coluna estreita ao lado dos filtros). */
 #app .report-section-head:has(> .field){ flex-wrap:wrap; align-items:center; }
@@ -2819,7 +2818,7 @@ var state = loadLocalState();
 
 function persist(){
   if(typeof currentUser!=='undefined' && currentUser && currentUser.role==='gestor'){
-    if(window.__mgrInteracted && (!window.__mgrWarnAt || Date.now()-window.__mgrWarnAt>4000)){ window.__mgrWarnAt = Date.now(); setTimeout(function(){ try{ showAlert('Perfil Gestor é somente leitura: nada foi salvo. Atualize a página para descartar a alteração.'); }catch(e){} }, 0); }
+    if(window.__mgrInteracted && (!window.__mgrWarnAt || Date.now()-window.__mgrWarnAt>4000)){ window.__mgrWarnAt = Date.now(); setTimeout(function(){ try{ showAlert('Perfil Consulta é somente leitura: nada foi salvo. Atualize a página para descartar a alteração.'); }catch(e){} }, 0); }
     return;
   }
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); window.__lsFailed = false; }catch(e){
@@ -5829,7 +5828,8 @@ function renderSidebar(){
       + (pend? '<span class="side-badge">'+pend+'</span>' : '')
       + '</button>';
   });
-  html += '<button class="side-add" data-action="open-modal" data-modal="analyst-new">+ Novo analista</button>';
+  /* Na aba Configurações → Analistas o botão “Novo” já existe na própria tela: não duplicar no menu lateral. */
+  if(!(ui.view==='settings' && ui.settingsTab==='analistas')) html += '<button class="side-add" data-action="open-modal" data-modal="analyst-new">+ Novo analista</button>';
   html += '</div>';
 
   const totalPend = notifItems().length;
@@ -5939,7 +5939,7 @@ function renderTopbar(){
       + '<button type="button" class="topbar-user" data-action="toggle-user-menu">'
       +   (myTopbarAnalyst ? analystAvatar(myTopbarAnalyst,26) : '👤')
       +   ' '+esc(currentUser.displayName||currentUser.username||'')
-      +   (isAdminUser()?' <span class="badge" style="background:var(--gold-soft);color:var(--gold);">ADMIN</span>':'')
+      +   (isAdminUser() && !myTopbarAnalyst ? ' <span class="badge" style="background:var(--gold-soft);color:var(--gold);">ADMIN</span>':'')
       +   ' <span class="topbar-user-caret">▾</span>'
       + '</button>'
       + (ui.showUserMenu ? renderUserMenu() : '')
@@ -6255,7 +6255,7 @@ function renderManualView(){
     + '<li>📚 <strong>Modelos de treinamento:</strong> cadastre séries de sessões em Configurações → Modelos de treinamento e aplique num card (aba Agenda → Aplicar modelo). Conflitos de horário deslocam a sessão para o próximo dia útil livre; a agenda comum também ganhou a mensagem exata do conflito.</li>'
     + '<li>📲 <strong>Lembrete ao cliente:</strong> nas agendas pendentes, os botões 📲 (WhatsApp) e ✉️ (e-mail) abrem a mensagem pronta de confirmação e registram o envio.</li>'
     + '<li>⏱ <strong>Registro rápido de horas:</strong> botão ⏱ no topo — lance um atendimento ou use o cronômetro (▶ iniciar, depois clique no relógio para parar e salvar). A agenda é criada como pendente e abre em seguida para você completar e concluir. Funciona bem no celular.</li>'
-    + '<li>👁 <strong>Perfil Gestor:</strong> em Configurações → Analistas, escolha o perfil “Gestor”: vê tudo, mas não altera cadastros, cards nem agendas.</li>'
+    + '<li>👁 <strong>Perfil Consulta:</strong> em Configurações → Analistas, escolha o perfil “Consulta”: vê tudo, mas não altera cadastros, cards nem agendas.</li>'
     + '<li>🕓 <strong>Histórico do card</strong> agora mostra quem fez cada alteração, e o card mostra a previsão de término e a última movimentação.</li>'
     + '<li>🛡 <strong>Validações:</strong> CNPJ duplicado é bloqueado e o card exige horas contratadas (ou saldo importado).</li>'
     + '<li>📊 <strong>Painel Geral:</strong> filtro por <em>Data inicial / Data final</em> (padrão: últimos 30 dias), filtros que podem ser salvos, e quatro painéis novos — Burndown de horas por card, Carga por analista na semana, Tempo de ciclo da implantação e Reportes comerciais por gravidade.</li>'
@@ -6862,10 +6862,12 @@ function renderCategoryVsNewCardsChart(dashboardClientIds){
   // de unidade (📊 horas / 📈 cards) e só o eixo primário (horas) desenha
   // linhas de grade — o secundário só tem os números, pra não duplicar
   // grade e confundir qual linha pertence a qual eixo.
-  const W=900, padL=44, padR=40, padT=22, padB=32;
+  /* Celular: o desenho é montado na largura da tela (em vez de 900px encolhidos), então cabe sem rolar e o texto continua legível. */
+  const vwNow = window.innerWidth || 1200, compactCat = vwNow <= 820;
+  const W = compactCat ? Math.max(300, Math.min(vwNow-56, 760)) : 900, H = compactCat ? 250 : 280;
+  const padL = compactCat ? 34 : 44, padR = compactCat ? 34 : 40, padT = 22, padB = 32;
   const plotW = W-padL-padR;
-  const plotH = 280-padT-padB;
-  const H = 280;
+  const plotH = H-padT-padB;
   const monthW = plotW/12;
   const barW = Math.min(24, monthW*0.5);
   const barX = i => padL + monthW*i + (monthW-barW)/2;
@@ -9362,7 +9364,7 @@ function renderReportsView(){
       + '<div class="report-section-icon" style="background:var(--brand-soft);color:var(--brand);">🗂</div>'
       + '<div style="flex:1;">'
       +   '<h2 class="report-section-title">Agendas por tipo de agenda</h2>'
-      +   '<p class="report-section-desc">Lista as agendas do período, separadas por tipo. Por padrão só aparecem as <strong>confirmadas</strong> (concluídas), as mesmas que entram nas horas do Painel Geral. Analistas com privilégio de Gestor ou Suporte não entram. Total exibido: <strong>'+shown.length+' agenda'+(shown.length===1?'':'s')+'</strong> • <strong>'+minToHM(totalMin)+'</strong>.</p>'
+      +   '<p class="report-section-desc">Lista as agendas do período, separadas por tipo. Por padrão só aparecem as <strong>confirmadas</strong> (concluídas), as mesmas que entram nas horas do Painel Geral. Analistas com privilégio de Consulta ou Suporte não entram. Total exibido: <strong>'+shown.length+' agenda'+(shown.length===1?'':'s')+'</strong> • <strong>'+minToHM(totalMin)+'</strong>.</p>'
       + '</div>'
       + '</div>';
     html += '<div class="cal-toolbar" style="margin-bottom:12px;">'
@@ -10401,7 +10403,7 @@ function renderJiraRequirementsView(){
     +'<div style="font-weight:800;color:var(--brand-dark);font-size:15px;flex:1;">Controle de requisitos</div>'
     +'<button class="btn" data-action="jira-sync"'+(jiraSyncState.running?' disabled':'')+' title="Consulta no Jira só o que mudou desde a última verificação">↻ Verificar alterações no Jira</button>'
     +'<button class="btn btn-ghost btn-sm" data-action="jira-sync-full"'+(jiraSyncState.running?' disabled':'')+' title="Reconsulta TODOS os requisitos (use só se suspeitar que algo ficou desatualizado)">Forçar completa</button>'
-    +'<button class="btn btn-primary" data-action="open-modal" data-modal="jira-requirement">+ Novo requisito</button></div>'
+    +'<button class="btn btn-primary" data-action="open-modal" data-modal="jira-new-choice">+ Novo requisito</button></div>'
     +(jiraSyncState.lastMsg?'<div class="hint" style="margin:-4px 0 12px;'+(jiraSyncState.lastError?'color:var(--danger);':'')+'">'+esc(jiraSyncState.lastMsg)+'</div>':'')
     +'<div class="cal-toolbar" style="margin-bottom:14px;">'
     +'<div class="search-box" style="min-width:260px;flex:1;"><span>⌕</span><input id="jira-search" value="'+esc(ui.jiraSearch||'')+'" placeholder="Buscar por número, cliente ou requisito..."></div>'
@@ -10704,7 +10706,7 @@ function renderSettingsView(){
         + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
         + '<td>'+esc(board?board.name:'—')+'</td>'
         + '<td><span style="display:inline-flex;align-items:center;gap:6px;"><span style="display:inline-block;width:14px;height:14px;border-radius:4px;background:'+a.color+';border:1px solid rgba(0,0,0,.15);"></span><code style="font-size:11.5px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+a.color+'</code></span></td>'
-        + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">Administrador</span>' : (a.isSupport ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>' : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Gestor</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>')))+'</td>'
+        + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">Administrador</span>' : (a.isSupport ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>' : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Consulta</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>')))+'</td>'
         + '<td>'+(a.isAdmin? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">Ativo</span>' : switchCell('analyst', a.id, a.inactive, 'Ativo', 'Inativo'))+'</td>'
         + '<td><div class="row-actions">'
           + '<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="analyst-edit" data-id="'+a.id+'">Editar</button>'
@@ -10903,7 +10905,7 @@ function renderSettingsView(){
           + '<td style="font-weight:700;">'+esc(a.name)+'</td>'
           + '<td>'+(a.username? '<code style="font-size:12px;background:var(--surface-2);padding:2px 6px;border-radius:5px;">'+esc(a.username)+'</code>' : '<span class="hint">—</span>')+'</td>'
           + '<td>'+(a.authReady ? '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">🔒 seguro</span>' : (a.password ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);" title="Edite o usuário e defina uma nova senha para ativar o login seguro">⚠ senha antiga</span>' : '<span class="hint">—</span>'))+'</td>'
-          + '<td>'+(a.isAdmin?'Administrador':(a.isSupport?'Suporte':(a.isManager?'Gestor':'Analista')))+'</td>'
+          + '<td>'+(a.isAdmin?'Administrador':(a.isSupport?'Suporte':(a.isManager?'Consulta':'Analista')))+'</td>'
           + '<td>'+(a.inactive? '<span class="badge" style="background:#B9CAD5;color:#fff;">Inativo</span>' : '<span class="badge" style="background:var(--ok-soft);color:var(--ok);">Ativo</span>')+'</td>'
           + '<td><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="analyst-edit" data-id="'+a.id+'">Editar</button></td>'
           + '</tr>';
@@ -10960,7 +10962,7 @@ function renderSettingsView(){
 }
 
 function renderFeriasReportTable(){
-  const rows = state.analysts.map(a=>{
+  const rows = state.analysts.filter(a=>!a.isManager).map(a=>{
     const hasAdmission = !!a.admissionDate;
     const periods = hasAdmission ? computeVacationPeriods(a, state.vacationEntries) : [];
     const summary = computeVacationSummary(periods);
@@ -11002,7 +11004,7 @@ function renderFeriasReportTable(){
       ? '<span class="badge" style="background:var(--gold-soft);color:var(--gold);">Administrador</span>'
       : (a.isSupport
         ? '<span class="badge" style="background:#EDE7F6;color:#7B4B94;">Suporte</span>'
-        : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Gestor</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>'));
+        : (a.isManager ? '<span class="badge" style="background:#E3F2EC;color:#1E8449;">Consulta</span>' : '<span class="badge" style="background:var(--brand-soft);color:var(--brand);">Analista</span>'));
     const saldoCell = hasAdmission
       ? '<span style="font-weight:700;'+(saldo<0?'color:var(--danger);':'')+'">'+saldo+' dias</span>'
       : '<span class="hint">Sem admissão</span>';
@@ -11027,7 +11029,7 @@ function renderFeriasReportTable(){
 }
 
 function renderFeriasTab(){
-  const analystsSorted = state.analysts.slice().sort((a,b)=> a.name.localeCompare(b.name));
+  const analystsSorted = state.analysts.filter(a=>!a.isManager).sort((a,b)=> a.name.localeCompare(b.name));
   if(!analystsSorted.length){ return '<div class="section-card"><h3>Férias</h3><p class="hint">Nenhum analista cadastrado.</p></div>'; }
   if(!ui.feriasAnalystId || !getAnalyst(ui.feriasAnalystId)){ ui.feriasAnalystId = analystsSorted[0].id; }
   const analyst = getAnalyst(ui.feriasAnalystId);
@@ -11154,7 +11156,7 @@ function renderModal(){
     if(canChangeProfile){
       inner += '<div class="field"><label>Perfil</label><select name="profile">'
         + '<option value="analista" '+(effProfile==='analista'?'selected':'')+'>Analista</option>'
-        + '<option value="gestor" '+(effProfile==='gestor'?'selected':'')+'>Gestor (vê tudo, não altera)</option>'
+        + '<option value="gestor" '+(effProfile==='gestor'?'selected':'')+'>Consulta (vê tudo, não altera)</option>'
         + '<option value="suporte" '+(effProfile==='suporte'?'selected':'')+'>Suporte</option>'
         + '<option value="administrador" '+(effProfile==='administrador'?'selected':'')+'>Administrador</option>'
         + '</select><span class="hint">Suporte não tem login no site — o nome só fica disponível pra escolher na tela de Férias.</span></div>';
@@ -11523,6 +11525,13 @@ function renderModal(){
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Confirmar</button></div></form>';
   } else if(m.type==='jira-duplicates'){
     inner = renderJiraDuplicatesModal();
+  } else if(m.type==='jira-new-choice'){
+    inner = '<div class="modal-header"><h3>Novo requisito</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
+      + '<div class="choice-box"><div class="choice-desc">O que você quer fazer?</div></div>'
+      + '<div class="choice-actions">'
+        + '<button class="btn btn-primary" data-action="open-modal" data-modal="jira-requirement">🔗 Vincular chamado existente</button>'
+        + '<button class="btn" data-action="open-modal" data-modal="jira-create-note">🎫 Abrir requisito no Jira</button>'
+      + '</div>';
   } else if(m.type==='jira-create-note'){
     const s = byId(state.schedules, m.id);
     const client = s && s.clientId ? getClient(s.clientId) : null;
@@ -11541,6 +11550,7 @@ function renderModal(){
               : '<p class="hint">⚠️ Seu cadastro de analista (<strong>'+esc(filingAnalyst.name)+'</strong>) não tem email salvo — o chamado será criado sem Relator vinculado. Cadastre seu email em Configurações → Analistas para aparecer como Relator no Jira.</p>')
           : '')
       + '<form data-form="jira-create-note" data-id="'+(s?s.id:'')+'">'
+      + (s ? '' : '<div class="field"><label>Cliente <span class="hint" style="margin:0;">(opcional)</span></label><select name="jiraClientId"><option value="">— Sem cliente —</option>'+state.clients.slice().sort((a,b)=>a.name.localeCompare(b.name)).map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('')+'</select></div>')
       + '<div class="field"><label>Tipo de item</label><select name="jiraIssueType">'
         + jiraIssueTypeOptions.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('')
       + '</select></div>'
@@ -12726,7 +12736,7 @@ const FORM_MODAL_TYPES = new Set([
   'type-new','type-edit',
   'list-new','list-rename','card-new',
   'schedule-new','schedule-edit',
-  'jira-requirement','jira-create-note','jira-duplicates',
+  'jira-requirement','jira-create-note','jira-new-choice','jira-duplicates',
   'vacation-entry-new','vacation-entry-edit',
   'service-contract',
   'commercial-report-form','commercial-report-email-preview',
@@ -12754,7 +12764,7 @@ document.addEventListener('click', async function(e){
   if(!el){ if(needsRender) render(); return; }
   if(el.tagName==='SELECT'){ if(needsRender) render(); return; }
   const a = el.dataset.action;
-  if(isManagerUser() && MANAGER_BLOCKED_RE.test(a)){ showAlert('Perfil Gestor é somente leitura.'); return; }
+  if(isManagerUser() && MANAGER_BLOCKED_RE.test(a)){ showAlert('Perfil Consulta é somente leitura.'); return; }
 
   if(a==='goto-view'){ ui.view = el.dataset.view; ui.showNotif=false; ui.showUserMenu=false; ui.sidebarOpen=false; const jiraLazyP = (ui.view==='jira') ? ensureLazyTableLoaded('jiraRequirements') : null; refreshFromCloudIfChanged('view-change').finally(()=>{ render(); if(ui.view==='jira' && Date.now()-jiraSyncState.lastAt>60000) Promise.resolve(jiraLazyP).catch(()=>{}).then(()=>syncJiraRequirements({silent:true})); }); }
   else if(a==='board-analyst-filter'){
@@ -14014,7 +14024,7 @@ document.addEventListener('submit', async function(e){
   if(!form) return;
   e.preventDefault();
   const type = form.dataset.form;
-  if(isManagerUser() && type!=='change-password'){ showAlert('Perfil Gestor é somente leitura.'); return; }
+  if(isManagerUser() && type!=='change-password'){ showAlert('Perfil Consulta é somente leitura.'); return; }
   const fd = new FormData(form);
 
   if(type==='analyst'){
@@ -14685,9 +14695,8 @@ document.addEventListener('submit', async function(e){
   }
   else if(type==='jira-create-note'){
     const scheduleId = form.dataset.id;
-    if(!scheduleId){ showAlert('Salve a agenda antes de abrir um chamado no Jira.'); return; }
-    const sc = byId(state.schedules, scheduleId);
-    if(!sc){ showAlert('Agenda não encontrada.'); return; }
+    const sc = scheduleId ? byId(state.schedules, scheduleId) : null;
+    if(scheduleId && !sc){ showAlert('Agenda não encontrada.'); return; }
     const issueType = fd.get('jiraIssueType') || 'Tarefa';
     const summary = (fd.get('jiraSummary')||'').trim();
     const description = (fd.get('jiraDescription')||'').trim();
@@ -14714,10 +14723,10 @@ document.addEventListener('submit', async function(e){
       // Módulo(s) da agenda — a Edge Function usa isso pra preencher o
       // campo "Componente" do Jira (quando o nome bater com um componente
       // cadastrado no projeto).
-      modules: sc.modules || [],
+      modules: (sc && sc.modules) || [],
       // Contexto da agenda (cliente, analista, módulos, telas, anexos) —
       // a Edge Function acrescenta isso ao fim da descrição.
-      context: fd.get('jiraIncludeContext') ? jiraScheduleContext(sc) : null,
+      context: (sc && fd.get('jiraIncludeContext')) ? jiraScheduleContext(sc) : null,
       // Email de quem está logado criando o chamado agora — a Edge
       // Function usa isso pra buscar a conta no Jira e virar o "Relator"
       // da issue (não é o(s) analista(s) vinculado(s) à agenda).
@@ -14754,14 +14763,19 @@ document.addEventListener('submit', async function(e){
       render();
       return;
     }
-    const scAnalysts = scheduleAnalystIds(sc);
-    const r = { id: uid('jr'), number: data.key, link: data.url||'', status:'ABERTO', clientId: sc.clientId||'', scheduleId: sc.id, createdAt: Date.now(),
+    const scAnalysts = sc ? scheduleAnalystIds(sc) : [];
+    const r = { id: uid('jr'), number: data.key, link: data.url||'', status:'ABERTO', clientId: sc ? (sc.clientId||'') : (fd.get('jiraClientId')||''), scheduleId: sc ? sc.id : '', createdAt: Date.now(),
       analystId: myAnalystId() || scAnalysts[0] || '', statusChangedAt: Date.now() };
-    jiraAudit(r, 'Requisito criado a partir da agenda');
+    jiraAudit(r, sc ? 'Requisito criado a partir da agenda' : 'Requisito criado pela tela de Requisitos Jira');
     state.jiraRequirements.push(r);
-    linkJiraRequirementToSchedule(r.id, sc.id);
-    ui.modal = { type:'schedule-edit', id: scheduleId };
-    ui.formSuccess = '✓ Chamado '+data.key+' criado no Jira e vinculado a esta agenda.'+(data.warning?(' '+data.warning):'');
+    if(sc){
+      linkJiraRequirementToSchedule(r.id, sc.id);
+      ui.modal = { type:'schedule-edit', id: scheduleId };
+      ui.formSuccess = '✓ Chamado '+data.key+' criado no Jira e vinculado a esta agenda.'+(data.warning?(' '+data.warning):'');
+    } else {
+      ui.modal = null;
+      showToast('Chamado '+data.key+' criado no Jira');
+    }
     render();
     // Abre o chamado recém-criado no Jira numa nova aba.
     if(data.url){ window.open(data.url, '_blank'); }
@@ -15369,6 +15383,12 @@ if('serviceWorker' in navigator){
   }
 
   /* rolagem: barra de vidro ganha sombra */
+  /* girar o aparelho / mudar a largura: redesenha o Painel Geral para o gráfico caber na nova largura */
+  var lastW = window.innerWidth, rzT = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(rzT);
+    rzT = setTimeout(function(){ var w = window.innerWidth; if(Math.abs(w-lastW) > 60 && currentUser && ui.view === 'dashboard' && !ui.modal){ lastW = w; render(); } else if(Math.abs(w-lastW) > 60){ lastW = w; } }, 250);
+  });
   document.addEventListener('scroll', function(e){
     var t = e.target; if(!t || !t.classList || !t.classList.contains('view')) return;
     var tb = document.querySelector('.topbar'); if(tb) tb.classList.toggle('scrolled', t.scrollTop > 4);
