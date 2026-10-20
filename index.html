@@ -6486,9 +6486,29 @@ const DASHBOARD_CARD_DEFAULT_SIZES = {
   'ciclo':'full',
   'reportes-comercial':'full'
 };
+/* Posição e tamanho dos painéis: guardados no cadastro do analista logado (acompanham em qualquer aparelho)
+   e também neste navegador (admin sem cadastro de analista, ou se a nuvem não aceitar a gravação). */
+function dashLayoutUser(){ const me = myAnalystId && myAnalystId(); return me ? getAnalyst(me) : null; }
+function dashLayoutLocalKey(base){ return base+'_'+((currentUser&&currentUser.username)||''); }
+function dashLayoutRead(field, baseKey, fallback){
+  const an = dashLayoutUser();
+  if(an && an.dashLayout && an.dashLayout[field]!==undefined) return an.dashLayout[field];
+  try{
+    const v = localStorage.getItem(dashLayoutLocalKey(baseKey));
+    if(v!==null) return JSON.parse(v);
+    const old = localStorage.getItem(baseKey);   // formato antigo (antes de ser por usuário)
+    if(old!==null) return JSON.parse(old);
+  }catch(e){}
+  return fallback;
+}
+function dashLayoutWrite(field, baseKey, value){
+  const an = dashLayoutUser();
+  if(an){ an.dashLayout = Object.assign({}, an.dashLayout||{}, {[field]:value}); persist(); }
+  try{ localStorage.setItem(dashLayoutLocalKey(baseKey), JSON.stringify(value)); }catch(e){ console.warn('Falha ao salvar o layout do painel', e); }
+}
 function getDashboardCardOrder(){
   let saved = [];
-  try{ saved = JSON.parse(localStorage.getItem(DASHBOARD_CARD_ORDER_KEY) || '[]'); }catch(e){ saved = []; }
+  saved = dashLayoutRead('order', DASHBOARD_CARD_ORDER_KEY, []);
   if(!Array.isArray(saved)) saved = [];
   const known = new Set(DASHBOARD_CARDS_DEFAULT_ORDER);
   const cleaned = saved.filter(k=>known.has(k));
@@ -6496,7 +6516,7 @@ function getDashboardCardOrder(){
   return cleaned;
 }
 function setDashboardCardOrder(order){
-  try{ localStorage.setItem(DASHBOARD_CARD_ORDER_KEY, JSON.stringify(order)); }catch(e){ console.warn('Falha ao salvar a ordem do painel', e); }
+  dashLayoutWrite('order', DASHBOARD_CARD_ORDER_KEY, order);
 }
 function moveDashboardCard(key, dir){
   const order = getDashboardCardOrder();
@@ -6522,8 +6542,7 @@ function moveDashboardCardTo(key, target){
   render();
 }
 function getDashboardCardSizes(){
-  let saved = {};
-  try{ saved = JSON.parse(localStorage.getItem(DASHBOARD_CARD_SIZE_KEY) || '{}'); }catch(e){ saved = {}; }
+  let saved = dashLayoutRead('sizes', DASHBOARD_CARD_SIZE_KEY, {});
   if(!saved || typeof saved!=='object' || Array.isArray(saved)) saved = {};
   const sizes = {};
   DASHBOARD_CARDS_DEFAULT_ORDER.forEach(k=>{
@@ -6534,11 +6553,13 @@ function getDashboardCardSizes(){
 function setDashboardCardSize(key, size){
   const sizes = getDashboardCardSizes();
   sizes[key] = (size==='full') ? 'full' : 'half';
-  try{ localStorage.setItem(DASHBOARD_CARD_SIZE_KEY, JSON.stringify(sizes)); }catch(e){ console.warn('Falha ao salvar o tamanho do painel', e); }
+  dashLayoutWrite('sizes', DASHBOARD_CARD_SIZE_KEY, sizes);
   render();
 }
 function resetDashboardLayout(){
-  try{ localStorage.removeItem(DASHBOARD_CARD_ORDER_KEY); localStorage.removeItem(DASHBOARD_CARD_SIZE_KEY); }catch(e){}
+  const an = dashLayoutUser();
+  if(an && an.dashLayout){ delete an.dashLayout; persist(); }
+  try{ [DASHBOARD_CARD_ORDER_KEY, DASHBOARD_CARD_SIZE_KEY].forEach(k=>{ localStorage.removeItem(k); localStorage.removeItem(dashLayoutLocalKey(k)); }); }catch(e){}
   render();
 }
 /* Troca a classe de largura (dash-card / dash-card-full) do <div> raiz do
