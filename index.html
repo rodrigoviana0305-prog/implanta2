@@ -310,7 +310,7 @@ input[type=color]{ width:38px; height:32px; padding:2px; border:1px solid var(--
 .wl-pct{ white-space:nowrap; }
 .cal-tg-daycol:hover{ background-color:var(--surface-2); }
 .cal-tg-daycol.drag-over{ background-color:var(--brand-soft); }
-.cal-reassign{ display:none; position:sticky; top:0; z-index:30; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; margin:-6px 0 12px; background:var(--surface,#fff); border:2px dashed var(--brand); border-radius:10px; }
+.cal-reassign{ display:none; position:fixed; top:72px; left:50%; transform:translateX(-50%); max-width:min(92vw,900px); box-shadow:0 6px 20px rgba(0,0,0,.18); z-index:60; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 10px; margin:0; background:var(--surface,#fff); border:2px dashed var(--brand); border-radius:10px; }
 body.dragging-sched .cal-reassign{ display:flex; }
 .cal-reassign-chip{ display:inline-flex; align-items:center; gap:6px; padding:6px 12px; border:2px solid var(--border); border-radius:999px; font-weight:700; font-size:12.5px; background:var(--surface,#fff); cursor:copy; }
 .cal-reassign-chip .m-dot{ width:9px; height:9px; border-radius:50%; }
@@ -1787,6 +1787,7 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
   .bottom-nav,.fp-bar,.board-pager,#app-toasts{ display:none !important; }
   .overlay{ -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 }
+.modal[tabindex="-1"]:focus,.overlay[tabindex="-1"]:focus{outline:none}
 </style>
 </head>
 <body>
@@ -2211,6 +2212,7 @@ function normalizeState(raw){
   if(s.mgmt.alertPct==null) s.mgmt.alertPct = 80;
   if(!Array.isArray(s.trainingTemplates)) s.trainingTemplates = [];
   if(!Array.isArray(s.cardTemplates)) s.cardTemplates = [];
+  if(!Array.isArray(s.tasks)) s.tasks = [];
   if(!Array.isArray(s.mgmtSettings)) s.mgmtSettings = [];
   /* Configuração de gestão guardada na nuvem (1 linha): vale sobre a cópia local. */
   if(s.mgmtSettings[0]){ if(s.mgmtSettings[0].staleDays!=null) s.mgmt.staleDays = s.mgmtSettings[0].staleDays; if(s.mgmtSettings[0].alertPct!=null) s.mgmt.alertPct = s.mgmtSettings[0].alertPct; }
@@ -2361,7 +2363,7 @@ function icsFeedUrl(analyst){
 }
 
 /* Tabelas "opcionais": se ainda não existirem na nuvem (ou o acesso for negado), o app segue funcionando e guarda os dados só neste navegador. */
-const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates'];
+const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates','tasks'];
 function isOptionalTableKey(k){ return OPTIONAL_TABLE_KEYS.indexOf(k)>=0; }
 const ENTITY_TABLES = [
   {key:'clients', table:'clients'},
@@ -2385,7 +2387,9 @@ const ENTITY_TABLES = [
   {key:'trainingTemplates', table:'training_templates'},
   {key:'mgmtSettings', table:'app_settings'},
   // Modelos de card (segmento + persona → produtos, módulos e telas pré-marcados). Veja servidor/21_modelos_de_card.sql.
-  {key:'cardTemplates', table:'card_templates'}
+  {key:'cardTemplates', table:'card_templates'},
+  // Tarefas Pendentes. Veja servidor/22_tarefas.sql.
+  {key:'tasks', table:'tasks'}
 ];
 /* Mantém a linha de configuração de gestão (nuvem) igual a state.mgmt. */
 function syncMgmtRow(st){
@@ -2688,7 +2692,7 @@ var realtimeRefreshInFlight = false;
 var realtimeRefreshQueued = false;
 var realtimeLastRefreshAt = 0;
 var REALTIME_POLL_MS = 180000;
-var REALTIME_MIN_REFRESH_GAP_MS = 1200;
+var REALTIME_MIN_REFRESH_GAP_MS = 4000;
 
 function showLiveSyncIndicator(){
   let el = document.getElementById('live-sync-indicator');
@@ -2731,6 +2735,39 @@ function renderWithoutPersist(){
 function hasOpenFormModal(){
   return !!(ui.modal && typeof FORM_MODAL_TYPES !== 'undefined' && FORM_MODAL_TYPES.has(ui.modal.type));
 }
+/* Busca incremental: lista só id + versão (leve), compara com a última cópia sincronizada
+   (tableSnapshots) e baixa apenas as linhas novas/alteradas. Se algo não bater, cai no download completo. */
+async function fetchTableDelta(sb, table, key){
+  const full = ()=> sb.from(table).select('data');
+  try{
+    let snap = []; try{ snap = JSON.parse(tableSnapshots[key]||'[]')||[]; }catch(e){}
+    if(!Array.isArray(snap) || snap.length < 20) return await full();
+    const snapById = new Map(); snap.forEach(it=>{ if(it && it.id!=null) snapById.set(String(it.id), it); });
+    const idx = await sb.from(table).select('id, v:data->>_v');
+    if(idx.error || !Array.isArray(idx.data)) return await full();
+    const need = [];
+    idx.data.forEach(r=>{
+      const b = snapById.get(String(r.id));
+      if(!b || r.v==null || String(b._v==null ? '' : b._v) !== String(r.v)) need.push(String(r.id));
+    });
+    if(need.length > 150 || need.length > idx.data.length*0.5) return await full();
+    const got = new Map();
+    for(let i=0;i<need.length;i+=80){
+      const chunk = need.slice(i,i+80);
+      const r = await sb.from(table).select('id, data').in('id', chunk);
+      if(r.error || !Array.isArray(r.data)) return await full();
+      r.data.forEach(row=> got.set(String(row.id), row.data));
+    }
+    const out = [];
+    for(const r of idx.data){
+      const id = String(r.id);
+      if(got.has(id)) out.push({data: got.get(id)});
+      else if(snapById.has(id)) out.push({data: snapById.get(id)});
+      else return await full();
+    }
+    return {data: out, error: null};
+  }catch(e){ return await full(); }
+}
 async function refreshFromCloudIfChanged(source){
   if(!sbClient || cloudStatus!=='connected') return false;
   if(realtimeRefreshInFlight){ realtimeRefreshQueued = true; return false; }
@@ -2748,7 +2785,8 @@ async function refreshFromCloudIfChanged(source){
     });
     if(!changedEntries.length) return false;
 
-    const results = await Promise.all(changedEntries.map(({table})=> sbClient.from(table).select('data')));
+    /* Economia de tráfego: em vez de baixar a tabela inteira, baixa só as linhas cuja versão (_v) mudou. */
+    const results = await Promise.all(changedEntries.map(({table,key})=> fetchTableDelta(sbClient, table, key)));
     results.forEach(r=>{ if(r.error) throw r.error; });
     const mergedNotes = [];
     changedEntries.forEach(({key}, i)=>{
@@ -2855,7 +2893,7 @@ var saveRetryCount = 0, saveRetryTimer = null;
 window.addEventListener('online', function(){ if(saveStatus==='error' && sbClient){ saveRetryCount = 0; cloudSave(); } });
 function mergeStates(remote, local){
   const merged = Object.assign({}, local);
-  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates'].forEach(key=>{
+  ['analysts','boards','clients','cards','schedules','productTags','modules','agendaTypes','screens','serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates','tasks'].forEach(key=>{
     const byId = new Map();
     (remote[key]||[]).forEach(item=> byId.set(item.id, item));
     (local[key]||[]).forEach(item=> byId.set(item.id, item));
@@ -2978,7 +3016,7 @@ function disconnectCloud(){
 const BACKUP_ENTITY_KEYS = ENTITY_TABLES.concat(LAZY_TABLES).map(t=>t.key);
 const BACKUP_LABELS = { clients:'clientes', analysts:'analistas', boards:'quadros', cards:'cards',
   schedules:'agendas', productTags:'produtos', modules:'módulos', screens:'telas',
-  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist', trainingTemplates:'modelos de treinamento', cardTemplates:'modelos de card', mgmtSettings:'configuração de gestão',
+  agendaTypes:'tipos de agenda', serviceContracts:'contratos de serviço', checklistTemplates:'modelos de checklist', trainingTemplates:'modelos de treinamento', cardTemplates:'modelos de card', tasks:'tarefas', mgmtSettings:'configuração de gestão',
   jiraRequirements:'requisitos do Jira', vacationEntries:'lançamentos de férias' };
 async function exportBackupJson(){
   if(!isAdminUser()) return;
@@ -3207,6 +3245,9 @@ async function boot(){
         /* Primeira vez com as tabelas novas: sobe o que já existia neste navegador. */
         if(!(loaded.trainingTemplates||[]).length && (localBeforeCloud.trainingTemplates||[]).length){
           state.trainingTemplates = localBeforeCloud.trainingTemplates;
+        }
+        if(!(loaded.tasks||[]).length && (localBeforeCloud.tasks||[]).length){
+          state.tasks = localBeforeCloud.tasks;
         }
         if(!(loaded.cardTemplates||[]).length && (localBeforeCloud.cardTemplates||[]).length){
           state.cardTemplates = localBeforeCloud.cardTemplates;
@@ -5586,6 +5627,7 @@ function createCard(boardId, listId, clientId, extra){
   }, extra||{});
   state.cards.push(card);
   try{ applyAutoChecklists(card); }catch(e){}
+  linkCreatedToTask('card', card.id);
   return card;
 }
 function firstLinkedScheduleForCard(cardId){
@@ -5660,6 +5702,16 @@ function refundImportedBalance(card){
     }
   });
 }
+function linkCreatedToTask(kind, id){
+  try{
+    const tid = ui.modal && ui.modal.fromTaskId; if(!tid) return;
+    const t = (state.tasks||[]).find(x=>x.id===tid); if(!t) return;
+    const k = kind==='card' ? 'cardIds' : 'scheduleIds';
+    t[k] = Array.isArray(t[k]) ? t[k] : []; if(!t[k].includes(id)) t[k].push(id);
+    if(t.status==='pendente') t.status = 'andamento';
+    t.updatedAt = Date.now();
+  }catch(e){}
+}
 function createSchedule(data){
   const s = Object.assign({
     id:uid('sc'), status:'pendente', deductMinutes:null, modules:[], notes:'', category:'implantacao',
@@ -5673,6 +5725,7 @@ function createSchedule(data){
   if(s.clientIds.length && !s.clientId) s.clientId = s.clientIds[0];
   state.schedules.push(s);
   scheduleCardIds(s).forEach(cid=> syncCardStartDateFromSchedules(cid));
+  linkCreatedToTask('schedule', s.id);
   return s;
 }
 function updateSchedule(id, patch){
@@ -5882,6 +5935,7 @@ function renderSidebar(){
   const totalPend = notifItems().length;
   html += '<div class="side-section"><div class="side-label"><span>Gestão</span></div>';
   html += navItem('calendar','◷','Agenda', totalPend);
+  html += navItem('tasks','☑','Tarefas Pendentes', myOpenTasksCount());
   html += navItem('jira','⌁','Requisitos Jira');
   html += navItem('contracts','📄','Contratos de Serviços');
   html += navItem('clients','◉','Cadastros');
@@ -5970,6 +6024,9 @@ function renderTopbar(){
   } else if(ui.view==='clients'){
     left = '<div class="topbar-title"><h2>Cadastros</h2><div class="sub">Clientes e contadores</div></div>'
       + '<button class="btn btn-primary" data-action="open-modal" data-modal="client-new">+ Novo cliente</button>';
+  } else if(ui.view==='tasks'){
+    left = '<div class="topbar-title"><h2>Tarefas Pendentes</h2><div class="sub">Tarefas para virar agenda ou card de implantação</div></div>'
+      + '<button class="btn btn-primary" data-action="open-modal" data-modal="task-form">+ Nova tarefa</button>';
   } else if(ui.view==='jira'){
     left = '<div class="topbar-title"><h2>Requisitos Jira</h2><div class="sub">Requisitos sincronizados com o Jira</div></div>';
   } else if(ui.view==='contracts'){
@@ -6217,7 +6274,7 @@ function globalSearchResults(q){
 }
 function globalSearchScreens(){
   const list = [
-    ['dashboard','🏠','Painel Geral'],['calendar','◷','Agenda'],['jira','⌁','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
+    ['dashboard','🏠','Painel Geral'],['calendar','◷','Agenda'],['tasks','☑','Tarefas Pendentes'],['jira','⌁','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
     ['clients','◉','Cadastros (clientes)'],['reports','▥','Relatórios'],['settings','⚙','Configurações'],['manual','📘','Manual do Usuário'],
     ['settings:produtos','⚙','Configurações — Produtos'],['settings:modulos','⚙','Configurações — Módulos do sistema'],['settings:telas','⚙','Configurações — Telas'],
     ['settings:tipos','⚙','Configurações — Tipos de agenda'],['settings:modelos','⚙','Configurações — Modelos de treinamento'],
@@ -6470,6 +6527,7 @@ function renderView(){
     case 'board': return renderBoardView();
     case 'calendar': return renderCalendarView();
     case 'reports': return renderReportsView();
+    case 'tasks': return renderTasksView();
     case 'jira': return renderJiraRequirementsView();
     case 'contracts': return renderServiceContractsView();
     case 'clients': return renderClientsView();
@@ -8300,12 +8358,58 @@ function renderCardAttachmentsTab(card){
   return html;
 }
 
+/* ===== Melhorar texto (regras locais, baseado no script MelhoradorDeTexto) ===== */
+const IMPROVE_SUBS = [
+  ['no sentido de','para'],['com o objetivo de','para'],['com a finalidade de','para'],['devido ao fato de que','porque'],
+  ['em virtude de','por'],['em razão de','por'],['por meio de','via'],['através de','via'],['no que diz respeito a','sobre'],
+  ['com relação a','sobre'],['em relação a','sobre'],['de modo que','assim'],['de forma que','assim'],['uma vez que','como'],
+  ['já que','como'],['tendo em vista que','como'],['considerando que','como'],['no momento em que','quando'],
+  ['na eventualidade de','se'],['caso venha a','se'],['faz-se necessário','é necessário'],['torna-se necessário','é necessário'],
+  ['é importante ressaltar que','destaca-se que'],['cabe destacar que','destaca-se que'],['é válido mencionar que','nota-se que'],
+  ['neste momento atual','agora'],['no atual momento','agora'],['em função disso','por isso'],['por conta disso','por isso'],
+  ['dessa forma','assim'],['desse modo','assim'],['da mesma forma','igualmente'],['de igual modo','igualmente'],
+  ['planejar antecipadamente','planejar'],['encarar de frente','encarar'],['retornar de volta','retornar'],['monopólio exclusivo','monopólio'],
+  ['pequenos detalhes','detalhes'],['outra alternativa','alternativa'],['certeza absoluta','certeza'],['preencher completamente','preencher'],
+  ['no final das contas','afinal'],['em última análise','afinal']
+];
+const IMPROVE_FILLERS = ['basicamente','literalmente','na verdade','simplesmente','praticamente','meio que','tipo assim','né'];
+function improveRe(term){ return new RegExp('(?<![\\p{L}\\d])'+term.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?![\\p{L}\\d])','giu'); }
+function improveText(original){
+  let t = String(original||''); let changes = 0;
+  IMPROVE_SUBS.forEach(([a,b])=>{ t = t.replace(improveRe(a), m=>{ changes++; return m[0]===m[0].toUpperCase() && m[0]!==m[0].toLowerCase() ? b.charAt(0).toUpperCase()+b.slice(1) : b; }); });
+  IMPROVE_FILLERS.forEach(f=>{ t = t.replace(new RegExp(improveRe(f).source+'\\s*','giu'), ()=>{ changes++; return ''; }); });
+  t = t.replace(/[ \t]+/g,' ').replace(/\s+([,.!?;:])/g,'$1').replace(/([,!?;:])(?=[^\s\d])/g,'$1 ').replace(/\.(?=[A-Za-zÀ-ú])/g,'. ');
+  t = t.split('\n').map(l=>l.trim()).filter((l,i,a)=>l || (i>0 && a[i-1])).join('\n').trim();
+  t = t.replace(/(^|[.!?]\s+|\n)(\p{Ll})/gu, (m,p,c)=>p+c.toUpperCase());
+  if(t && !/[.!?…:]$/.test(t)) t += '.';
+  const sentences = t.split(/(?<=[.!?])\s+/).filter(Boolean);
+  const longOnes = sentences.filter(f=>f.split(/\s+/).length>25);
+  const passives = (t.match(/(?<![\p{L}])(foi|foram|é|são|será|serão)\s+\p{L}+ad[oa]s?(?![\p{L}])/giu)||[]).length;
+  const wo = String(original||'').split(/\s+/).filter(Boolean).length, wn = t.split(/\s+/).filter(Boolean).length;
+  return { text:t, changes, wordsBefore:wo, wordsAfter:wn, longOnes, passives };
+}
+function renderImproveBox(box, r){
+  const tips = [];
+  if(r.longOnes.length) tips.push('⚠ '+r.longOnes.length+' frase(s) com mais de 25 palavras — considere dividir: <em>'+esc(r.longOnes[0].slice(0,90))+(r.longOnes[0].length>90?'…':'')+'</em>');
+  if(r.passives) tips.push('ℹ '+r.passives+' trecho(s) na voz passiva — prefira dizer quem fez (ex.: "o cliente não respondeu").');
+  tips.push('💡 Um bom impedimento diz: o que está travado, desde quando, o que já foi tentado e o que falta do cliente.');
+  box.innerHTML = '<div class="section-card" style="margin-top:8px;padding:12px 14px;background:var(--surface-2);">'
+    + '<div style="font-weight:800;margin-bottom:6px;">✨ Sugestão</div>'
+    + '<textarea class="improve-suggestion" rows="4" style="width:100%;">'+esc(r.text)+'</textarea>'
+    + '<div class="hint" style="margin:6px 0;">'+r.wordsBefore+' → '+r.wordsAfter+' palavras · '+r.changes+' ajuste(s) automático(s)</div>'
+    + tips.map(x=>'<div class="hint" style="margin:2px 0;">'+x+'</div>').join('')
+    + '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px;"><button type="button" class="btn btn-sm btn-ghost" data-action="improve-text-discard">Descartar</button><button type="button" class="btn btn-sm btn-primary" data-action="improve-text-apply">Usar sugestão</button></div></div>';
+  box.style.display = 'block';
+}
+const SERVICE_TYPES = ['Manipulação de banco de dados','Troca de banco de dados','Inclusão de novo módulo','Treinamento a um novo colaborador','Treinamento Cliente Base','Mudança de Enquadramento','Restauração Banco de Dados','Personalização de relatórios','Acompanhamento','Migração','Novo banco de dados (NEO PDV)','Monitoramento'];
 /* ============================= RELATÓRIO COMERCIAL ============================= */
 const COMMERCIAL_REPORT_TYPES = [
   {value:'comunicacao',   label:'Comunicação / Contato', icon:'📞'},
   {value:'infraestrutura',label:'Infraestrutura do cliente', icon:'🏗'},
   {value:'capital_humano',label:'Capital humano (equipe do cliente)', icon:'👥'},
   {value:'sistema',       label:'Aderência do sistema', icon:'⚙'},
+  {value:'cancel_sistema', label:'Cancelamento sistema', icon:'⛔'},
+  {value:'cancel_complemento', label:'Cancelamento Complemento', icon:'⛔'},
   {value:'outros',        label:'Outros', icon:'📌'}
 ];
 const COMMERCIAL_REPORT_GRAVITY = [
@@ -8329,6 +8433,21 @@ function commercialStageLabel(pct){
   if(pct < 25) return 'Inicial';
   if(pct <= 75) return 'Avançado';
   return 'Em Conclusão';
+}
+function renderCommercialFeedbackForm(m){
+  const p = m.payload||{}; const card = getCard(p.cardId);
+  const rep = card && (card.commercialReports||[]).find(r=>r.id===p.reportId);
+  if(!rep) return '<div class="modal-header"><h3>Reporte não encontrado</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  const client = getClient(card.clientId);
+  const cur = (m.values && m.values.feedback!=null) ? m.values.feedback : ((rep.commercialFeedback||{}).text||'');
+  return '<div class="modal-header"><div style="flex:1;"><span class="badge" style="background:var(--gold-soft);color:var(--gold);">📣 REPORTE CONCLUÍDO</span>'
+    + '<h3 style="margin-top:4px;">Devolutiva do Comercial</h3><div class="card-modal-meta"><span>Cliente: <strong>'+esc(client?client.name:'—')+'</strong></span><span>'+esc(commercialTypeLabel(rep.type))+'</span></div></div>'
+    + '<button class="modal-close" data-action="close-modal">✕</button></div>'
+    + '<form data-form="commercial-feedback" data-card="'+card.id+'" data-id="'+rep.id+'">'
+    + '<div class="field"><label>O que foi decidido pelo Comercial *</label><textarea name="feedback" rows="5" required placeholder="Ex.: Comercial falou com o gestor; treinamento retomado a partir de dd/mm com nova agenda.">'+esc(cur)+'</textarea></div>'
+    + (ui.formErr ? '<div class="error-msg">'+esc(ui.formErr)+'</div>' : '')
+    + '<div class="form-actions"><button type="button" class="btn btn-ghost" data-action="open-modal" data-modal="commercial-report-view" data-card="'+card.id+'" data-id="'+rep.id+'">Informar depois</button><span style="flex:1;"></span><button type="submit" class="btn btn-primary">💾 Salvar devolutiva</button></div>'
+    + '</form>';
 }
 /* Monta o assunto/corpo do e-mail de impedimento a partir do card e dos
    dados atuais do formulário (fd2 é um FormData do form "commercial-report",
@@ -8355,7 +8474,10 @@ function buildCommercialImpedimentoEmail(card, fd2){
     + '📌 Tipo de Impedimento: '+typeLabel+'\n'
     + '📌 Gravidade: '+gravityLabel+'\n'
     + '📌 Data de Início: '+(startDateVal ? fmtDateBR(startDateVal) : '[dd/mm/aaaa]')+'\n'
-    + '📌 Etapa Atual: '+stageLabel+' – '+livePct+'% concluído\n\n'
+    + '📌 Etapa Atual: '+stageLabel+' – '+livePct+'% concluído\n'
+    + '⏱ Horas contratadas: '+minToHM((card.contractedHours||0)*60)+'\n'
+    + '⏱ Horas abatidas: '+minToHM(cardUsedMinutes(card))+'\n'
+    + '⏱ Horas sem abatimento: '+minToHM(cardZeroedInternalMinutes(card.id))+'\n\n'
     + '📝 Descrição:\n'+(description || '[Descrever de forma objetiva o problema.]')+'\n\n'
     + '📉 Impacto:\n\n'
     + '☑ '+daysStopped+' dia(s) de atraso no cronograma\n'
@@ -8536,7 +8658,9 @@ function renderCommercialReportForm(cardId, reportId){
     + '</div>';
 
   html += '<div class="field"><label>Descrição objetiva do impedimento *</label>'
-    + '<textarea name="description" rows="3" required placeholder="Ex.: Sem retorno do contato responsável desde dd/mm. Já foram feitas 3 tentativas por e-mail e telefone.">'+esc(eff.description)+'</textarea></div>';
+    + '<textarea name="description" rows="3" required placeholder="Ex.: Sem retorno do contato responsável desde dd/mm. Já foram feitas 3 tentativas por e-mail e telefone.">'+esc(eff.description)+'</textarea>'
+    + '<div style="display:flex;justify-content:flex-end;margin-top:6px;"><button type="button" class="btn btn-sm btn-ghost" data-action="improve-text" data-target="description">✨ Melhorar texto</button></div>'
+    + '<div class="improve-box" data-for="description" style="display:none;"></div></div>';
 
   html += '<div class="field-row">'
     + '<div class="field"><label>Data de início do impedimento</label><input type="date" name="startDate" value="'+esc(eff.startDate)+'"></div>'
@@ -8623,6 +8747,13 @@ function renderCommercialReportView(cardId, reportId){
     +   '<span>👤 Responsável no cliente: <strong>'+esc(rep.responsible||'—')+'</strong></span>'
     +   (rep.startDate ? '<span>📅 Início do impedimento: <strong>'+fmtDateBR(rep.startDate)+'</strong></span>' : '')
     + '</div></div>';
+  if(rep.commercialFeedback && rep.commercialFeedback.text){
+    html += '<div class="commercial-section"><div class="title">💬 Devolutiva do Comercial</div><div class="body" style="white-space:pre-wrap;">'+esc(rep.commercialFeedback.text)+'</div>'
+      + '<div class="commercial-meta-row" style="margin-top:6px;"><span>Registrada em '+fmtDT(rep.commercialFeedback.at)+(rep.commercialFeedback.by?' por '+esc(rep.commercialFeedback.by):'')+'</span>'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="commercial-feedback" data-card="'+cardId+'" data-id="'+reportId+'">✎ Editar devolutiva</button></div></div>';
+  } else if(rep.reportStatus==='concluido'){
+    html += '<div class="commercial-section"><div class="title">💬 Devolutiva do Comercial</div><div class="body">Ainda não informada. <button type="button" class="btn btn-sm btn-primary" data-action="open-modal" data-modal="commercial-feedback" data-card="'+cardId+'" data-id="'+reportId+'">Informar devolutiva</button></div></div>';
+  }
 
   html += '<div class="form-actions">'
     + '<button type="button" class="btn btn-ghost" data-action="close-modal">Fechar</button>'
@@ -10411,6 +10542,113 @@ function renderJiraAnalysisPanel(){
   html += '</tbody></table></div></div>';
   return html;
 }
+/* ============================= TAREFAS PENDENTES ============================= */
+const TASK_STATUSES = [{value:'pendente',label:'Pendente',color:'var(--gold)'},{value:'andamento',label:'Andamento',color:'var(--brand)'},{value:'concluido',label:'Concluído',color:'var(--ok)'}];
+const TASK_PRIORITIES = [{value:'urgente',label:'Urgente',color:'#8B1A1A',rank:0},{value:'importante',label:'Importante',color:'var(--danger)',rank:1},{value:'media',label:'Média',color:'var(--gold)',rank:2},{value:'baixa',label:'Baixa',color:'var(--ok)',rank:3}];
+function taskStatusMeta(v){ return TASK_STATUSES.find(x=>x.value===v)||TASK_STATUSES[0]; }
+function taskPriorityMeta(v){ return TASK_PRIORITIES.find(x=>x.value===v)||TASK_PRIORITIES[2]; }
+function taskActorName(){ return (getAnalyst(myAnalystId())||{}).name || (typeof currentUser!=='undefined' && currentUser && (currentUser.displayName||currentUser.username)) || ''; }
+function myOpenTasksCount(){ const me = myAnalystId(); return (state.tasks||[]).filter(t=>t.status!=='concluido' && (!me || t.analystId===me)).length; }
+function syncTaskChecklistFromDom(form){
+  if(!ui.modal || !form) return;
+  form.querySelectorAll('.task-chk-row').forEach(row=>{
+    const c = (ui.modal.checklist||[]).find(x=>x.id===row.dataset.id); if(!c) return;
+    const txt = row.querySelector('.task-chk-text'), cb = row.querySelector('.task-chk-done');
+    if(txt) c.text = txt.value;
+    if(cb){ if(cb.checked && !c.done){ c.done=true; c.doneAt=Date.now(); c.doneBy=taskActorName(); } else if(!cb.checked && c.done){ c.done=false; delete c.doneAt; delete c.doneBy; } }
+  });
+}
+function renderTasksView(){
+  const me = myAnalystId();
+  if(ui.taskAnalyst===undefined) ui.taskAnalyst = me || 'all';
+  if(!ui.taskStatus) ui.taskStatus = 'abertas';
+  const q = (ui.taskQuery||'').trim();
+  let list = (state.tasks||[]).slice();
+  if(ui.taskAnalyst!=='all') list = list.filter(t=>t.analystId===ui.taskAnalyst);
+  if(ui.taskStatus==='abertas') list = list.filter(t=>t.status!=='concluido');
+  else if(ui.taskStatus!=='todas') list = list.filter(t=>t.status===ui.taskStatus);
+  if(ui.taskPriority && ui.taskPriority!=='all') list = list.filter(t=>t.priority===ui.taskPriority);
+  if(q) list = list.filter(t=>{ const c=t.clientId?getClient(t.clientId):null; return (t.title||'').toLowerCase().includes(q.toLowerCase()) || (c && clientMatchesQuery(c,q)); });
+  list.sort((a,b)=> taskPriorityMeta(a.priority).rank - taskPriorityMeta(b.priority).rank || String(a.startDate||'').localeCompare(String(b.startDate||'')));
+  const analysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).slice().sort((x,y)=>x.name.localeCompare(y.name));
+  let html = '<div class="section-card"><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;">'
+    + '<div class="field" style="margin:0;min-width:200px;flex:1;"><label>Buscar</label><input type="text" id="task-search-input" placeholder="Título ou cliente..." value="'+esc(ui.taskQuery||'')+'"></div>'
+    + '<div class="field" style="margin:0;"><label>Analista</label><select data-task-filter="taskAnalyst"><option value="all"'+(ui.taskAnalyst==='all'?' selected':'')+'>Todos</option>'+analysts.map(a=>'<option value="'+a.id+'"'+(ui.taskAnalyst===a.id?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'
+    + '<div class="field" style="margin:0;"><label>Status</label><select data-task-filter="taskStatus">'+[['abertas','Em aberto'],['pendente','Pendente'],['andamento','Andamento'],['concluido','Concluído'],['todas','Todas']].map(o=>'<option value="'+o[0]+'"'+(ui.taskStatus===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>'
+    + '<div class="field" style="margin:0;"><label>Prioridade</label><select data-task-filter="taskPriority"><option value="all">Todas</option>'+TASK_PRIORITIES.map(p=>'<option value="'+p.value+'"'+(ui.taskPriority===p.value?' selected':'')+'>'+p.label+'</option>').join('')+'</select></div>'
+    + '</div>';
+  if(!list.length){
+    html += '<div class="report-empty">Nenhuma tarefa encontrada. Clique em <strong>+ Nova tarefa</strong> para registrar.</div></div>';
+    return html;
+  }
+  html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+  list.forEach(t=>{
+    const c = t.clientId ? getClient(t.clientId) : null, an = t.analystId ? getAnalyst(t.analystId) : null;
+    const st = taskStatusMeta(t.status), pr = taskPriorityMeta(t.priority);
+    const chk = t.checklist||[], done = chk.filter(x=>x.done).length;
+    const late = t.status!=='concluido' && t.endDate && t.endDate < todayISO();
+    const open = ui.taskExpanded===t.id;
+    html += '<div class="section-card" style="margin:0;padding:12px 14px;border-left:4px solid '+pr.color+';">'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">'
+      +   '<button type="button" class="btn btn-sm btn-ghost" data-action="task-toggle-expand" data-id="'+t.id+'" aria-expanded="'+open+'" style="font-weight:800;flex:1;min-width:0;text-align:left;justify-content:flex-start;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(open?'▾ ':'▸ ')+esc(t.title||'(sem título)')+'</span></button>'
+      +   '<span class="badge" style="background:'+pr.color+';color:#fff;">'+pr.label+'</span>'
+      +   '<span class="badge" style="border:1px solid '+st.color+';color:'+st.color+';background:transparent;">'+st.label+'</span>'
+      + '</div>'
+      + '<div class="hint" style="margin:6px 0 0;display:flex;flex-wrap:wrap;gap:12px;">'
+      +   '<span>👤 '+esc(an?an.name:'Sem analista')+'</span><span>🏢 '+esc(c?c.name:'Sem cliente')+'</span>'
+      +   '<span>📅 Início '+(t.startDate?fmtDateBR(t.startDate):'—')+'</span>'
+      +   '<span'+(late?' style="color:var(--danger);font-weight:700;"':'')+'>🏁 Conclusão '+(t.endDate?fmtDateBR(t.endDate):'—')+(late?' (atrasada)':'')+'</span>'
+      +   (chk.length?'<span>☑ '+done+'/'+chk.length+'</span>':'')
+      +   (((t.scheduleIds||[]).length||(t.cardIds||[]).length)?'<span>🔗 '+(t.scheduleIds||[]).length+' agenda(s) · '+(t.cardIds||[]).length+' card(s)</span>':'')
+      + '</div>';
+    if(open){
+      if(t.description) html += '<div style="white-space:pre-wrap;margin:10px 0 0;">'+esc(t.description)+'</div>';
+      if(chk.length){
+        html += '<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">';
+        chk.forEach(x=>{ html += '<label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" data-action="task-quick-check" data-task="'+t.id+'" data-id="'+x.id+'"'+(x.done?' checked':'')+'><span style="'+(x.done?'text-decoration:line-through;opacity:.65;':'')+'">'+esc(x.text)+'</span>'+(x.done&&x.doneBy?'<span class="hint" style="margin:0;">— '+esc(x.doneBy)+'</span>':'')+'</label>'; });
+        html += '</div>';
+      }
+    }
+    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="task-form" data-id="'+t.id+'">✎ Editar</button>'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-schedule" data-id="'+t.id+'">📅 Criar agenda</button>'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-card" data-id="'+t.id+'">🗂 Criar card</button>'
+      + '<span style="flex:1;"></span><button type="button" class="btn btn-sm btn-danger" data-action="task-delete" data-id="'+t.id+'">Excluir</button>'
+      + '</div></div>';
+  });
+  html += '</div></div>';
+  return html;
+}
+function renderTaskForm(m){
+  const t = m.id ? (state.tasks||[]).find(x=>x.id===m.id) : null;
+  const v = m.values || {};
+  const g = (k, d)=> v[k]!==undefined ? v[k] : (t && t[k]!==undefined ? t[k] : d);
+  const me = myAnalystId();
+  const eff = { title:g('title',''), description:g('description',''), clientId:g('clientId',''), analystId:g('analystId', me||''), status:g('status','pendente'), priority:g('priority','media'), startDate:g('startDate', todayISO()), endDate:g('endDate','') };
+  const analysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).slice().sort((x,y)=>x.name.localeCompare(y.name));
+  const chk = m.checklist||[];
+  let html = '<div class="modal-header"><h3>'+(t?'Editar tarefa':'Nova tarefa')+'</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
+    + '<form data-form="task" data-id="'+(t?t.id:'')+'">'
+    + '<div class="field"><label>Título da tarefa *</label><input type="text" name="title" required maxlength="200" value="'+esc(eff.title)+'"></div>'
+    + '<div class="field"><label>Descrição da tarefa</label><textarea name="description" rows="3">'+esc(eff.description)+'</textarea></div>'
+    + '<div class="field"><label>Cliente</label>'+renderClientPicker('clientId', eff.clientId, m.clientQuery)+'</div>'
+    + '<div class="field-row">'
+    +   '<div class="field"><label>Analista responsável</label><select name="analystId"><option value="">— Sem analista —</option>'+analysts.map(a=>'<option value="'+a.id+'"'+(eff.analystId===a.id?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'
+    +   '<div class="field"><label>Status *</label><select name="status">'+TASK_STATUSES.map(x=>'<option value="'+x.value+'"'+(eff.status===x.value?' selected':'')+'>'+x.label+'</option>').join('')+'</select></div>'
+    +   '<div class="field"><label>Prioridade *</label><select name="priority">'+TASK_PRIORITIES.map(x=>'<option value="'+x.value+'"'+(eff.priority===x.value?' selected':'')+'>'+x.label+'</option>').join('')+'</select></div>'
+    + '</div>'
+    + '<div class="field-row">'
+    +   '<div class="field"><label>Data de início</label><input type="date" name="startDate" value="'+esc(eff.startDate)+'"></div>'
+    +   '<div class="field"><label>Data de conclusão</label><input type="date" name="endDate" value="'+esc(eff.endDate)+'"></div>'
+    + '</div>'
+    + '<div class="field"><label>Lista de verificações</label>'
+    + (chk.length ? chk.map(c=>'<div class="task-chk-row" data-id="'+c.id+'" style="display:flex;gap:8px;align-items:center;margin-bottom:6px;"><input type="checkbox" class="task-chk-done" aria-label="Concluído"'+(c.done?' checked':'')+'><input type="text" class="task-chk-text" value="'+esc(c.text)+'" style="flex:1;min-width:0;"><button type="button" class="btn btn-sm btn-ghost" data-action="task-check-remove" data-id="'+c.id+'" aria-label="Remover item">✕</button></div>').join('') : '<div class="hint" style="margin:0 0 6px;">Nenhum item ainda.</div>')
+    + '<div style="display:flex;gap:8px;"><input type="text" id="task-check-new" placeholder="Novo item da lista..." style="flex:1;min-width:0;"><button type="button" class="btn btn-sm" data-action="task-check-add">+ Adicionar</button></div></div>'
+    + (ui.formErr ? '<div class="error-msg">'+esc(ui.formErr)+'</div>' : '')
+    + '<div class="form-actions">'+(t?'<button type="button" class="btn btn-danger" data-action="task-delete" data-id="'+t.id+'">Excluir</button>':'')+'<span style="flex:1;"></span><button type="button" class="btn btn-ghost" data-action="close-modal">Cancelar</button><button type="submit" class="btn btn-primary">💾 Salvar tarefa</button></div>'
+    + '</form>';
+  return html;
+}
 function renderJiraRequirementsView(){
   const q=(ui.jiraSearch||'').trim().toLowerCase();
   const filtered=state.jiraRequirements.filter(r=>{
@@ -10561,7 +10799,7 @@ function renderServiceContractsView(){
       }
       html+='<tr>'
         +'<td style="font-weight:800;">'+esc(client?client.name:'—')+'</td>'
-        +'<td>'+esc(descShort)+'</td>'
+        +'<td>'+(c.serviceType?'<strong>'+esc(c.serviceType)+'</strong><br>':'')+esc(descShort)+'</td>'
         +'<td>R$ '+fmtMoneyBR(c.totalValue)+'</td>'
         +'<td>'+nInst+'x</td>'
         +'<td>'+esc(c.responsibleName||'—')+'</td>'
@@ -11512,6 +11750,10 @@ function renderModal(){
     inner = renderScheduleForm(m);
   } else if(m.type==='commercial-report-form'){
     inner = renderCommercialReportForm(m.payload && m.payload.cardId, m.payload && m.payload.reportId);
+  } else if(m.type==='task-form'){
+    inner = renderTaskForm(m);
+  } else if(m.type==='commercial-feedback'){
+    inner = renderCommercialFeedbackForm(m);
   } else if(m.type==='commercial-report-view'){
     inner = renderCommercialReportView(m.payload && m.payload.cardId, m.payload && m.payload.reportId);
   } else if(m.type==='jira-requirement'){
@@ -11733,7 +11975,7 @@ function renderModal(){
   } else if(m.type==='notif-center'){
     inner = renderNotifCenterModal();
   }
-  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='commercial-report-view' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+'">'+inner+'</div></div>';
+  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='commercial-report-view' || m.type==='commercial-feedback' || m.type==='task-form' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+'">'+inner+'</div></div>';
 }
 
 /* Seção "Riscos do projeto" do relatório de fechamento. */
@@ -12089,6 +12331,7 @@ function renderServiceContractPrint(contractId){
   html += '<div class="contract-print-section-bar">1. CONDIÇÕES GERAIS DA PRESTAÇÃO DO SERVIÇO</div>'
     + '<div class="contract-print-section-body">'
     +   '<p>O presente documento refere-se à prestação de serviço dos itens abaixo solicitados pelo contratante:</p>'
+    +   (c.serviceType ? '<p><strong>Tipo do serviço:</strong> '+esc(c.serviceType)+'</p>' : '')
     +   '<p>'+esc(c.serviceDescription||'—')+'</p>'
     + '</div>';
 
@@ -12182,6 +12425,7 @@ function renderServiceContractForm(m){
     cardId: draft ? (draft.cardId||'') : (editing ? (editing.cardId||'') : (m.cardId||'')),
     clientAddress: draft ? (draft.clientAddress||'') : (editing ? (editing.clientAddress||'') : ''),
     serviceDescription: draft ? (draft.serviceDescription||'') : (editing ? (editing.serviceDescription||'') : ''),
+    serviceType: draft ? (draft.serviceType||'') : (editing ? (editing.serviceType||'') : ''),
     totalValue: draft ? (draft.totalValue!==undefined?draft.totalValue:'') : (editing ? editing.totalValue : ''),
     paymentCondition: draft ? (draft.paymentCondition||'') : (editing ? (editing.paymentCondition||'Boleto') : 'Boleto'),
     responsibleName: draft ? (draft.responsibleName||'') : (editing ? (editing.responsibleName||'') : ''),
@@ -12220,6 +12464,7 @@ function renderServiceContractForm(m){
   }
   html += '<div class="field"><label>Endereço do cliente (para o contrato)</label><input type="text" name="clientAddress" value="'+esc(eff.clientAddress)+'" placeholder="Rua, número, bairro — Cidade/UF"></div>'
     + '<div class="field"><label>Prestação de serviço</label><textarea name="serviceDescription" rows="3" placeholder="Descreva o serviço a ser prestado...">'+esc(eff.serviceDescription)+'</textarea></div>'
+    + '<div class="field"><label>Tipo do serviço *</label><select name="serviceType" required><option value="">— Selecione —</option>'+SERVICE_TYPES.map(t=>'<option value="'+esc(t)+'" '+(eff.serviceType===t?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></div>'
     + '<div class="field-row">'
     +   '<div class="field"><label>Valor total</label><input type="number" step="0.01" min="0" name="totalValue" value="'+esc(eff.totalValue)+'"></div>'
     +   '<div class="field"><label>Condição de pagamento</label><input type="text" name="paymentCondition" value="'+esc(eff.paymentCondition)+'"></div>'
@@ -12496,7 +12741,9 @@ function renderScheduleForm(m){
      Marcado = cria o card ao salvar; desmarcado (padrão) = salva só a agenda. */
   const mainNeedsCard = !cardCtx && !!eff.clientId && !(editing && editing.cardId) && !state.cards.some(c=>cardIncludesClient(c, eff.clientId));
   const addNeedsCard = isInternalType(eff.type) && (eff.additionalClientIds||[]).some(cid=>cid && cid!==eff.clientId && !state.cards.some(c=>cardIncludesClient(c, cid)));
-  const showCreateCard = mainNeedsCard || addNeedsCard;
+  /* Implantação e Serviço: a caixa "Criar card" aparece sempre (fora de um card e sem card já vinculado). */
+  const catAlwaysCard = (eff.category==='implantacao' || eff.category==='servico') && !cardCtx && !(editing && editing.cardId);
+  const showCreateCard = mainNeedsCard || addNeedsCard || catAlwaysCard;
   const createCardChecked = draft ? (Array.isArray(draft.createCard) ? draft.createCard.length>0 : !!draft.createCard) : false;
   const createCardBox = showCreateCard
     ? '<label class="create-card-opt" title="Marque para criar um card para este cliente ao salvar a agenda"><input type="checkbox" name="createCard" value="1"'+(createCardChecked?' checked':'')+'> Criar card</label>'
@@ -12810,12 +13057,12 @@ const FORM_MODAL_TYPES = new Set([
   'jira-requirement','jira-create-note','jira-new-choice','jira-duplicates',
   'vacation-entry-new','vacation-entry-edit',
   'service-contract',
-  'commercial-report-form','commercial-report-email-preview',
+  'commercial-report-form','commercial-feedback','task-form','commercial-report-email-preview',
   'confirm-complete','quick-time','apply-template','csat-form','risk-form'
 ]);
 
 ['click','submit','change'].forEach(function(t){ document.addEventListener(t, function(){ window.__mgrInteracted = true; }, true); });
-const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-)/;
+const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-)/;
 document.addEventListener('click', async function(e){
   let needsRender = false;
   const notifPanelClick = e.target.closest('.notif-panel');
@@ -12939,7 +13186,10 @@ document.addEventListener('click', async function(e){
     ui.formErr='';
     ui.formSuccess='';
     ui.showUserMenu=false;
-    if(type==='commercial-report-form' || type==='commercial-report-view'){
+    if(type==='task-form'){
+      const t = el.dataset.id ? (state.tasks||[]).find(x=>x.id===el.dataset.id) : null;
+      ui.modal = {type, id: t ? t.id : null, checklist: t ? JSON.parse(JSON.stringify(t.checklist||[])) : []};
+    } else if(type==='commercial-report-form' || type==='commercial-report-view' || type==='commercial-feedback'){
       ui.modal = {type, payload:{ cardId: el.dataset.card, reportId: el.dataset.id || null }};
     } else {
       ui.modal = {type, id:el.dataset.id, board:el.dataset.board, list:el.dataset.list, card:el.dataset.card, analystId:el.dataset.analyst};
@@ -13080,6 +13330,56 @@ document.addEventListener('click', async function(e){
       addHistory(card, 'Reporte comercial excluído');
       ui.modal = null;
     });
+  }
+  else if(a==='task-check-add'){
+    const inp = document.getElementById('task-check-new'); const txt = ((inp&&inp.value)||'').trim();
+    if(!txt || !ui.modal) return;
+    const form = el.closest('form'); ui.modal.values = captureFormValues(form);
+    ui.modal.checklist = ui.modal.checklist||[]; ui.modal.checklist.push({id:uid('ck'), text:txt, done:false});
+    ui._focus = {id:'task-check-new', pos:0}; render(); return;
+  }
+  else if(a==='task-check-remove'){
+    if(!ui.modal) return; const form = el.closest('form'); ui.modal.values = captureFormValues(form);
+    ui.modal.checklist = (ui.modal.checklist||[]).filter(c=>c.id!==el.dataset.id); render(); return;
+  }
+  else if(a==='task-quick-check'){
+    const t = (state.tasks||[]).find(x=>x.id===el.dataset.task); if(!t) return;
+    const c = (t.checklist||[]).find(x=>x.id===el.dataset.id); if(!c) return;
+    c.done = !c.done; if(c.done){ c.doneAt = Date.now(); c.doneBy = taskActorName(); } else { delete c.doneAt; delete c.doneBy; }
+    t.updatedAt = Date.now(); persist(); render(); return;
+  }
+  else if(a==='task-toggle-expand'){ ui.taskExpanded = ui.taskExpanded===el.dataset.id ? null : el.dataset.id; render(); return; }
+  else if(a==='task-delete'){
+    const t = (state.tasks||[]).find(x=>x.id===el.dataset.id); if(!t) return;
+    showConfirm('Excluir a tarefa "'+(t.title||'')+'"?', ()=>{ state.tasks = state.tasks.filter(x=>x.id!==t.id); ui.modal=null; persist(); render(); });
+    return;
+  }
+  else if(a==='task-to-schedule'){
+    const t = (state.tasks||[]).find(x=>x.id===el.dataset.id); if(!t) return;
+    ui.view = 'calendar';
+    ui.modal = {type:'schedule-new', fromTaskId:t.id, values:{title:t.title||'', clientId:t.clientId||'', analystIds: t.analystId?[t.analystId]:[], category:'implantacao', type:'', notes:t.description||'', date: todayISO(), startTime:'09:00', endTime:'10:00'}};
+    render(); return;
+  }
+  else if(a==='task-to-card'){
+    const t = (state.tasks||[]).find(x=>x.id===el.dataset.id); if(!t) return;
+    const board = t.analystId ? boardOfAnalyst(t.analystId) : null;
+    if(!board){ showAlert('Defina o analista responsável da tarefa para criar o card no quadro dele.'); return; }
+    ui.modal = {type:'card-new', board:board.id, list:board.lists[0].id, fromTaskId:t.id, values:{clientId:t.clientId||'', startDate: todayISO()}};
+    render(); return;
+  }
+  else if(a==='improve-text' || a==='improve-text-apply' || a==='improve-text-discard'){
+    const form = el.closest('form'); if(!form) return;
+    const box = a==='improve-text' ? form.querySelector('.improve-box[data-for="'+el.dataset.target+'"]') : el.closest('.improve-box');
+    if(!box) return;
+    const ta = form.querySelector('[name="'+box.dataset.for+'"]');
+    if(a==='improve-text'){
+      if(!ta || !ta.value.trim()){ showAlert('Escreva a descrição antes de pedir a melhoria.'); return; }
+      renderImproveBox(box, improveText(ta.value));
+    } else {
+      if(a==='improve-text-apply' && ta){ const sg = box.querySelector('.improve-suggestion'); ta.value = sg ? sg.value : ta.value; ta.dispatchEvent(new Event('input',{bubbles:true})); }
+      box.style.display='none'; box.innerHTML='';
+    }
+    return;
   }
   else if(a==='commercial-report-email'){
     /* Pedido do usuário: botão "Email" que monta uma mensagem pronta com
@@ -13865,6 +14165,8 @@ document.addEventListener('change', function(e){
     }
     render();
   }
+  else if(e.target.matches('select[data-task-filter]')){ ui[e.target.dataset.taskFilter] = e.target.value; render(); }
+  else if(e.target.matches('.task-chk-done')){ syncTaskChecklistFromDom(e.target.closest('form')); }
   else if(e.target.matches('form[data-form="schedule"] input[name="allDay"]')){
     const form = e.target.closest('form'); const values = captureFormValues(form);
     values.allDay = e.target.checked ? 'on' : '';
@@ -14020,6 +14322,8 @@ document.addEventListener('input', function(e){
   /* 2c) Comportamento antigo (que faz render) para os demais campos de filtro/busca */
   if(e.target.id==='search-input'){ ui.search = e.target.value; ui._focus = {id:'search-input', pos: e.target.selectionStart}; render(); }
   else if(e.target.id==='client-search-input'){ ui.clientSearch = e.target.value; ui._focus = {id:'client-search-input', pos: e.target.selectionStart}; render(); }
+  else if(e.target.id==='task-search-input'){ ui.taskQuery = e.target.value; ui._focus = {id:'task-search-input', pos: e.target.selectionStart}; render(); }
+  else if(e.target.classList && e.target.classList.contains('task-chk-text')){ syncTaskChecklistFromDom(e.target.closest('form')); }
   else if(e.target.id==='reports-client-search-input'){ ui.reportsClientQuery = e.target.value; ui._focus = {id:'reports-client-search-input', pos: e.target.selectionStart}; render(); }
   else if(e.target.id==='client-picker-input'){
     const form = e.target.closest('form'); const values = captureFormValues(form);
@@ -14418,7 +14722,45 @@ document.addEventListener('submit', async function(e){
       addHistory(card, '📣 Reporte comercial registrado — '+commercialTypeLabel(data.type)+' ('+commercialGravityMeta(data.gravity).label+')', { kind:'commercial-report', reportId: rep.id });
       savedReportId = rep.id;
     }
-    ui.modal = {type:'commercial-report-view', payload:{cardId, reportId: savedReportId}};
+    const savedRep = card.commercialReports.find(r=>r.id===savedReportId);
+    if(savedRep && savedRep.reportStatus==='concluido'){
+      ui.modal = {type:'commercial-feedback', payload:{cardId, reportId: savedReportId}};
+    } else {
+      ui.modal = {type:'commercial-report-view', payload:{cardId, reportId: savedReportId}};
+    }
+    render();
+  }
+  else if(type==='task'){
+    const id = form.dataset.id || null;
+    const title = (fd.get('title')||'').trim();
+    if(!title){ ui.formErr='Informe o título da tarefa.'; render(); return; }
+    syncTaskChecklistFromDom(form);
+    const status = ['pendente','andamento','concluido'].includes(fd.get('status')) ? fd.get('status') : 'pendente';
+    let endDate = fd.get('endDate')||'';
+    if(status==='concluido' && !endDate) endDate = todayISO();
+    const data = {
+      title, description:(fd.get('description')||'').trim(), clientId: fd.get('clientId')||'',
+      analystId: fd.get('analystId')||'', status, priority: TASK_PRIORITIES.some(p=>p.value===fd.get('priority')) ? fd.get('priority') : 'media',
+      startDate: fd.get('startDate')||todayISO(), endDate,
+      checklist: (ui.modal && ui.modal.checklist || []).filter(c=>c && String(c.text||'').trim())
+    };
+    ui.formErr='';
+    state.tasks = state.tasks||[];
+    if(id){ const t = state.tasks.find(x=>x.id===id); if(t) Object.assign(t, data, {updatedAt:Date.now()}); }
+    else { state.tasks.push(Object.assign({id:uid('tk'), createdAt:Date.now(), createdBy:taskActorName(), scheduleIds:[], cardIds:[]}, data)); }
+    ui.modal = null; persist(); render();
+  }
+  else if(type==='commercial-feedback'){
+    const card = getCard(form.dataset.card);
+    const rep = card && (card.commercialReports||[]).find(r=>r.id===form.dataset.id);
+    if(!rep){ showAlert('Reporte não encontrado.'); return; }
+    const text = (fd.get('feedback')||'').trim();
+    if(!text){ ui.formErr='Escreva a devolutiva do Comercial.'; render(); return; }
+    ui.formErr='';
+    rep.commercialFeedback = { text, at: Date.now(), by: (getAnalyst(myAnalystId())||{}).name || (currentUser&&currentUser.displayName) || '' };
+    rep.updatedAt = Date.now();
+    addHistory(card, '📣 Devolutiva do Comercial registrada — '+commercialTypeLabel(rep.type), { kind:'commercial-report', reportId: rep.id });
+    ui.modal = {type:'commercial-report-view', payload:{cardId: card.id, reportId: rep.id}};
     render();
   }
   else if(type==='jira-requirement'){
@@ -14465,6 +14807,8 @@ document.addEventListener('submit', async function(e){
     if(!clientId){ showAlert('Selecione o cliente.'); return; }
     const serviceDescription = (fd.get('serviceDescription')||'').trim();
     if(!serviceDescription){ showAlert('Descreva a prestação de serviço.'); return; }
+    const serviceType = fd.get('serviceType')||'';
+    if(!serviceType){ showAlert('Selecione o tipo do serviço.'); return; }
     const totalValue = Number(fd.get('totalValue'))||0;
     if(totalValue <= 0){ showAlert('Informe o valor total do contrato.'); return; }
     const values = {}; for(const [k,v] of fd.entries()) values[k]=v;
@@ -14476,6 +14820,7 @@ document.addEventListener('submit', async function(e){
       cardId: fd.get('cardId') || '',
       clientAddress: (fd.get('clientAddress')||'').trim(),
       serviceDescription,
+      serviceType,
       totalValue,
       paymentCondition: (fd.get('paymentCondition')||'Boleto').trim() || 'Boleto',
       installments,
@@ -14522,6 +14867,7 @@ document.addEventListener('submit', async function(e){
     const endTime = allDay ? '23:59' : (fd.get('endTime')||'10:00');
     const typeName = fd.get('type'); const title = (fd.get('title')||'').trim();
     if(!typeName){ ui.formErr = 'Selecione o tipo da agenda.'; render(); return; }
+    if(fd.get('createCard')==='1' && !clientId){ ui.formErr = 'Escolha o cliente para criar o card.'; render(); return; }
     let analystIds = fd.getAll('analystIds');
     if(!analystIds.length && card){
       const cardBoard = getBoard(card.boardId);
@@ -14592,7 +14938,7 @@ document.addEventListener('submit', async function(e){
     }
     else if(!resolvedCardId && clientId){
       const linkChoice = fd.get('linkCardId');
-      if(linkChoice === '__new__'){
+      if(wantsNewCard || linkChoice === '__new__'){
         const newCard = makeCardForClient();
         if(newCard){ resolvedCardId = newCard.id; }
       } else if(linkChoice){ const lc = getCard(linkChoice); if(lc && cardIncludesClient(lc, clientId)) resolvedCardId = linkChoice; }
@@ -14942,8 +15288,8 @@ document.addEventListener('dragstart', function(e){
     const grabOffset = e.clientY - rect.top;
     e.dataTransfer.setData('text/plain', 'sched:'+evt.dataset.id+':'+grabOffset);
     e.dataTransfer.effectAllowed='move';
-    document.body.classList.add('dragging-sched');
-    setTimeout(()=>evt.classList.add('dragging'),0);
+    /* Mexer no layout dentro do dragstart faz o Chrome cancelar o arraste: adia para o próximo ciclo. */
+    setTimeout(()=>{ evt.classList.add('dragging'); document.body.classList.add('dragging-sched'); },0);
   }
 });
 document.addEventListener('dragend', function(e){
@@ -15737,9 +16083,11 @@ if('serviceWorker' in navigator){
     });
     var top = overlays.length ? overlays[overlays.length - 1] : null;
     if(top && !hadModal && !top.contains(document.activeElement)){
-      var first = top.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
+      var touch = false; try{ touch = isTouchDevice() || (window.matchMedia && matchMedia('(pointer:coarse)').matches); }catch(e){}
+      var first = touch ? (top.querySelector('.modal') || top) : top.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
                || top.querySelector('[data-action="confirm-ok"]')
                || top.querySelector('button:not(.modal-close):not([disabled])');
+      if(first && touch && !first.hasAttribute('tabindex')) first.setAttribute('tabindex','-1');
       if(first && first.focus) try{ first.focus({preventScroll:true}); }catch(e){}
     }
     hadModal = !!top;
