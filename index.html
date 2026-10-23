@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pfabqqdhvacakszoklxh.supabase.co wss://pfabqqdhvacakszoklxh.supabase.co https://realtecvarejo.zendesk.com https://cdn.jsdelivr.net; frame-src 'self' blob: about:; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pfabqqdhvacakszoklxh.supabase.co wss://pfabqqdhvacakszoklxh.supabase.co https://realtecvarejo.zendesk.com https://cdn.jsdelivr.net; frame-src 'self' blob: about: https://pfabqqdhvacakszoklxh.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>NEO - Gestão de Implantação</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2F5D50">
@@ -13,9 +13,6 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="NEO">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- xlsx e html2pdf.js só são baixados quando alguém usa (importar planilha, gerar PDF): ver loadLib() -->
 <style>
@@ -1788,6 +1785,133 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
   .overlay{ -webkit-backdrop-filter:none !important; backdrop-filter:none !important; }
 }
 .modal[tabindex="-1"]:focus,.overlay[tabindex="-1"]:focus{outline:none}
+
+/* ===================== Redesenho (out/2026): desempenho e leveza ===================== */
+:root{
+  --font-head:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+  --font-body:system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+:root:not([data-theme="dark"]){ --ink-faint:#687988; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --ink-faint:#A9B3AE; } }
+/* Botão de exclusão discreto (texto vermelho, sem fundo) */
+.btn-text-danger{ background:transparent !important; border-color:transparent !important; color:var(--danger) !important; box-shadow:none !important; }
+.btn-text-danger:hover:not(:disabled){ background:var(--danger-soft) !important; }
+.btn-text-danger:disabled{ opacity:.45; }
+.nowrap{ white-space:nowrap; }
+/* Chips (abas secundárias) */
+.chip-btn{ border:1px solid var(--border); background:var(--surface); color:var(--ink-soft); border-radius:999px; padding:5px 12px; font-size:12.5px; font-weight:700; cursor:pointer; min-height:32px; }
+.chip-btn:hover{ border-color:var(--brand); color:var(--brand); }
+.chip-btn.active{ background:var(--brand); border-color:var(--brand); color:#fff; }
+/* Quadro: ações da lista em menu e "mostrar mais" */
+.list-head{ flex-wrap:wrap; }
+.list-head .name{ min-width:0; }
+.list-menu-btn{ width:30px !important; height:30px !important; font-size:16px; line-height:1; }
+.list-menu-btn.active{ background:var(--brand-soft); color:var(--brand); }
+.list-menu{ flex-basis:100%; display:flex; gap:6px; justify-content:flex-end; }
+.list-menu .icon-btn{ width:32px !important; height:32px !important; }
+.list-more-btn{ width:100%; justify-content:center; margin-top:4px; }
+/* Card: abas agrupadas */
+.card-tabs-main{ flex-wrap:nowrap; overflow-x:auto; }
+.card-subtabs{ display:flex; gap:6px; flex-wrap:wrap; margin:-6px 0 14px; }
+/* Agenda: "+N" quando há muitas agendas ao mesmo tempo */
+.cal-tg-event .t.wrap2{ white-space:normal; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow-wrap:anywhere; }
+.cal-tg-more{ position:absolute; z-index:4; display:flex; align-items:flex-start; justify-content:center; padding-top:3px !important; border-radius:6px; border:1px dashed var(--brand); background:var(--brand-soft); color:var(--brand); font-weight:800; font-size:11px; cursor:pointer; padding:0; }
+.cal-tg-more:hover{ background:var(--brand); color:#fff; }
+/* Cadastros: tabela compacta e paginação */
+.clients-card{ padding:0 !important; overflow:hidden; }
+.clients-card .table-scroll{ overflow-x:auto; }
+.clients-table td{ padding-top:8px; padding-bottom:8px; vertical-align:middle; }
+.clients-table .c-name .cn{ font-weight:700; }
+.clients-table .c-name .cs{ font-size:11.5px; color:var(--ink-faint); margin-top:1px; }
+.clients-table .row-actions{ display:flex; gap:2px; flex-wrap:nowrap; justify-content:flex-end; }
+.pager{ display:flex; align-items:center; justify-content:center; gap:12px; padding:12px; border-top:1px solid var(--border); }
+/* Tarefas: linhas compactas agrupadas por prazo */
+.task-groups{ display:flex; flex-direction:column; gap:16px; }
+.task-group-head{ font-size:12.5px; font-weight:800; color:var(--ink-soft); margin:0 0 6px; display:flex; align-items:center; gap:6px; }
+.task-group-head.late{ color:var(--danger); }
+.task-group-head .count{ font-size:11px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:0 7px; color:var(--ink-soft); }
+.task-rows{ display:flex; flex-direction:column; border:1px solid var(--border); border-radius:var(--radius-m); overflow:hidden; background:var(--surface); }
+.task-row{ display:flex; align-items:center; gap:10px; padding:0 12px 0 0; border-left:4px solid var(--border); border-top:1px solid var(--border); min-height:54px; }
+.task-rows > .task-row:first-child{ border-top:none; }
+.task-row.open{ background:var(--surface-2); }
+.task-row-main{ flex:1; min-width:0; display:flex; flex-direction:column; align-items:flex-start; gap:2px; background:none; border:none; text-align:left; padding:8px 12px; cursor:pointer; color:inherit; }
+.task-title{ font-weight:800; font-size:13.5px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.task-sub{ font-size:12px; color:var(--ink-faint); max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.task-due{ font-size:12px; font-weight:700; color:var(--ink-soft); white-space:nowrap; }
+.task-due.late{ color:var(--danger); }
+.task-detail{ padding:4px 14px 12px 16px; border-left:4px solid var(--border); background:var(--surface-2); }
+/* Relatórios agrupados */
+.report-tab-groups{ display:flex; flex-direction:column; gap:8px; margin:0 0 16px; }
+.report-tab-group{ display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.report-tab-group-label{ font-size:14px; font-weight:800; color:var(--ink-soft); min-width:180px; }
+.report-tab-group .chip-btn{ font-size:14px; padding:6px 14px; min-height:36px; }
+.report-tab-select select{ font-size:15px; }
+.report-tab-select{ display:none; }
+/* Painel Geral: botão de filtros (só no celular) */
+.dash-filter-card .filters-toggle{ display:none; }
+/* Filtros salvos vazios: só um link discreto */
+.fp-bar.fp-empty{ margin:0 0 6px; justify-content:flex-end; }
+.fp-bar.fp-empty .fp-add{ min-height:28px; padding:3px 10px; font-size:12px; }
+.side-mobile-tools{ display:none; }
+.side-toggle{ color:var(--ink-faint) !important; font-size:12.5px !important; }
+@media (max-width:820px){
+  .topbar-user-name{ display:none; }
+  .topbar-right .icon-btn[data-action="open-global-search"],
+  .topbar-right .icon-btn[data-action="open-faq-search"],
+  .topbar-right .icon-btn[data-action="quick-open"]{ display:none !important; }
+  .topbar-title{ flex:1 1 0 !important; min-width:0 !important; }
+  .topbar-title h2{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .topbar-title .sub{ display:none; }
+  .topbar-right{ flex-wrap:nowrap !important; width:auto !important; margin-left:auto !important; order:3 !important; flex:0 0 auto; }
+  .topbar{ flex-wrap:wrap !important; row-gap:8px; }
+  .topbar-hamburger{ order:0; }
+  .topbar-title{ order:1; }
+  .topbar > .topbar-add{ order:2; }
+  .topbar > *:not(.topbar-hamburger):not(.topbar-title):not(.topbar-right):not(.topbar-add){ order:5; flex-basis:100%; }
+  .topbar-add .btn-label{ display:none; }
+  .topbar-add{ width:38px; height:38px; min-height:38px; padding:0 !important; justify-content:center; font-size:20px; line-height:1; border-radius:50%; flex:0 0 auto; }
+  .dash-open-sched-item{ flex-direction:column; align-items:flex-start !important; gap:4px; }
+  .dash-open-sched-right{ justify-content:flex-start !important; }
+  .dash-open-sched-main{ width:100%; }
+  .card-tabs-main .tab-btn{ white-space:nowrap; }
+  .side-mobile-tools{ display:block; padding:4px 0 8px; border-bottom:1px solid var(--border); margin-bottom:8px; }
+  .fp-bar.fp-empty{ display:none; }
+  .report-tab-groups{ display:none; }
+  .report-tab-select{ display:block; }
+  .dash-filter-card .filters-toggle{ display:inline-flex; }
+  .dash-filter-card:not(.open) .dash-filter-head,
+  .dash-filter-card:not(.open) .dash-filter-grid{ display:none !important; }
+  .clients-table thead{ display:none; }
+  .clients-table, .clients-table tbody{ display:block; }
+  .clients-table tr{ display:grid; grid-template-columns:1fr auto; gap:2px 10px; padding:10px 12px; border-bottom:1px solid var(--border); }
+  .clients-table td{ display:block; padding:0 !important; border:none !important; }
+  .clients-table .c-code, .clients-table .c-cnpj, .clients-table .c-acc, .clients-table .c-cards{ display:none; }
+  .clients-table .c-name{ grid-column:1; }
+  .clients-table .c-bal{ grid-column:2; grid-row:1; text-align:right; }
+  .clients-table .c-type{ grid-column:2; grid-row:2; text-align:right; }
+  .clients-table .c-city{ grid-column:1; font-size:12px; color:var(--ink-faint); }
+  .clients-table .c-act{ grid-column:1 / -1; }
+  .clients-table .row-actions{ justify-content:flex-start; }
+  .task-row{ flex-wrap:wrap; padding:0 10px 8px 0; }
+  .task-row-main{ flex-basis:100%; }
+  .task-due{ margin-left:12px; }
+}
+
+/* Pizza com legenda (Clientes por segmento / cidade) */
+.pie-wrap{ display:flex; align-items:center; gap:18px; flex-wrap:wrap; margin-top:8px; }
+.pie-svg{ width:170px; height:170px; flex:0 0 auto; }
+.pie-slice{ stroke:var(--surface); stroke-width:.012; transition:opacity .15s; }
+.pie-svg:hover .pie-slice{ opacity:.75; }
+.pie-svg .pie-slice:hover{ opacity:1; }
+.pie-legend{ flex:1 1 200px; min-width:0; display:flex; flex-direction:column; gap:4px; }
+.pie-leg-item{ display:flex; align-items:center; gap:8px; padding:4px 6px; border-radius:7px; font-size:13px; min-width:0; }
+.pie-leg-item.clickable{ cursor:pointer; }
+.pie-leg-item.clickable:hover{ background:var(--surface-2); }
+.pie-sw{ width:12px; height:12px; border-radius:3px; flex:0 0 auto; }
+.pie-leg-label{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pie-leg-val{ white-space:nowrap; font-variant-numeric:tabular-nums; }
+.pie-leg-val small{ color:var(--ink-faint); margin-left:2px; }
+@media (max-width:820px){ .pie-wrap{ justify-content:center; } .pie-svg{ width:150px; height:150px; } }
 </style>
 </head>
 <body>
@@ -1846,7 +1970,7 @@ const LEGACY_LOGIN_FALLBACK = false;   // desligado em 19/10/2026: todos os aces
 var currentUser = null;
 
 function getStoredUser(){ try{ return JSON.parse(localStorage.getItem(LOGIN_KEY)); }catch(e){ return null; } }
-function setStoredUser(u){ window.__mgrInteracted = false; currentUser = u; if(u) localStorage.setItem(LOGIN_KEY, JSON.stringify(u)); else localStorage.removeItem(LOGIN_KEY); }
+function setStoredUser(u){ window.__mgrInteracted = false; currentUser = u; if(!u){ try{ bootCacheClear(); }catch(e){} } if(u) localStorage.setItem(LOGIN_KEY, JSON.stringify(u)); else localStorage.removeItem(LOGIN_KEY); }
 
 /* ============================= SENHAS DE ANALISTA (HASH) =============================
    As senhas de analistas ficam salvas no mesmo registro que é sincronizado
@@ -2050,7 +2174,7 @@ async function adminCall(action, payload){
 }
 /* Cria/atualiza o login seguro de um analista. Sem senha = só atualiza perfil/situação. */
 async function syncAnalystLogin(a, password){
-  const role = a.isAdmin ? 'admin' : (a.isManager ? 'gestor' : 'analyst');
+  const role = a.isAdmin ? 'admin' : (a.isSupport ? 'support' : (a.isManager ? 'gestor' : 'analyst'));
   await adminCall('upsert_user', { username: a.username, password: password||undefined, role: role, analystId: a.id, displayName: a.name, inactive: !!a.inactive });
   a.authReady = true;
   delete a.password;   // a senha antiga (hash) não é mais necessária
@@ -2431,6 +2555,94 @@ async function ensureLazyTableLoaded(key){
 var tableSnapshots = {};
 var tableUpdatedAt = {};
 
+/* ===== Cache local da nuvem (IndexedDB) =====
+   Guarda a última cópia sincronizada de cada tabela + o carimbo de versão (sync_meta).
+   Na abertura, o app compara os carimbos (consulta minúscula) e só baixa as tabelas/linhas que mudaram.
+   Qualquer falha cai no download completo de sempre. O cache é apagado ao sair da conta. */
+var BOOT_CACHE_DB = 'implanta_cache_v1';
+function bootCacheOpen(){
+  return new Promise((res, rej)=>{
+    try{
+      const rq = indexedDB.open(BOOT_CACHE_DB, 1);
+      rq.onupgradeneeded = ()=>{ rq.result.createObjectStore('kv'); };
+      rq.onsuccess = ()=> res(rq.result);
+      rq.onerror = ()=> rej(rq.error);
+    }catch(e){ rej(e); }
+  });
+}
+async function bootCacheRead(){
+  try{
+    const db = await bootCacheOpen();
+    return await new Promise((res)=>{
+      const rq = db.transaction('kv','readonly').objectStore('kv').get('cloud');
+      rq.onsuccess = ()=>{ res(rq.result||null); db.close(); };
+      rq.onerror = ()=>{ res(null); db.close(); };
+    });
+  }catch(e){ return null; }
+}
+async function bootCacheWrite(obj){
+  try{
+    const db = await bootCacheOpen();
+    await new Promise((res)=>{
+      const tx = db.transaction('kv','readwrite'); tx.objectStore('kv').put(obj,'cloud');
+      tx.oncomplete = ()=>{ db.close(); res(); }; tx.onerror = ()=>{ db.close(); res(); }; tx.onabort = tx.onerror;
+    });
+  }catch(e){}
+}
+function bootCacheClear(){
+  clearTimeout(bootCacheTimer); bootCacheTimer = null; bootCacheUid = null;
+  try{ const rq = indexedDB.deleteDatabase(BOOT_CACHE_DB); rq.onerror = ()=>{}; }catch(e){}
+}
+var bootCacheTimer = null, bootCacheUid = null;
+function bootCacheSchedule(){
+  if(!bootCacheUid || cloudStatus!=='connected') return;
+  clearTimeout(bootCacheTimer);
+  bootCacheTimer = setTimeout(()=>{
+    bootCacheTimer = null;
+    const snaps = {}; ENTITY_TABLES.forEach(({key})=>{ if(typeof tableSnapshots[key]==='string') snaps[key] = tableSnapshots[key]; });
+    bootCacheWrite({uid: bootCacheUid, savedAt: Date.now(), snaps, meta: Object.assign({}, tableUpdatedAt)});
+  }, 4000);
+}
+/* Igual a loadStateFromTables, mas reaproveita o cache: tabela com o mesmo carimbo não é baixada;
+   tabela alterada baixa só as linhas novas/alteradas. Devolve também o carimbo lido ANTES dos dados. */
+async function loadStateFromTablesCached(sb){
+  let uid = null;
+  try{ const g = await sb.auth.getSession(); uid = g && g.data && g.data.session && g.data.session.user && g.data.session.user.id; }catch(e){}
+  bootCacheUid = uid || null;
+  if(!uid) return {state: await loadStateFromTables(sb), meta: null};
+  const cache = await bootCacheRead();
+  if(!cache || cache.uid!==uid || !cache.snaps || !cache.meta) return {state: await loadStateFromTables(sb), meta: null};
+  try{
+    const meta = await loadSyncMeta(sb);
+    const s = {}; ENTITY_TABLES.forEach(({key})=>{ s[key] = []; });
+    const saveSnaps = tableSnapshots;
+    let fromCache = 0, downloaded = 0;
+    const jobs = ENTITY_TABLES.map(async ({table,key})=>{
+      const cachedSnap = cache.snaps[key];
+      if(typeof cachedSnap==='string' && meta[table] && cache.meta[table] && sameInstant(meta[table], cache.meta[table])){
+        s[key] = JSON.parse(cachedSnap); fromCache++; return;
+      }
+      downloaded++;
+      let r;
+      if(typeof cachedSnap==='string' && meta[table]){
+        const tmp = {}; tmp[key] = cachedSnap;
+        r = await fetchTableDeltaWith(sb, table, key, tmp);
+      } else r = await sb.from(table).select('data');
+      if(r.error){
+        if(isOptionalTableKey(key)){ console.warn('Tabela '+table+' ainda não existe ou está sem acesso; mantendo os dados locais.'); return; }
+        throw r.error;
+      }
+      s[key] = (r.data||[]).map(row=>row.data);
+    });
+    await Promise.all(jobs);
+    tableSnapshots = saveSnaps;
+    dbg('Cache de abertura: '+fromCache+' tabelas do cache, '+downloaded+' consultadas.');
+    return {state: s, meta};
+  }catch(e){
+    console.warn('Cache de abertura falhou; baixando tudo.', e);
+    return {state: await loadStateFromTables(sb), meta: null};
+  }
+}
 async function loadStateFromTables(sb){
   const results = await Promise.all(ENTITY_TABLES.map(({table,key})=>
     sb.from(table).select('data').then(r=>({key, table, ...r}))
@@ -2663,6 +2875,7 @@ async function saveChangedTables(sb, st){
     tableSnapshots[key] = newSnapshotParts ? '['+newSnapshotParts.join(',')+']' : JSON.stringify(st[key]||[]);
   }
   if(saveReport.merged.length) notifyMergedSave(saveReport.merged);
+  bootCacheSchedule();
 }
 const CLOUD_CONFIG_KEY = 'implanta_cloud_config_v1';
 const CLOUD_DISABLED_KEY = 'implanta_cloud_disabled_v1';
@@ -2737,10 +2950,11 @@ function hasOpenFormModal(){
 }
 /* Busca incremental: lista só id + versão (leve), compara com a última cópia sincronizada
    (tableSnapshots) e baixa apenas as linhas novas/alteradas. Se algo não bater, cai no download completo. */
-async function fetchTableDelta(sb, table, key){
+async function fetchTableDelta(sb, table, key){ return fetchTableDeltaWith(sb, table, key, tableSnapshots); }
+async function fetchTableDeltaWith(sb, table, key, snaps){
   const full = ()=> sb.from(table).select('data');
   try{
-    let snap = []; try{ snap = JSON.parse(tableSnapshots[key]||'[]')||[]; }catch(e){}
+    let snap = []; try{ snap = JSON.parse(snaps[key]||'[]')||[]; }catch(e){}
     if(!Array.isArray(snap) || snap.length < 20) return await full();
     const snapById = new Map(); snap.forEach(it=>{ if(it && it.id!=null) snapById.set(String(it.id), it); });
     const idx = await sb.from(table).select('id, v:data->>_v');
@@ -2806,6 +3020,8 @@ async function refreshFromCloudIfChanged(source){
     tableUpdatedAt = meta;
     saveStatus = 'saved';
     changed = true;
+    if(!persistTimer) markPersistBaseline();
+    bootCacheSchedule();
 
     /* CORREÇÃO #1 — Se o usuário está com um formulário aberto,
        não recriamos o DOM: apenas avisamos visualmente que chegou
@@ -2857,7 +3073,20 @@ function persist(){
     if(window.__mgrInteracted && (!window.__mgrWarnAt || Date.now()-window.__mgrWarnAt>4000)){ window.__mgrWarnAt = Date.now(); setTimeout(function(){ try{ showAlert('Perfil Consulta é somente leitura: nada foi salvo. Atualize a página para descartar a alteração.'); }catch(e){} }, 0); }
     return;
   }
-  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); window.__lsFailed = false; }catch(e){
+  /* Desempenho: render() chama persist() a cada clique. Em vez de converter e gravar o estado inteiro
+     toda vez, agenda uma gravação única logo em seguida e só grava (e só marca "pendente") se algo mudou. */
+  clearTimeout(persistTimer);
+  persistTimer = setTimeout(flushPersist, 250);
+}
+var persistTimer = null, lastPersistJson = null;
+function markPersistBaseline(){ try{ lastPersistJson = JSON.stringify(state); }catch(e){} }
+function flushPersist(){
+  clearTimeout(persistTimer); persistTimer = null;
+  if(typeof currentUser!=='undefined' && currentUser && currentUser.role==='gestor') return;
+  let json; try{ json = JSON.stringify(state); }catch(e){ return; }
+  if(json === lastPersistJson) return;
+  lastPersistJson = json;
+  try{ localStorage.setItem(STORAGE_KEY, json); window.__lsFailed = false; }catch(e){
     console.warn('Falha ao salvar localmente', e);
     if(!window.__lsFailed){ window.__lsFailed = true; showToast('Não foi possível salvar neste navegador (espaço cheio). Verifique o tamanho dos anexos'+(cloudStatus==='connected' ? '; os dados continuam sendo enviados à nuvem.' : '.'), 'warn'); }
   }
@@ -2980,6 +3209,7 @@ function setForceSaveMsg(text, isError){
   el.style.color = isError ? 'var(--danger)' : '';
 }
 async function forceSaveNow(){
+  if(persistTimer) flushPersist();
   clearTimeout(saveTimer);
   if(cloudStatus==='connected' && sbClient){
     setForceSaveMsg('Salvando na nuvem...');
@@ -2987,7 +3217,9 @@ async function forceSaveNow(){
     setForceSaveMsg(saveStatus==='saved' ? '✓ Alterações salvas na nuvem.' : '⚠ Falha ao salvar.', saveStatus!=='saved');
   } else { setForceSaveMsg('✓ Salvo neste navegador.'); }
 }
+window.addEventListener('pagehide', function(){ if(persistTimer) flushPersist(); });
 document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState==='hidden' && persistTimer) flushPersist();
   if(document.visibilityState==='hidden' && saveStatus==='pending' && sbClient){ clearTimeout(saveTimer); cloudSave(); }
   if(document.visibilityState==='visible' && sbClient && cloudStatus==='connected'){ refreshFromCloudIfChanged('visibility'); }
 });
@@ -3228,7 +3460,8 @@ async function boot(){
   if(cloudConfig && window.supabase){
     try{
       sbClient = getSb() || window.supabase.createClient(cloudConfig.url, cloudConfig.anonKey);
-      const loaded = await loadStateFromTables(sbClient);
+      const cl = await loadStateFromTablesCached(sbClient);
+      const loaded = cl.state;
       const localBeforeCloud = loadLocalState();
       const hasAnyData = ENTITY_TABLES.some(({key})=> (loaded[key]||[]).length > 0);
       if(hasAnyData){
@@ -3265,8 +3498,10 @@ async function boot(){
       }
       tableSnapshots.jiraRequirements = JSON.stringify(state.jiraRequirements||[]);
       tableSnapshots.vacationEntries = JSON.stringify(state.vacationEntries||[]);
-      tableUpdatedAt = await loadSyncMeta(sbClient);
+      tableUpdatedAt = cl.meta || await loadSyncMeta(sbClient);
       cloudStatus = 'connected';
+      markPersistBaseline();
+      bootCacheSchedule();
       startRealtimeSync();
     }catch(e){
       console.warn('Falha ao conectar à nuvem', e);
@@ -4752,6 +4987,7 @@ function notificationItemsForAnalyst(analystId){
   }
   jiraStatusNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   lowBalanceNoticesForAnalyst(analystId).forEach(it=> due.push(it));
+  taskNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   return due;
 }
 /* Saldo baixo: avisa o analista dono do card quando o consumo chega a 80% das
@@ -4778,6 +5014,12 @@ function lowBalanceNoticesForAnalyst(analystId){
       date: todayISO(), startTime:'00:00' });
   });
   return out;
+}
+/* Tarefas pendentes destinadas ao analista: aparecem até ele marcar como lida (ou concluir a tarefa). */
+function taskNoticesForAnalyst(analystId){
+  return (state.tasks||[]).filter(t=> t.analystId===analystId && t.status!=='concluido' && !(Array.isArray(t.seenBy) && t.seenBy.includes(analystId)))
+    .map(t=>({ id:t.id, _notifKind:'task', title:t.title||'(sem título)', priority:t.priority||'media', clientId:t.clientId||'', noticeAt:t.createdAt||Date.now(),
+      date: t.startDate || todayISO(), startTime:'00:00' }));
 }
 /* Avisos de requisito Jira que virou Concluído ou Desconforme. Aparecem
    para o(s) analista(s) da agenda vinculada ao requisito, por até 14 dias
@@ -4806,6 +5048,9 @@ function mgmt(){
   return m;
 }
 function isManagerUser(){ return !!(currentUser && currentUser.role==='gestor'); }
+/* Perfil Suporte: entra no site, mas só vê Tarefas Pendentes e Contratos de Serviços. */
+function isSupportUser(){ return !!(currentUser && currentUser.role==='support'); }
+const SUPPORT_VIEWS = ['tasks','contracts'];
 function isListCanceledName(n){ return /cancel/i.test(String(n||'')); }
 function isListPausedName(n){ return /pausad|parad/i.test(normalizeHeader(n||'')); }
 /* Situação do card, pela lista (coluna) em que ele está:
@@ -5416,35 +5661,55 @@ async function handleCardAttachmentUpload(cardId, inputEl, form){
   }
   render();
 }
-function openAttachmentInNewTab(att){
+/* Converte o anexo (URL do Storage ou data URL antigo) em um blob: local. A política de
+   segurança da página só permite blob: em quadros, e o Storage envia cabeçalhos que
+   impedem o PDF de abrir direto num quadro ("Este conteúdo está bloqueado"). */
+async function attachmentBlobUrl(att){
+  const src = att.url || att.data || '';
+  let blob;
+  if(src.indexOf('data:')===0){
+    const m = /^data:([^;,]*)(;base64)?,(.*)$/s.exec(src);
+    if(!m) throw new Error('arquivo inválido');
+    const bin = m[2] ? atob(m[3]) : decodeURIComponent(m[3]);
+    const arr = new Uint8Array(bin.length); for(let k=0;k<bin.length;k++) arr[k] = bin.charCodeAt(k);
+    blob = new Blob([arr], {type: m[1] || att.type || 'application/octet-stream'});
+  } else {
+    const r = await fetch(src);
+    if(!r.ok) throw new Error('não foi possível baixar o arquivo ('+r.status+')');
+    blob = await r.blob();
+  }
+  const isPdf = (att.type||'').includes('pdf') || /\.pdf$/i.test(att.name||'');
+  const type = isPdf ? 'application/pdf' : ((att.type||'').startsWith('image/') ? att.type : (blob.type || att.type || 'application/octet-stream'));
+  return URL.createObjectURL(blob.type===type ? blob : new Blob([blob], {type}));
+}
+async function openAttachmentInNewTab(att){
   const src = att.url || att.data;
+  const isPdf = (att.type||'').includes('pdf') || /\.pdf$/i.test(att.name||'');
+  const isImg = (att.type||'').startsWith('image/');
+  if(!isPdf && !isImg){ downloadAttachment(att); return; }
+  const w = window.open();
+  if(!w){ showAlert('Não foi possível abrir a visualização. Verifique o bloqueador de pop-ups.'); return; }
   try{
-    const w = window.open();
-    if(!w){ showAlert('Não foi possível abrir a visualização. Verifique o bloqueador de pop-ups.'); return; }
-    if((att.type||'').includes('pdf') || /\.pdf$/i.test(att.name||'')){
-      /* Monta por DOM (sem document.write): a URL nunca é interpretada como HTML. */
-      w.document.title = att.name || 'Anexo';
+    w.document.title = att.name || 'Anexo';
+    w.document.body.style.cssText = 'margin:0;font-family:sans-serif;';
+    w.document.body.textContent = 'Carregando…';
+    const url = await attachmentBlobUrl(att);
+    w.document.body.textContent = '';
+    if(isPdf){
       w.document.body.style.margin = '0';
       const fr = w.document.createElement('iframe');
       fr.style.cssText = 'border:none;position:fixed;inset:0;width:100%;height:100%;';
-      fr.src = src;
+      fr.src = url;
       w.document.body.appendChild(fr);
-    } else if((att.type||'').startsWith('image/')){
-      w.document.title = att.name || 'Anexo';
+    } else {
       w.document.body.style.cssText = 'margin:0;padding:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#222;';
       const im = w.document.createElement('img');
       im.style.cssText = 'max-width:100%;max-height:100vh;';
       im.alt = att.name || '';
-      im.src = src;
+      im.src = url;
       w.document.body.appendChild(im);
-    } else {
-      const a = document.createElement('a');
-      a.href = src;
-      a.download = att.name;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      w.close();
     }
-  }catch(e){ showAlert('Erro ao abrir o arquivo: '+e.message); }
+  }catch(e){ try{ w.close(); }catch(_){} showAlert('Erro ao abrir o arquivo: '+(e && e.message || e)); }
 }
 function downloadAttachment(att){
   const a = document.createElement('a');
@@ -5874,6 +6139,7 @@ function render(){
   persist();
   if(!currentUser){ document.getElementById('app').innerHTML = renderLoginScreen(); return; }
   applySavedFiltersOnce();
+  if(isSupportUser() && SUPPORT_VIEWS.indexOf(ui.view)<0) ui.view = 'tasks';
   const app = document.getElementById('app');
   /* Mantém a posição da rolagem ao redesenhar a mesma tela (ex.: reordenar
      os painéis do Painel Geral); ao trocar de tela, volta ao topo. */
@@ -5907,9 +6173,26 @@ function renderShell(){
 }
 
 /* ============================= SIDEBAR ============================= */
+function renderSupportSidebar(){
+  let html = '<div class="side-section"><div class="side-label"><span>Suporte</span></div>'
+    + navItem('tasks','☑','Tarefas Pendentes')
+    + navItem('contracts','📄','Contratos de Serviços') + '</div>';
+  html += '<div class="side-foot" style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">'
+    + '<button class="btn btn-sm btn-ghost" data-action="cycle-theme" title="Alternar tema" style="justify-content:flex-start;gap:8px;">'+themeButtonLabel()+'</button>'
+    + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span id="save-status-line" style="flex:1;">'+(cloudStatus==='connected' ? '☁ Sincronizado com a nuvem' : 'Dados salvos neste navegador.')+'</span>'
+    + '<button class="btn btn-sm btn-ghost" data-action="logout" title="Sair" style="color:#9FB6AC;">Sair</button></div></div>';
+  return html + '</div>';
+}
 function renderSidebar(){
   let html = '<div class="brand"><div class="brand-mark brand-mark-img"><img src="data:image/png;base64,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" alt="NEO"></div><div class="brand-name">NEO</div></div>';
   html += '<div class="sidebar-scroll">';
+  /* Celular: busca, ajuda e registro rápido saem do cabeçalho e ficam aqui (menu "Mais"). */
+  html += '<div class="side-mobile-tools">'
+    + (isSupportUser() ? '' : '<button type="button" class="side-item" data-action="open-global-search"><span>🔎</span><span style="flex:1;">Buscar</span></button>')
+    + '<button type="button" class="side-item" data-action="open-faq-search"><span>❓</span><span style="flex:1;">Ajuda</span></button>'
+    + ((isSupportUser() || isManagerUser() || !myAnalystId()) ? '' : '<button type="button" class="side-item" data-action="quick-open"><span>⏱</span><span style="flex:1;">Registro rápido de horas</span></button>')
+    + '</div>';
+  if(isSupportUser()) return html + renderSupportSidebar();
   html += '<div class="side-section">';
   html += navItem('dashboard','🏠','Painel Geral');
   html += '</div>';
@@ -5918,24 +6201,33 @@ function renderSidebar(){
     + '<span>▦</span><span style="flex:1;">Todos os analistas</span>'
     + (totalPendingBoardBadge()? '<span class="side-badge">'+totalPendingBoardBadge()+'</span>' : '')
     + '</button>';
-  state.analysts.filter(a=>!a.inactive && !a.isSupport && !a.isManager).slice().sort((a,b)=>a.name.localeCompare(b.name)).forEach(a=>{
-    const myId = myAnalystId();
+  /* Lista de analistas recolhível: recolhida, mostra só o meu quadro, o selecionado e quem tem pendência. */
+  let sideAnalystsOpen = false; try{ sideAnalystsOpen = localStorage.getItem('neo_side_analysts')==='1'; }catch(e){}
+  const sideAnalysts = state.analysts.filter(a=>!a.inactive && !a.isSupport && !a.isManager).slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const myIdSide = myAnalystId();
+  let sideHidden = 0;
+  sideAnalysts.forEach(a=>{
+    const myId = myIdSide;
     const pend = (!myId || a.id===myId) ? notificationItemsForAnalyst(a.id).length : 0;
     const active = ui.view==='board' && ui.boardAnalystFilter===a.id;
+    if(!sideAnalystsOpen && !active && a.id!==myId && !(myId && pend)){ sideHidden++; return; }
     html += '<button class="side-item'+(active?' active':'')+'" data-action="board-analyst-filter" data-id="'+a.id+'">'
       + (a.photo ? analystAvatar(a,22) : '<span class="side-dot" style="background:'+a.color+'"></span>')
       + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(a.name)+'</span>'
       + (pend? '<span class="side-badge">'+pend+'</span>' : '')
       + '</button>';
   });
+  if(sideHidden || sideAnalystsOpen){
+    html += '<button class="side-item side-toggle" data-action="side-analysts-toggle" aria-expanded="'+(sideAnalystsOpen?'true':'false')+'"><span>'+(sideAnalystsOpen?'▴':'▾')+'</span><span style="flex:1;">'+(sideAnalystsOpen?'Recolher analistas':'Ver todos os analistas ('+sideAnalysts.length+')')+'</span></button>';
+  }
   /* Na aba Configurações → Analistas o botão “Novo” já existe na própria tela: não duplicar no menu lateral. */
-  if(!(ui.view==='settings' && ui.settingsTab==='analistas')) html += '<button class="side-add" data-action="open-modal" data-modal="analyst-new">+ Novo analista</button>';
+  if(sideAnalystsOpen && isAdminUser() && !(ui.view==='settings' && ui.settingsTab==='analistas')) html += '<button class="side-add" data-action="open-modal" data-modal="analyst-new">+ Novo analista</button>';
   html += '</div>';
 
   const totalPend = notifItems().length;
   html += '<div class="side-section"><div class="side-label"><span>Gestão</span></div>';
   html += navItem('calendar','◷','Agenda', totalPend);
-  html += navItem('tasks','☑','Tarefas Pendentes', myOpenTasksCount());
+  html += navItem('tasks','☑','Tarefas Pendentes');
   html += navItem('jira','⌁','Requisitos Jira');
   html += navItem('contracts','📄','Contratos de Serviços');
   html += navItem('clients','◉','Cadastros');
@@ -6015,7 +6307,7 @@ function renderTopbar(){
       +   '<option value="start-date"'+(ui.boardSortBy==='start-date'?' selected':'')+'>Ordem: início</option>'
       + '</select>'
       + (selectedBoard
-        ? '<button class="btn btn-primary" data-action="open-modal" data-modal="card-new" data-board="'+selectedBoard.id+'">+ Novo cliente</button>'
+        ? '<button class="btn btn-primary topbar-add" data-action="open-modal" data-modal="card-new" data-board="'+selectedBoard.id+'" title="Novo cliente" aria-label="Novo cliente">+<span class="btn-label"> Novo cliente</span></button>'
         : '') + '</div>';
   } else if(ui.view==='calendar'){
     left = '<div class="topbar-title"><h2>Agenda</h2><div class="sub">Visualize por analista ou em conjunto</div></div>';
@@ -6023,10 +6315,10 @@ function renderTopbar(){
     left = '<div class="topbar-title"><h2>Relatórios</h2><div class="sub">Painel gerencial de implantações</div></div>';
   } else if(ui.view==='clients'){
     left = '<div class="topbar-title"><h2>Cadastros</h2><div class="sub">Clientes e contadores</div></div>'
-      + '<button class="btn btn-primary" data-action="open-modal" data-modal="client-new">+ Novo cliente</button>';
+      + '<button class="btn btn-primary topbar-add" data-action="open-modal" data-modal="client-new" title="Novo cliente" aria-label="Novo cliente">+<span class="btn-label"> Novo cliente</span></button>';
   } else if(ui.view==='tasks'){
     left = '<div class="topbar-title"><h2>Tarefas Pendentes</h2><div class="sub">Tarefas para virar agenda ou card de implantação</div></div>'
-      + '<button class="btn btn-primary" data-action="open-modal" data-modal="task-form">+ Nova tarefa</button>';
+      + '<button class="btn btn-primary topbar-add" data-action="open-modal" data-modal="task-form" title="Nova tarefa" aria-label="Nova tarefa">+<span class="btn-label"> Nova tarefa</span></button>';
   } else if(ui.view==='jira'){
     left = '<div class="topbar-title"><h2>Requisitos Jira</h2><div class="sub">Requisitos sincronizados com o Jira</div></div>';
   } else if(ui.view==='contracts'){
@@ -6042,9 +6334,9 @@ function renderTopbar(){
     right += '<div class="topbar-user-wrap">'
       + '<button type="button" class="topbar-user" data-action="toggle-user-menu">'
       +   (myTopbarAnalyst ? analystAvatar(myTopbarAnalyst,26) : '👤')
-      +   ' '+esc(currentUser.displayName||currentUser.username||'')
+      +   '<span class="topbar-user-name"> '+esc(currentUser.displayName||currentUser.username||'')
       +   (isAdminUser() && !myTopbarAnalyst ? ' <span class="badge" style="background:var(--gold-soft);color:var(--gold);">ADMIN</span>':'')
-      +   ' <span class="topbar-user-caret">▾</span>'
+      +   ' <span class="topbar-user-caret">▾</span></span>'
       + '</button>'
       + (ui.showUserMenu ? renderUserMenu() : '')
       + '</div>';
@@ -6097,6 +6389,15 @@ function notifItemHtml(s){
       + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.jiraNumber||'')+(cl?' · '+esc(cl.name||''):'')+'</div>'
       + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Status no Jira: '+esc(s.jiraStatus||'')+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
       + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="jira-notice-seen" data-id="'+s.id+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="goto-view" data-view="jira">Ver requisitos</button></div>'
+      + '</div>';
+  }
+  if(s._notifKind==='task'){
+    const cl = s.clientId ? getClient(s.clientId) : null, pr = taskPriorityMeta(s.priority);
+    return '<div class="notif-item">'
+      + '<div style="font-weight:800;font-size:13px;">☑ Tarefa pendente para você</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.title)+(cl?' · '+esc(cl.name||''):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Prioridade: '+esc(pr.label)+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="task-notice-seen" data-id="'+s.id+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="goto-view" data-view="tasks">Ver tarefas</button></div>'
       + '</div>';
   }
   if(s._notifKind==='balance'){
@@ -6160,7 +6461,7 @@ function renderNotifCenterModal(){
     }
     if(infos.length){
       h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 6px;"><h4 style="margin:0;font-size:12px;color:var(--ink-soft);">Avisos ('+infos.length+')</h4>'
-        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
+        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira'||x._notifKind==='task') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
       infos.forEach(x=>{ h += notifItemHtml(x); });
     }
   } else {
@@ -7471,7 +7772,7 @@ function renderDashboardView(){
   const pendConf = dashboardSchedules.filter(s=>scheduleIsDue(s)).length;
   const isMobile = (typeof window!=='undefined' && window.innerWidth<=820);
 
-  let html = '<div class="dash-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;"><div><h2>Painel Geral</h2><p class="hint" style="margin:2px 0 0;">Visão geral do Implanta, atualizada em '+fmtDateBR(today)+'.</p></div>'
+  let html = '<div class="dash-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><p class="hint" style="margin:0;">Atualizado em '+fmtDateBR(today)+'</p>'
     + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
     + (ui.dashboardReorderMode
         ? '<button type="button" class="btn btn-sm btn-ghost" data-action="dashboard-reset-layout">↺ Restaurar padrão</button><button type="button" class="btn btn-sm btn-primary" data-action="dashboard-toggle-reorder">✓ Concluir</button>'
@@ -7490,12 +7791,14 @@ function renderDashboardView(){
   html += '<div class="report-section dash-card-full" style="margin-bottom:18px;">'
     + '<div class="report-section-head"><div class="report-section-icon" style="background:var(--danger-soft);color:var(--danger);">📋</div>'
     + '<div style="flex:1;"><h2 class="report-section-title">Agendas vencidas</h2>'
-    + '<p class="report-section-desc">'+openScheds.length+' agenda(s) vencida(s) (pendente com data/hora já passada, ou marcada como não realizada) dentro dos filtros selecionados (não considera o período).</p></div></div>';
+    + '<p class="report-section-desc">'+openScheds.length+' pendente(s) com horário já passado ou não realizada(s), nos filtros abaixo (sem considerar o período).</p></div></div>';
   if(!openScheds.length){
     html += '<div class="report-empty">Nenhuma agenda vencida. Tudo em dia! ✅</div>';
   } else {
-    html += '<div class="dash-open-scheds-list">';
-    openScheds.forEach(s=>{
+    html += '<div class="dash-open-scheds-list" style="max-height:none;">';
+    const DUE_SHOW = 5;
+    const dueShown = ui.dashShowAllDue ? openScheds : openScheds.slice(0, DUE_SHOW);
+    dueShown.forEach(s=>{
       const client = s.clientId ? getClient(s.clientId) : null;
       const analystNames = scheduleAnalystNames(s) || '—';
       const tone = s.status==='nao_realizada' ? 'var(--gold)' : 'var(--danger)';
@@ -7510,12 +7813,17 @@ function renderDashboardView(){
         + '</div></div>';
     });
     html += '</div>';
+    if(openScheds.length > DUE_SHOW){
+      html += '<button type="button" class="btn btn-sm btn-ghost" style="margin-top:8px;" data-action="dash-toggle-due">'+(ui.dashShowAllDue?'Mostrar só as 5 mais antigas':'Ver todas as '+openScheds.length)+'</button>';
+    }
   }
   html += '</div>';
 
-  html += '<div class="dash-filter-card">'
+  const dashActiveFilters = [ui.dashboardAnalyst, ui.dashboardSegment, ui.dashboardCity].filter(v=>v && v!=='all').length + (ui.dashboardStatus && ui.dashboardStatus!=='all' ? 1 : 0);
+  html += '<div class="dash-filter-card'+(ui.dashFiltersOpen?' open':'')+'">'
+    + '<button type="button" class="btn btn-sm filters-toggle" data-action="dash-filters-toggle" aria-expanded="'+(ui.dashFiltersOpen?'true':'false')+'">Filtros'+(dashActiveFilters?' ('+dashActiveFilters+')':'')+' '+(ui.dashFiltersOpen?'▴':'▾')+'</button>'
     + '<div class="dash-filter-head"><div><div class="dash-filter-title">🔎 Filtros do Painel Geral</div>'
-    + '<div class="dash-filter-summary">Os indicadores e análises abaixo consideram os filtros selecionados. O período vale para os painéis de horas, agendas, módulos e sem abatimento; painéis de posição atual (saldos, projetos, clientes) e os gráficos anuais usam a situação de hoje ou o ano escolhido neles.</div></div>'
+    + '<div class="dash-filter-summary" title="O período vale para os painéis de horas, agendas, módulos e sem abatimento; painéis de posição atual (saldos, projetos, clientes) e os gráficos anuais usam a situação de hoje ou o ano escolhido neles.">O período vale para horas, agendas e módulos; saldos e projetos mostram a situação de hoje.</div></div>'
     + '<span style="display:inline-flex;gap:6px;flex-wrap:wrap;">'
     + '<button type="button" class="btn btn-sm btn-ghost" data-action="save-filters" data-group="dashboard" title="Guarda período, analista, segmento, cidade e status para abrir assim da próxima vez">💾 Salvar filtros</button>'
     + (getSavedFilters().dashboard?'<button type="button" class="btn btn-sm btn-ghost" data-action="clear-saved-filters" data-group="dashboard" title="Esquece os filtros salvos">Remover salvos</button>':'')
@@ -7573,6 +7881,39 @@ function renderDashboardView(){
       + (entries.length ? ' · '+entries.length+' grupo(s)' : '') + '</div>';
     if(!entries.length){
       out += '<div class="report-empty">Nenhum cliente cadastrado.</div>';
+    } else if(isSegmentCard || isCityCard){
+      /* Gráfico de pizza com legenda: as 7 maiores fatias + "Outros" (o resto somado). */
+      const PIE_COLORS = ['#0B5C8E','#169B67','#F0A72F','#C94B42','#6C3483','#1A9FB0','#AF601A'];
+      const GRAY = '#AEB8C2';
+      const emptyLabel = isSegmentCard ? 'Sem segmento' : 'Sem cidade';
+      const filterKey = isSegmentCard ? 'segment' : 'city';
+      const MAXS = 7;
+      const sumAll = entries.reduce((a,e)=>a+e[1], 0) || 1;
+      const named = entries.filter(e=>e[0]!==emptyLabel), none = entries.find(e=>e[0]===emptyLabel);
+      const top = named.slice(0, MAXS), rest = named.slice(MAXS);
+      const slices = top.map((e,i)=>({label:e[0], n:e[1], color:PIE_COLORS[i], filter:true}));
+      if(rest.length) slices.push({label:'Outros ('+rest.length+')', n:rest.reduce((a,e)=>a+e[1],0), color:'#7F8C99', filter:false, tip:rest.map(e=>e[0]+': '+e[1]).join(', ')});
+      if(none) slices.push({label:emptyLabel, n:none[1], color:GRAY, filter:false});
+      let ang = -Math.PI/2, svg = '<svg class="pie-svg" viewBox="-1.05 -1.05 2.1 2.1" role="img" aria-label="'+esc(title)+'">';
+      slices.forEach(sl=>{
+        const frac = sl.n/sumAll, pct = (frac*100).toFixed(1);
+        const click = sl.filter ? ' data-action="dashboard-set-filter" data-filter="'+filterKey+'" data-value="'+esc(sl.label)+'" style="cursor:pointer;"' : '';
+        const tip = '<title>'+esc(sl.label)+': '+sl.n+' cliente(s) ('+pct+'%)'+(sl.tip?' — '+esc(sl.tip):'')+(sl.filter?' — clique para filtrar':'')+'</title>';
+        if(frac >= 0.9999){ svg += '<circle cx="0" cy="0" r="1" fill="'+sl.color+'"'+click+'>'+tip+'</circle>'; return; }
+        const a2 = ang + frac*2*Math.PI;
+        const x1 = Math.cos(ang).toFixed(4), y1 = Math.sin(ang).toFixed(4), x2 = Math.cos(a2).toFixed(4), y2 = Math.sin(a2).toFixed(4);
+        svg += '<path class="pie-slice" d="M0 0 L'+x1+' '+y1+' A1 1 0 '+(frac>0.5?1:0)+' 1 '+x2+' '+y2+' Z" fill="'+sl.color+'"'+click+'>'+tip+'</path>';
+        ang = a2;
+      });
+      svg += '</svg>';
+      out += '<div class="pie-wrap">'+svg+'<div class="pie-legend">';
+      slices.forEach(sl=>{
+        const pct = ((sl.n/sumAll)*100).toFixed(1);
+        const click = sl.filter ? ' data-action="dashboard-set-filter" data-filter="'+filterKey+'" data-value="'+esc(sl.label)+'" title="Clique para filtrar por '+esc(sl.label)+'"' : (sl.tip ? ' title="'+esc(sl.tip)+'"' : '');
+        out += '<div class="pie-leg-item'+(sl.filter?' clickable':'')+'"'+click+'><span class="pie-sw" style="background:'+sl.color+';"></span>'
+          + '<span class="pie-leg-label">'+esc(sl.label)+'</span><span class="pie-leg-val"><strong>'+sl.n+'</strong> <small>'+pct+'%</small></span></div>';
+      });
+      out += '</div></div>';
     } else {
       const maxCount = Math.max(1, ...entries.map(e=>e[1]));
       out += '<div class="client-dist-list">';
@@ -8021,12 +8362,25 @@ function renderBoardView(){
       cards.sort((a,b)=> (a.startDate||'9999-99-99').localeCompare(b.startDate||'9999-99-99'));
     }
 
+    /* Desempenho: a lista de concluídos cresce sem parar. Mostra só os mais recentes e carrega o resto sob demanda. */
+    const totalInList = cards.length;
+    let hiddenDone = 0;
+    if(isDoneListName(listName) && !q){
+      const lim = ui.doneListLimit || 10;
+      if(cards.length > lim){
+        cards = cards.slice().sort((x,y)=> String(y.conclusionDate||'').localeCompare(String(x.conclusionDate||'')));
+        hiddenDone = cards.length - lim;
+        cards = cards.slice(0, lim);
+      }
+    }
+    const menuOpen = ui.listMenuOpen===listName;
     html += '<div class="list-col'+(listInactive?' list-col-inactive':'')+'">'
       + '<div class="list-head"><span class="name">'+esc(listName)+'</span>'
       + (listInactive ? '<span class="badge" style="background:var(--ink-faint);color:#fff;">Inativa</span>' : '')
-      + '<span class="count">'+cards.length+'</span>'
-      + (admin
-        ? '<span style="display:inline-flex;gap:2px;">'
+      + '<span class="count">'+totalInList+'</span>'
+      + (admin ? '<button class="icon-btn btn-sm list-menu-btn'+(menuOpen?' active':'')+'" data-action="list-menu-toggle" data-list="'+esc(listName)+'" title="Ações da lista" aria-expanded="'+(menuOpen?'true':'false')+'">⋯</button>' : '')
+      + (admin && menuOpen
+        ? '<span class="list-menu">'
           + (listGroup(listName)===0 ? '<button class="icon-btn btn-sm" style="width:22px;height:22px;" data-action="move-list-left" data-list="'+esc(listName)+'" title="Mover para a esquerda">‹</button>'
           + '<button class="icon-btn btn-sm" style="width:22px;height:22px;" data-action="move-list-right" data-list="'+esc(listName)+'" title="Mover para a direita">›</button>' : '')
           + '<button class="icon-btn btn-sm" style="width:26px;height:26px;" data-action="open-modal" data-modal="list-rename" data-list="'+esc(listName)+'" title="Renomear lista">✎</button>'
@@ -8038,6 +8392,7 @@ function renderBoardView(){
       + '<div class="list-cards" data-unified-list-name="'+esc(listName)+'">';
 
     cards.forEach(c=> html += renderCardMini(c, listName, filterId));
+    if(hiddenDone){ html += '<button class="btn btn-sm list-more-btn" data-action="board-done-more">Mostrar mais '+Math.min(hiddenDone,20)+' de '+hiddenDone+' concluídos</button>'; }
     html += '</div>';
 
     if(selectedBoard){
@@ -8145,17 +8500,21 @@ function renderCardModalContent(card){
     + '</div><button class="modal-close" data-action="close-card">✕</button></div>';
 
   const commercialCount = (card.commercialReports||[]).length;
-  html += '<div class="tabs">'
-    + tabBtn('info','Informações')
-    + tabBtn('agenda','Agenda ('+schedulesForCard(card.id).length+')')
-    + tabBtn('forecast','Previstos × Treinados')
-    + tabBtn('workflow','Fluxo de trabalho')
-    + tabBtn('attach','Anexos ('+((card.attachments||[]).length)+')')
-    + tabBtn('checklist','✅ Checklist'+(checklistProgress(card).total?' ('+checklistProgress(card).done+'/'+checklistProgress(card).total+')':''))
-    + tabBtn('risks','⚠️ Riscos ('+openRisks(card).length+')')
-    + tabBtn('commercial','Histórico / 📣 Comercial ('+commercialCount+')')
-    + tabBtn('history','Histórico')
+  /* Abas agrupadas em 4 (antes eram 9 em duas linhas). As chaves internas (ui.cardTab) não mudaram. */
+  const cpr = checklistProgress(card);
+  const CARD_TAB_GROUPS = [
+    {k:'g-info', l:'Resumo', tabs:[['info','Informações']]},
+    {k:'g-agenda', l:'Agenda ('+schedulesForCard(card.id).length+')', tabs:[['agenda','Agenda']]},
+    {k:'g-treino', l:'Treinamento', tabs:[['forecast','Previstos × Treinados'],['checklist','Checklist'+(cpr.total?' ('+cpr.done+'/'+cpr.total+')':'')],['workflow','Fluxo de trabalho']]},
+    {k:'g-mais', l:'Mais'+(openRisks(card).length?' ⚠':''), tabs:[['attach','Anexos ('+((card.attachments||[]).length)+')'],['risks','Riscos ('+openRisks(card).length+')'],['commercial','Comercial ('+commercialCount+')'],['history','Histórico']]}
+  ];
+  const curGroup = CARD_TAB_GROUPS.find(g=>g.tabs.some(t=>t[0]===ui.cardTab)) || CARD_TAB_GROUPS[0];
+  html += '<div class="tabs card-tabs-main">'
+    + CARD_TAB_GROUPS.map(g=>'<button class="tab-btn'+(g===curGroup?' active':'')+'" data-action="card-tab" data-tab="'+g.tabs[0][0]+'">'+g.l+'</button>').join('')
     + '</div>';
+  if(curGroup.tabs.length>1){
+    html += '<div class="card-subtabs">'+curGroup.tabs.map(t=>'<button class="chip-btn'+(ui.cardTab===t[0]?' active':'')+'" data-action="card-tab" data-tab="'+t[0]+'">'+t[1]+'</button>').join('')+'</div>';
+  }
 
   if(ui.cardTab==='info'){
     const zeroedMin = cardZeroedInternalMinutes(card.id);
@@ -9043,7 +9402,8 @@ function layoutDayEvents(scheds){
       it.lane = laneIdx;
     });
     const totalLanes = lanes.length;
-    cluster.forEach(it=> result.push({sched:it.s, start:it.start, end:it.end, lane:it.lane, lanes:totalLanes}));
+    const ci = result.length ? result[result.length-1].cluster+1 : 0;
+    cluster.forEach(it=> result.push({sched:it.s, start:it.start, end:it.end, lane:it.lane, lanes:totalLanes, cluster:ci}));
   });
   return result;
 }
@@ -9238,8 +9598,8 @@ function renderCalendarView(){
       const colorStyle = due ? 'background:var(--danger);color:#fff;border-left-color:#8a2018;' : 'background:'+color+';color:'+txt+';border-left-color:'+darkenColor(color,.25)+';';
       html += '<div class="cal-tg-event" draggable="'+(draggable?'true':'false')+'" data-draggable="'+(draggable?'1':'0')+'" data-sched-id="'+s.id+'" style="top:'+top+'px;height:'+height+'px;left:'+leftPct+'%;width:calc('+widthPct+'% - 4px);'+colorStyle+'" data-action="open-modal" data-modal="schedule-edit" data-id="'+s.id+'" title="'+esc(title+' · '+(analyst?analyst.name:'—')+' · '+s.startTime+'–'+s.endTime)+'">'
         + (draggable ? '<div class="resize-handle top" draggable="false" data-edge="top" data-id="'+s.id+'"></div>' : '')
-        + '<div class="t">'+s.startTime+' '+esc(title)+'</div>'
-        + (height>34? '<div class="s">'+esc(analyst?analyst.name:scheduleAnalystNames(s))+'</div>' : '')
+        + '<div class="t'+(height>=48?' wrap2':'')+'">'+esc(title)+'</div>'
+        + (height>34? '<div class="s">'+s.startTime+' · '+esc(analyst?analyst.name:scheduleAnalystNames(s))+'</div>' : '')
         + (draggable ? '<div class="resize-handle bottom" draggable="false" data-edge="bottom" data-id="'+s.id+'"></div>' : '')
         + '</div>';
     });
@@ -9295,16 +9655,9 @@ function renderReportsView(){
 
   let html = '';
 
-  html += '<div class="report-header">'
-    + '<div class="report-header-left">'
-    +   '<div class="report-eyebrow">Painel Gerencial</div>'
-    +   '<h1 class="report-title">Relatórios de Implantação</h1>'
-    +   '<p class="report-subtitle">Visão consolidada das implantações, horas e treinamentos · Atualizado em '+dataGeracao+'</p>'
-    + '</div>'
-    + '<div class="report-header-right">'
-    +   '<div class="report-header-badge">📊 '+allCards.length+' cards no total</div>'
-    +   '<button type="button" class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="reports" style="margin-top:8px;">📱 Compartilhar</button>'
-    + '</div>'
+  html += '<div class="dash-header" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;">'
+    + '<p class="hint" style="margin:0;">Atualizado em '+dataGeracao+' · '+allCards.length+' cards no total</p>'
+    + '<button type="button" class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="reports">📱 Compartilhar</button>'
     + '</div>';
 
   html += '<div class="kpi-grid">';
@@ -9335,9 +9688,27 @@ function renderReportsView(){
   ];
   if(isAdminUser()) REPORT_TABS.push({k:'auditoria', l:'🧾 Auditoria'});
   if(!REPORT_TABS.some(t=>t.k===ui.reportsTab)) ui.reportsTab = REPORT_TABS[0].k;
-  html += '<div class="settings-tabs">';
-  REPORT_TABS.forEach(t=>{ html += '<button class="btn btn-sm'+(ui.reportsTab===t.k?' btn-primary':'')+'" data-action="reports-tab" data-tab="'+t.k+'">'+t.l+'</button>'; });
+  /* Relatórios agrupados por assunto (antes: 17 botões soltos). No celular vira uma lista de seleção. */
+  const REPORT_GROUPS = [
+    ['Horas', ['saldo','extrato','conferencia','internas','previsao','projecao']],
+    ['Agenda e treinamento', ['agendas-tipo','agenda-mensal','modulos','fechados']],
+    ['Equipe', ['analistas','distribuicao','capacidade','prazo']],
+    ['Qualidade', ['satisfacao','riscos','auditoria']]
+  ];
+  const tabLabel = t => t.l.replace(/^[^A-Za-zÀ-ú0-9]+\s*/, '');
+  const tabByKey = {}; REPORT_TABS.forEach(t=> tabByKey[t.k] = t);
+  html += '<div class="report-tab-groups">';
+  REPORT_GROUPS.forEach(([gl, keys])=>{
+    const items = keys.map(k=>tabByKey[k]).filter(Boolean);
+    if(!items.length) return;
+    html += '<div class="report-tab-group"><span class="report-tab-group-label">'+gl+'</span>'
+      + items.map(t=>'<button class="chip-btn'+(ui.reportsTab===t.k?' active':'')+'" data-action="reports-tab" data-tab="'+t.k+'">'+esc(tabLabel(t))+'</button>').join('')
+      + '</div>';
+  });
   html += '</div>';
+  html += '<div class="field report-tab-select" style="margin:0 0 12px;"><label for="reports-tab-select">Relatório</label><select id="reports-tab-select">'
+    + REPORT_GROUPS.map(([gl, keys])=>{ const items = keys.map(k=>tabByKey[k]).filter(Boolean); return items.length ? '<optgroup label="'+gl+'">'+items.map(t=>'<option value="'+t.k+'"'+(ui.reportsTab===t.k?' selected':'')+'>'+esc(tabLabel(t))+'</option>').join('')+'</optgroup>' : ''; }).join('')
+    + '</select></div>';
 
   const dateRange = getReportsDateRange();
   const dateFilterApplies = ['fechados','internas','agendas-tipo','modulos','analistas','agenda-mensal','extrato','auditoria'].includes(ui.reportsTab);
@@ -10548,7 +10919,7 @@ const TASK_PRIORITIES = [{value:'urgente',label:'Urgente',color:'#8B1A1A',rank:0
 function taskStatusMeta(v){ return TASK_STATUSES.find(x=>x.value===v)||TASK_STATUSES[0]; }
 function taskPriorityMeta(v){ return TASK_PRIORITIES.find(x=>x.value===v)||TASK_PRIORITIES[2]; }
 function taskActorName(){ return (getAnalyst(myAnalystId())||{}).name || (typeof currentUser!=='undefined' && currentUser && (currentUser.displayName||currentUser.username)) || ''; }
-function myOpenTasksCount(){ const me = myAnalystId(); return (state.tasks||[]).filter(t=>t.status!=='concluido' && (!me || t.analystId===me)).length; }
+function myOpenTasksCount(){ const me = (isAdminUser()||isSupportUser()) ? null : myAnalystId(); if(me) return taskNoticesForAnalyst(me).length; return (state.tasks||[]).filter(t=>t.status!=='concluido').length; }
 function syncTaskChecklistFromDom(form){
   if(!ui.modal || !form) return;
   form.querySelectorAll('.task-chk-row').forEach(row=>{
@@ -10560,7 +10931,11 @@ function syncTaskChecklistFromDom(form){
 }
 function renderTasksView(){
   const me = myAnalystId();
-  if(ui.taskAnalyst===undefined) ui.taskAnalyst = me || 'all';
+  const adm = isAdminUser() || isSupportUser();
+  const sup = isSupportUser();
+  /* Admin: abre com todos os filtros em "todos". Analista: só as tarefas destinadas a ele. */
+  if(!adm) ui.taskAnalyst = me || 'all';
+  else if(ui.taskAnalyst===undefined) ui.taskAnalyst = 'all';
   if(!ui.taskStatus) ui.taskStatus = 'abertas';
   const q = (ui.taskQuery||'').trim();
   let list = (state.tasks||[]).slice();
@@ -10573,48 +10948,67 @@ function renderTasksView(){
   const analysts = state.analysts.filter(a=>!a.inactive && isReportAnalyst(a)).slice().sort((x,y)=>x.name.localeCompare(y.name));
   let html = '<div class="section-card"><div style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:14px;">'
     + '<div class="field" style="margin:0;min-width:200px;flex:1;"><label>Buscar</label><input type="text" id="task-search-input" placeholder="Título ou cliente..." value="'+esc(ui.taskQuery||'')+'"></div>'
-    + '<div class="field" style="margin:0;"><label>Analista</label><select data-task-filter="taskAnalyst"><option value="all"'+(ui.taskAnalyst==='all'?' selected':'')+'>Todos</option>'+analysts.map(a=>'<option value="'+a.id+'"'+(ui.taskAnalyst===a.id?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>'
-    + '<div class="field" style="margin:0;"><label>Status</label><select data-task-filter="taskStatus">'+[['abertas','Em aberto'],['pendente','Pendente'],['andamento','Andamento'],['concluido','Concluído'],['todas','Todas']].map(o=>'<option value="'+o[0]+'"'+(ui.taskStatus===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>'
+    + (!adm ? '' : '<div class="field" style="margin:0;"><label>Analista</label><select data-task-filter="taskAnalyst"><option value="all"'+(ui.taskAnalyst==='all'?' selected':'')+'>Todos</option>'+analysts.map(a=>'<option value="'+a.id+'"'+(ui.taskAnalyst===a.id?' selected':'')+'>'+esc(a.name)+'</option>').join('')+'</select></div>')
+    + '<div class="field" style="margin:0;"><label>Status</label><select data-task-filter="taskStatus">'+[['todas','Todos'],['abertas','Todos menos concluídos'],['pendente','Pendente'],['andamento','Andamento'],['concluido','Concluído']].map(o=>'<option value="'+o[0]+'"'+(ui.taskStatus===o[0]?' selected':'')+'>'+o[1]+'</option>').join('')+'</select></div>'
     + '<div class="field" style="margin:0;"><label>Prioridade</label><select data-task-filter="taskPriority"><option value="all">Todas</option>'+TASK_PRIORITIES.map(p=>'<option value="'+p.value+'"'+(ui.taskPriority===p.value?' selected':'')+'>'+p.label+'</option>').join('')+'</select></div>'
     + '</div>';
   if(!list.length){
     html += '<div class="report-empty">Nenhuma tarefa encontrada. Clique em <strong>+ Nova tarefa</strong> para registrar.</div></div>';
     return html;
   }
-  html += '<div style="display:flex;flex-direction:column;gap:10px;">';
+  /* Lista compacta agrupada por prazo; ações aparecem ao abrir a tarefa. */
+  const today = todayISO();
+  const wk = (function(){ const d=new Date(today+'T12:00:00'); d.setDate(d.getDate()+7); return d.toISOString().slice(0,10); })();
+  const groups = [
+    {k:'late', l:'Atrasadas', items:[]}, {k:'today', l:'Hoje', items:[]}, {k:'week', l:'Próximos 7 dias', items:[]},
+    {k:'later', l:'Depois', items:[]}, {k:'none', l:'Sem data de conclusão', items:[]}, {k:'done', l:'Concluídas', items:[]}
+  ];
+  const G = {}; groups.forEach(g=>G[g.k]=g);
   list.forEach(t=>{
-    const c = t.clientId ? getClient(t.clientId) : null, an = t.analystId ? getAnalyst(t.analystId) : null;
-    const st = taskStatusMeta(t.status), pr = taskPriorityMeta(t.priority);
-    const chk = t.checklist||[], done = chk.filter(x=>x.done).length;
-    const late = t.status!=='concluido' && t.endDate && t.endDate < todayISO();
-    const open = ui.taskExpanded===t.id;
-    html += '<div class="section-card" style="margin:0;padding:12px 14px;border-left:4px solid '+pr.color+';">'
-      + '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">'
-      +   '<button type="button" class="btn btn-sm btn-ghost" data-action="task-toggle-expand" data-id="'+t.id+'" aria-expanded="'+open+'" style="font-weight:800;flex:1;min-width:0;text-align:left;justify-content:flex-start;"><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+(open?'▾ ':'▸ ')+esc(t.title||'(sem título)')+'</span></button>'
-      +   '<span class="badge" style="background:'+pr.color+';color:#fff;">'+pr.label+'</span>'
-      +   '<span class="badge" style="border:1px solid '+st.color+';color:'+st.color+';background:transparent;">'+st.label+'</span>'
-      + '</div>'
-      + '<div class="hint" style="margin:6px 0 0;display:flex;flex-wrap:wrap;gap:12px;">'
-      +   '<span>👤 '+esc(an?an.name:'Sem analista')+'</span><span>🏢 '+esc(c?c.name:'Sem cliente')+'</span>'
-      +   '<span>📅 Início '+(t.startDate?fmtDateBR(t.startDate):'—')+'</span>'
-      +   '<span'+(late?' style="color:var(--danger);font-weight:700;"':'')+'>🏁 Conclusão '+(t.endDate?fmtDateBR(t.endDate):'—')+(late?' (atrasada)':'')+'</span>'
-      +   (chk.length?'<span>☑ '+done+'/'+chk.length+'</span>':'')
-      +   (((t.scheduleIds||[]).length||(t.cardIds||[]).length)?'<span>🔗 '+(t.scheduleIds||[]).length+' agenda(s) · '+(t.cardIds||[]).length+' card(s)</span>':'')
-      + '</div>';
-    if(open){
-      if(t.description) html += '<div style="white-space:pre-wrap;margin:10px 0 0;">'+esc(t.description)+'</div>';
-      if(chk.length){
-        html += '<div style="margin-top:10px;display:flex;flex-direction:column;gap:4px;">';
-        chk.forEach(x=>{ html += '<label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" data-action="task-quick-check" data-task="'+t.id+'" data-id="'+x.id+'"'+(x.done?' checked':'')+'><span style="'+(x.done?'text-decoration:line-through;opacity:.65;':'')+'">'+esc(x.text)+'</span>'+(x.done&&x.doneBy?'<span class="hint" style="margin:0;">— '+esc(x.doneBy)+'</span>':'')+'</label>'; });
-        html += '</div>';
+    if(t.status==='concluido') G.done.items.push(t);
+    else if(!t.endDate) G.none.items.push(t);
+    else if(t.endDate < today) G.late.items.push(t);
+    else if(t.endDate === today) G.today.items.push(t);
+    else if(t.endDate <= wk) G.week.items.push(t);
+    else G.later.items.push(t);
+  });
+  html += '<div class="task-groups">';
+  groups.filter(g=>g.items.length).forEach(g=>{
+    html += '<div class="task-group"><div class="task-group-head'+(g.k==='late'?' late':'')+'">'+g.l+' <span class="count">'+g.items.length+'</span></div><div class="task-rows">';
+    g.items.forEach(t=>{
+      const c = t.clientId ? getClient(t.clientId) : null, an = t.analystId ? getAnalyst(t.analystId) : null;
+      const st = taskStatusMeta(t.status), pr = taskPriorityMeta(t.priority);
+      const chk = t.checklist||[], done = chk.filter(x=>x.done).length;
+      const late = t.status!=='concluido' && t.endDate && t.endDate < today;
+      const open = ui.taskExpanded===t.id;
+      html += '<div class="task-row'+(open?' open':'')+'" style="border-left-color:'+pr.color+';">'
+        + '<button type="button" class="task-row-main" data-action="task-toggle-expand" data-id="'+t.id+'" aria-expanded="'+open+'">'
+        +   '<span class="task-title">'+esc(t.title||'(sem título)')+'</span>'
+        +   '<span class="task-sub">'+esc(c?c.name:'Sem cliente')+' · '+esc(an?an.name:'Sem analista')+(chk.length?' · ☑ '+done+'/'+chk.length:'')+'</span>'
+        + '</button>'
+        + '<span class="task-due'+(late?' late':'')+'">'+(t.endDate?fmtDateBR(t.endDate):'—')+'</span>'
+        + '<span class="badge task-pr" style="background:'+pr.color+';color:#fff;">'+pr.label+'</span>'
+        + '<span class="badge task-st" style="border:1px solid '+st.color+';color:'+st.color+';background:transparent;">'+st.label+'</span>'
+        + '</div>';
+      if(open){
+        html += '<div class="task-detail" style="border-left-color:'+pr.color+';">'
+          + '<div class="hint" style="margin:0;display:flex;flex-wrap:wrap;gap:12px;"><span>Início '+(t.startDate?fmtDateBR(t.startDate):'—')+'</span>'
+          + (((t.scheduleIds||[]).length||(t.cardIds||[]).length)?'<span>🔗 '+(t.scheduleIds||[]).length+' agenda(s) · '+(t.cardIds||[]).length+' card(s)</span>':'')+'</div>';
+        if(t.description) html += '<div style="white-space:pre-wrap;margin:8px 0 0;">'+esc(t.description)+'</div>';
+        if(chk.length){
+          html += '<div style="margin-top:8px;display:flex;flex-direction:column;gap:4px;">';
+          chk.forEach(x=>{ html += '<label style="display:flex;gap:8px;align-items:center;cursor:pointer;"><input type="checkbox" data-action="task-quick-check" data-task="'+t.id+'" data-id="'+x.id+'"'+(x.done?' checked':'')+'><span style="'+(x.done?'text-decoration:line-through;opacity:.65;':'')+'">'+esc(x.text)+'</span>'+(x.done&&x.doneBy?'<span class="hint" style="margin:0;">— '+esc(x.doneBy)+'</span>':'')+'</label>'; });
+          html += '</div>';
+        }
+        html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'
+          + '<button type="button" class="btn btn-sm" data-action="open-modal" data-modal="task-form" data-id="'+t.id+'">Editar</button>'
+          + (sup ? '' : '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-schedule" data-id="'+t.id+'">Criar agenda</button>'
+          + '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-card" data-id="'+t.id+'">Criar card</button>')
+          + '<span style="flex:1;"></span><button type="button" class="btn btn-sm btn-text-danger" data-action="task-delete" data-id="'+t.id+'">Excluir</button>'
+          + '</div></div>';
       }
-    }
-    html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;">'
-      + '<button type="button" class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="task-form" data-id="'+t.id+'">✎ Editar</button>'
-      + '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-schedule" data-id="'+t.id+'">📅 Criar agenda</button>'
-      + '<button type="button" class="btn btn-sm btn-ghost" data-action="task-to-card" data-id="'+t.id+'">🗂 Criar card</button>'
-      + '<span style="flex:1;"></span><button type="button" class="btn btn-sm btn-danger" data-action="task-delete" data-id="'+t.id+'">Excluir</button>'
-      + '</div></div>';
+    });
+    html += '</div></div>';
   });
   html += '</div></div>';
   return html;
@@ -10770,8 +11164,8 @@ function renderServiceContractsView(){
 
   html+='<div class="kpi-grid">'
     +kpiCard('📄','Contratos', state.serviceContracts.length, 'cadastrados', 'var(--brand)')
-    +kpiCard('💰','Valor total', 'R$ '+fmtMoneyBR(totalValue), 'contratado', 'var(--ok)')
-    +kpiCard('📊','Ticket médio', 'R$ '+fmtMoneyBR(avgValue), 'por contrato', 'var(--gold)')
+    +(isAdminUser() ? kpiCard('💰','Valor total', 'R$ '+fmtMoneyBR(totalValue), 'contratado', 'var(--ok)')
+    +kpiCard('📊','Ticket médio', 'R$ '+fmtMoneyBR(avgValue), 'por contrato', 'var(--gold)') : '')
     +'</div>';
 
   html+='<div class="section-card">'
@@ -10885,26 +11279,31 @@ function renderClientsView(){
   };
   const sortedRows = sortRowsBy(clientRowData, csort, clientAccessor);
 
-  html += '<div class="section-card" style="overflow-x:auto;"><table><thead><tr>'
+  /* Desempenho: paginação (50 por página) e linhas compactas. Razão social vai abaixo do nome;
+     CEP e contato ficam na ficha do cliente (Visualizar). */
+  const PAGE = 50;
+  const sig = [q, ui.clientsFilterSegment, ui.clientsFilterCity, ui.clientsFilterAccountant, csort && csort.key, csort && csort.dir].join('|');
+  if(ui._clientsSig !== sig){ ui._clientsSig = sig; ui.clientsPage = 0; }
+  const pages = Math.max(1, Math.ceil(sortedRows.length / PAGE));
+  const page = Math.min(Math.max(0, ui.clientsPage||0), pages-1);
+  const pageRows = sortedRows.slice(page*PAGE, page*PAGE+PAGE);
+
+  html += '<div class="section-card clients-card"><div class="table-scroll"><table class="clients-table"><thead><tr>'
     + sortableTh('clients','code','Código',csort)
     + sortableTh('clients','name','Nome fantasia',csort)
-    + sortableTh('clients','companyName','Razão social',csort)
     + sortableTh('clients','cnpj','CNPJ',csort)
     + sortableTh('clients','clientType','Tipo',csort)
     + sortableTh('clients','accountant','Contador',csort)
-    + sortableTh('clients','balance','Saldo consolidado',csort)
+    + sortableTh('clients','balance','Saldo',csort)
     + sortableTh('clients','city','Cidade',csort)
-    + sortableTh('clients','uf','UF',csort)
-    + sortableTh('clients','cep','CEP',csort)
-    + sortableTh('clients','contact','Contato',csort)
     + sortableTh('clients','cardCount','Cards',csort)
     + '<th></th></tr></thead><tbody>';
-  if(!sortedRows.length) html += '<tr><td colspan="13" class="hint">Nenhum cliente encontrado.</td></tr>';
-  sortedRows.forEach(({cl, cardCount, balHours, accountant})=>{
+  if(!sortedRows.length) html += '<tr><td colspan="9" class="hint">Nenhum cliente encontrado.</td></tr>';
+  pageRows.forEach(({cl, cardCount, balHours, accountant})=>{
     const ctype = cl.clientType||'novo';
     const typeMeta = ctype==='base' ? {bg:'var(--brand-soft)', color:'var(--brand)', label:'Base'}
       : ctype==='contador' ? {bg:'#EDE7F6', color:'#7B4B94', label:'Contador'}
-      : {bg:'var(--gold-soft)', color:'var(--gold)', label:'Novo'};
+      : {bg:'var(--gold-soft)', color:'#8A5A00', label:'Novo'};
     const typeBadge = '<span class="badge" style="background:'+typeMeta.bg+';color:'+typeMeta.color+';">'+typeMeta.label+'</span>';
     const hasLinks = cardCount > 0 || schedulesForClient(cl.id).length > 0;
     const balTxt = cardCount ? minToHM(balHours*60) : '—';
@@ -10912,13 +11311,25 @@ function renderClientsView(){
     const accTxt = (ctype==='contador')
       ? '<span class="hint">—</span>'
       : (accountant ? esc(accountant.name) : '<span style="color:var(--ink-faint);">—</span>');
-    html += '<tr><td>'+esc(cl.code||'—')+'</td><td style="font-weight:700;">'+esc(cl.name)+'</td><td>'+esc(cl.companyName||'—')+'</td><td>'+esc(cl.cnpj||'—')+'</td><td>'+typeBadge+'</td>'
-      + '<td>'+accTxt+'</td>'
-      + '<td>'+(cardCount? '<span style="color:'+balColor+';font-weight:700;">'+balTxt+'</span>' : '<span class="hint">—</span>')+'</td>'
-      + '<td>'+esc(cl.city||'—')+'</td><td>'+esc(cl.uf||'—')+'</td><td>'+esc(cl.cep||'—')+'</td><td>'+esc(cl.contact||'—')+'</td><td>'+cardCount+'</td>'
-      + '<td><div class="row-actions"><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="client-view" data-id="'+cl.id+'">Visualizar</button><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="client-edit" data-id="'+cl.id+'">Editar</button>'
-      + '<button class="btn btn-sm btn-danger" data-action="delete-client" data-id="'+cl.id+'" '+(hasLinks?'disabled title="Não é possível excluir: há vínculos."':'')+'>Excluir</button></div></td></tr>';
+    const cityTxt = [cl.city, cl.uf].filter(Boolean).join(' / ') || '—';
+    html += '<tr>'
+      + '<td class="c-code">'+esc(cl.code||'—')+'</td>'
+      + '<td class="c-name"><div class="cn">'+esc(cl.name)+'</div>'+(cl.companyName?'<div class="cs">'+esc(cl.companyName)+'</div>':'')+'</td>'
+      + '<td class="c-cnpj nowrap">'+esc(cl.cnpj||'—')+'</td>'
+      + '<td class="c-type">'+typeBadge+'</td>'
+      + '<td class="c-acc">'+accTxt+'</td>'
+      + '<td class="c-bal nowrap">'+(cardCount? '<span style="color:'+balColor+';font-weight:700;">'+balTxt+'</span>' : '<span class="hint">—</span>')+'</td>'
+      + '<td class="c-city">'+esc(cityTxt)+'</td>'
+      + '<td class="c-cards">'+cardCount+'</td>'
+      + '<td class="c-act"><div class="row-actions nowrap"><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="client-view" data-id="'+cl.id+'">Ver</button><button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="client-edit" data-id="'+cl.id+'">Editar</button>'
+      + '<button class="btn btn-sm btn-text-danger" data-action="delete-client" data-id="'+cl.id+'" '+(hasLinks?'disabled title="Não é possível excluir: há vínculos."':'')+'>Excluir</button></div></td></tr>';
   });
+  html += '</tbody></table></div>';
+  if(pages > 1){
+    html += '<div class="pager"><button class="btn btn-sm" data-action="clients-page" data-page="'+(page-1)+'" '+(page===0?'disabled':'')+'>‹ Anterior</button>'
+      + '<span class="hint" style="margin:0;">'+(page*PAGE+1)+'–'+Math.min(sortedRows.length,(page+1)*PAGE)+' de '+sortedRows.length+'</span>'
+      + '<button class="btn btn-sm" data-action="clients-page" data-page="'+(page+1)+'" '+(page>=pages-1?'disabled':'')+'>Próxima ›</button></div>';
+  }
   html += '</tbody></table></div>';
   return html;
 }
@@ -10951,9 +11362,26 @@ function renderSettingsView(){
   const visibleTabs = allTabs.filter(t=> admin || !t.adminOnly);
   if(!visibleTabs.some(t=> t.k===ui.settingsTab)){ ui.settingsTab = visibleTabs[0] ? visibleTabs[0].k : 'produtos'; }
 
-  let html = '<div class="settings-tabs">';
-  visibleTabs.forEach(t=>{ html += '<button class="btn btn-sm'+(ui.settingsTab===t.k?' btn-primary':'')+'" data-action="settings-tab" data-tab="'+t.k+'">'+t.l+'</button>'; });
+  /* Configurações agrupadas por assunto (igual aos Relatórios). No celular vira uma lista de seleção. */
+  const SETTINGS_GROUPS = [
+    ['Equipe e acesso', ['analistas','acesso','ferias']],
+    ['Cadastros do sistema', ['produtos','modulos','telas','tipos']],
+    ['Modelos', ['modelos','cardtpl','checklists']],
+    ['Sistema', ['notificacoes','gestao','nuvem']]
+  ];
+  const stByKey = {}; visibleTabs.forEach(t=> stByKey[t.k] = t);
+  let html = '<div class="report-tab-groups settings-tab-groups">';
+  SETTINGS_GROUPS.forEach(([gl, keys])=>{
+    const items = keys.map(k=>stByKey[k]).filter(Boolean);
+    if(!items.length) return;
+    html += '<div class="report-tab-group"><span class="report-tab-group-label">'+gl+'</span>'
+      + items.map(t=>'<button class="chip-btn'+(ui.settingsTab===t.k?' active':'')+'" data-action="settings-tab" data-tab="'+t.k+'">'+esc(t.l)+'</button>').join('')
+      + '</div>';
+  });
   html += '</div>';
+  html += '<div class="field report-tab-select" style="margin:0 0 12px;"><label for="settings-tab-select">Configuração</label><select id="settings-tab-select">'
+    + SETTINGS_GROUPS.map(([gl, keys])=>{ const items = keys.map(k=>stByKey[k]).filter(Boolean); return items.length ? '<optgroup label="'+gl+'">'+items.map(t=>'<option value="'+t.k+'"'+(ui.settingsTab===t.k?' selected':'')+'>'+esc(t.l)+'</option>').join('')+'</optgroup>' : ''; }).join('')
+    + '</select></div>';
 
   if(ui.settingsTab!=='nuvem'){
     /* Botão "Novo" de Produtos / Módulos / Telas / Tipos de agenda fica aqui
@@ -11467,11 +11895,13 @@ function renderModal(){
         + '<option value="suporte" '+(effProfile==='suporte'?'selected':'')+'>Suporte</option>'
         + '<option value="administrador" '+(effProfile==='administrador'?'selected':'')+'>Administrador</option>'
         + '<option value="coordenadora" '+(effProfile==='coordenadora'?'selected':'')+'>Coordenadora (faz tudo que o Administrador faz, mas só aparece nos cards)</option>'
-        + '</select><span class="hint">Suporte não tem login no site — o nome só fica disponível pra escolher na tela de Férias.</span></div>';
+        + '</select><span class="hint">Suporte: com usuário e senha, entra no site e vê só Tarefas Pendentes e Contratos de Serviços. Sem usuário, não tem login.</span></div>';
     }
     if(isSupportProfile){
-      inner += '<input type="hidden" name="username" value="">'
-        + '<div class="field"><label>Cor</label><input type="color" name="color" value="'+(a?a.color:colorForIndex(state.analysts.length))+'"></div>';
+      inner += '<div class="field-row">'
+        + '<div class="field"><label>Usuário (login) <span class="hint" style="margin:0;">(opcional)</span></label><input type="text" name="username" value="'+esc(a?a.username:'')+'" autocomplete="off"></div>'
+        + '<div class="field"><label>Cor</label><input type="color" name="color" value="'+(a?a.color:colorForIndex(state.analysts.length))+'"></div>'
+        + '</div>';
     } else {
       inner += '<div class="field-row">'
         + '<div class="field"><label>Usuário (login)</label><input type="text" name="username" value="'+esc(a?a.username:'')+'" required autocomplete="off"></div>'
@@ -11489,9 +11919,7 @@ function renderModal(){
       +   '<div style="flex:1;min-width:0;"><input type="file" name="photo" accept="image/*">'
       +   (a && a.photo ? '<label class="check-pill" style="width:fit-content;margin-top:6px;"><input type="checkbox" name="removePhoto"> Remover foto atual</label>' : '')
       +   '</div></div></div>';
-    if(isSupportProfile){
-      inner += '<p class="hint">Perfil Suporte não acessa o sistema (sem usuário/senha).</p>';
-    } else {
+    {
       inner += '<div class="field-row">'
         + '<div class="field"><label>'+(a?'Nova senha (em branco mantém)':'Senha')+' <span class="hint" style="margin:0;">(mín. 8)</span></label><input type="password" name="password" '+(a?'':'required')+' minlength="8" autocomplete="new-password"></div>'
         + '<div class="field"><label>Confirmar senha</label><input type="password" name="passwordConfirm" '+(a?'':'required')+' minlength="8" autocomplete="new-password"></div>'
@@ -12571,7 +12999,7 @@ function renderScheduleForm(m){
     }
   }
 
-  if(isInternalType(eff.type)){
+  if(isInternalType(eff.type) || eff.category==='interna'){
   html += '<div class="field"><label>Clientes adicionais (opcional)</label>'
     + '<p class="hint" style="margin:2px 0 8px;">Use quando a mesma agenda atender mais de um cliente ao mesmo tempo (ex: reunião conjunta). Ao concluir, o valor de horas abatido é debitado do saldo de TODOS os clientes vinculados — o valor não é dividido entre eles.</p>';
   if(eff.additionalClientIds.length){
@@ -13084,7 +13512,7 @@ document.addEventListener('click', async function(e){
   const a = el.dataset.action;
   if(isManagerUser() && MANAGER_BLOCKED_RE.test(a)){ showAlert('Perfil Consulta é somente leitura.'); return; }
 
-  if(a==='goto-view'){ ui.view = el.dataset.view; ui.showNotif=false; ui.showUserMenu=false; ui.sidebarOpen=false; const jiraLazyP = (ui.view==='jira') ? ensureLazyTableLoaded('jiraRequirements') : null; refreshFromCloudIfChanged('view-change').finally(()=>{ render(); if(ui.view==='jira' && Date.now()-jiraSyncState.lastAt>60000) Promise.resolve(jiraLazyP).catch(()=>{}).then(()=>syncJiraRequirements({silent:true})); }); }
+  if(a==='goto-view'){ if(isSupportUser() && SUPPORT_VIEWS.indexOf(el.dataset.view)<0) return; ui.view = el.dataset.view; ui.showNotif=false; ui.showUserMenu=false; ui.sidebarOpen=false; const jiraLazyP = (ui.view==='jira') ? ensureLazyTableLoaded('jiraRequirements') : null; refreshFromCloudIfChanged('view-change').finally(()=>{ render(); if(ui.view==='jira' && Date.now()-jiraSyncState.lastAt>60000) Promise.resolve(jiraLazyP).catch(()=>{}).then(()=>syncJiraRequirements({silent:true})); }); }
   else if(a==='board-analyst-filter'){
     const id = el.dataset.id || el.value || 'all';
     ui.view='board'; ui.sidebarOpen=false; ui.showNotif=false; ui.showUserMenu=false; ui.boardAnalystFilter = id;
@@ -13163,7 +13591,7 @@ document.addEventListener('click', async function(e){
     const nf = [...document.querySelectorAll('form[data-form="template"]')].find(f=>!f.dataset.id);
     if(nf){ nf.querySelector('[name=name]').value = 'Implantação padrão'; nf.querySelector('[name=lines]').value = '0 | 2 | Kick-off e parametrização\n3 | 1,5 | Cadastros básicos\n7 | 2 | Movimentação\n14 | 2 | Fechamento e revisão'; nf.scrollIntoView({block:'center'}); }
   }
-  else if(a==='quick-open'){ ui.formErr=''; ui.modal = {type:'quick-time', values:null}; render(); }
+  else if(a==='quick-open'){ ui.formErr=''; ui.sidebarOpen=false; ui.modal = {type:'quick-time', values:null}; render(); }
   else if(a==='timer-stop'){
     const tm = readTimer(); const now = new Date();
     const hhmm = d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
@@ -13221,14 +13649,21 @@ document.addEventListener('click', async function(e){
       notifItems().forEach(x=>{
         if(x._notifKind==='balance'){ const c=getCard(x.id); if(c){ c.balanceAlertSeen = c.balanceAlertSeen||{}; c.balanceAlertSeen[me]=x.level; const cl0=getClient(c.clientId); logNotifHandled('balance',(x.level>=100?'Saldo de horas esgotado':'Saldo de horas acabando'),cl0?cl0.name:'Cliente','Lido',c.id); } }
         else if(x._notifKind==='jira'){ const r=getJiraRequirement(x.id); if(r && r.statusNotice){ r.statusNotice.seen = Array.isArray(r.statusNotice.seen)?r.statusNotice.seen:[]; if(!r.statusNotice.seen.includes(me)){ r.statusNotice.seen.push(me); const cl1=r.clientId?getClient(r.clientId):null; logNotifHandled('jira','Requisito '+(r.number||''),(cl1?cl1.name:''),'Lido',r.id); } } }
+        else if(x._notifKind==='task'){ const t=(state.tasks||[]).find(y=>y.id===x.id); if(t){ t.seenBy = Array.isArray(t.seenBy)?t.seenBy:[]; if(!t.seenBy.includes(me)){ t.seenBy.push(me); logNotifHandled('task','Tarefa: '+(t.title||''),'', 'Lido', t.id); } } }
       });
       persist();
     }
     render();
   }
+  else if(a==='task-notice-seen'){
+    const t=(state.tasks||[]).find(y=>y.id===el.dataset.id), me=myAnalystId();
+    if(t && me){ t.seenBy = Array.isArray(t.seenBy)?t.seenBy:[]; if(!t.seenBy.includes(me)){ t.seenBy.push(me); const cl=t.clientId?getClient(t.clientId):null; logNotifHandled('task','Tarefa: '+(t.title||''),(cl?cl.name:''),'Lido',t.id); } persist(); }
+    render();
+  }
   else if(a==='toggle-notif'){ ui.showNotif = !ui.showNotif; render(); }
   else if(a==='open-global-search'){
-    ui.showNotif=false; ui.showUserMenu=false; ui.gsQuery='';
+    if(isSupportUser()) return;
+    ui.showNotif=false; ui.showUserMenu=false; ui.gsQuery=''; ui.sidebarOpen=false;
     ui.modal = {type:'global-search'}; ui._focus = {id:'global-search-input', pos:0};
     render();
     ensureLazyTableLoaded('jiraRequirements');
@@ -13249,7 +13684,7 @@ document.addEventListener('click', async function(e){
     render();
   }
   else if(a==='open-faq-search'){
-    ui.showNotif=false; ui.showUserMenu=false;
+    ui.showNotif=false; ui.showUserMenu=false; ui.sidebarOpen=false;
     ui.faqQuery=''; ui.faqResults=null; ui.faqLoading=false; ui.faqError='';
     ui.modal = {type:'faq-search'};
     render();
@@ -13354,6 +13789,7 @@ document.addEventListener('click', async function(e){
     showConfirm('Excluir a tarefa "'+(t.title||'')+'"?', ()=>{ state.tasks = state.tasks.filter(x=>x.id!==t.id); ui.modal=null; persist(); render(); });
     return;
   }
+  else if((a==='task-to-schedule' || a==='task-to-card') && isSupportUser()){ return; }
   else if(a==='task-to-schedule'){
     const t = (state.tasks||[]).find(x=>x.id===el.dataset.id); if(!t) return;
     ui.view = 'calendar';
@@ -13761,6 +14197,19 @@ document.addEventListener('click', async function(e){
     ui.boardListStatusFilter = ['active','inactive','all'].includes(el.dataset.value) ? el.dataset.value : 'active';
     render();
   }
+  else if(a==='clients-page'){
+    ui.clientsPage = Math.max(0, Number(el.dataset.page)||0);
+    renderWithoutPersist();
+    try{ const v=document.querySelector('.view'); if(v) v.scrollTop=0; }catch(e){}
+  }
+  else if(a==='list-menu-toggle'){
+    ui.listMenuOpen = ui.listMenuOpen===el.dataset.list ? null : el.dataset.list;
+    renderWithoutPersist();
+  }
+  else if(a==='board-done-more'){
+    ui.doneListLimit = (ui.doneListLimit||10) + 20;
+    renderWithoutPersist();
+  }
   else if(a==='board-card-view'){
     ui.boardCardView = el.dataset.value==='compact' ? 'compact' : 'full';
     render();
@@ -13883,6 +14332,13 @@ document.addEventListener('click', async function(e){
     ui.calViewMode = el.dataset.view==='list' ? 'list' : 'grid';
     render();
   }
+  else if(a==='side-analysts-toggle'){ try{ localStorage.setItem('neo_side_analysts', localStorage.getItem('neo_side_analysts')==='1' ? '0' : '1'); }catch(e){} renderWithoutPersist(); }
+  else if(a==='dash-toggle-due'){ ui.dashShowAllDue = !ui.dashShowAllDue; renderWithoutPersist(); }
+  else if(a==='dash-filters-toggle'){ ui.dashFiltersOpen = !ui.dashFiltersOpen; renderWithoutPersist(); }
+  else if(a==='cal-goto-day'){
+    ui.calMode = 'day'; ui.calModeUserSet = true; ui.calStart = el.dataset.date;
+    renderWithoutPersist();
+  }
   else if(a==='cal-mode'){
     ui.calMode = el.dataset.mode==='day' ? 'day' : 'week';
     ui.calModeUserSet = true;
@@ -13961,6 +14417,8 @@ document.addEventListener('focusout', function(e){
   }
 });
 document.addEventListener('change', function(e){
+  if(e.target && e.target.id==='reports-tab-select'){ ui.reportsTab = e.target.value; render(); return; }
+  if(e.target && e.target.id==='settings-tab-select'){ const tab = e.target.value; ui.settingsTab = tab; if(tab==='gestao' && ui.backupChecks===undefined) loadBackupChecks().then(()=>render()); if(tab==='ferias') ensureLazyTableLoaded('vacationEntries'); render(); return; }
   if(e.target.matches('input[data-action="toggle-browser-notifications"]')){
     if(e.target.checked) enableBrowserNotifications();
     else { setBrowserNotificationsEnabled(false); render(); }
@@ -14386,7 +14844,7 @@ function appShortcuts(e){
     return;
   }
   if(mod && (e.key==='k' || e.key==='K')){
-    if(topOverlayEl()) return;
+    if(topOverlayEl() || isSupportUser()) return;
     e.preventDefault();
     ui.showNotif=false; ui.showUserMenu=false; ui.gsQuery=''; ui.modal = {type:'global-search'}; ui._focus = {id:'global-search-input', pos:0}; render();
     ensureLazyTableLoaded('jiraRequirements');
@@ -14463,13 +14921,14 @@ document.addEventListener('submit', async function(e){
        apagada sempre que um analista comum trocasse a própria senha. */
     const admissionDate = isAdminUser() ? (fd.get('admissionDate')||'') : (existing ? (existing.admissionDate||'') : '');
     let username='', password='', passwordConfirm='';
-    if(!wantsSupport){
+    if(wantsSupport && !(fd.get('username')||'').trim()){ /* Suporte sem login */ }
+    else {
       username = (fd.get('username')||'').trim().toLowerCase();
       password = fd.get('password')||''; passwordConfirm = fd.get('passwordConfirm')||'';
       if(!username){ showAlert('Informe o usuário.'); return; }
       if(!/^[a-z0-9._-]+$/.test(username)){ showAlert('Usuário inválido.'); return; }
       if(state.analysts.some(a=> a.username && a.username.toLowerCase()===username && a.id!==id)){ showAlert('Usuário duplicado.'); return; }
-      if(!id && !password){ showAlert('Defina senha.'); return; }
+      if((!id || (wantsSupport && existing && !existing.authReady && !existing.username)) && !password){ showAlert('Defina senha.'); return; }
       if(password || passwordConfirm){
         if(password !== passwordConfirm){ showAlert('Senhas diferentes.'); return; }
         if(password.length < 8){ showAlert('A senha precisa ter pelo menos 8 caracteres.'); return; }
@@ -14486,10 +14945,11 @@ document.addEventListener('submit', async function(e){
       a.name = name; a.color = color; a.admissionDate = admissionDate; a.email = email;
       if(isAdminUser() && fd.has('monthlyGoal')) a.monthlyGoalHours = Math.max(0, parseFloat(fd.get('monthlyGoal'))||0);
       if(newPhoto!==undefined) a.photo = newPhoto;
-      if(wantsSupport){
-        a.isSupport = true; a.username = ''; a.password = '';
+      if(wantsSupport && !username){
+        a.isSupport = true; a.isManager = false; a.isCoordinator = false; a.username = ''; a.password = '';
       } else {
-        a.isSupport = false; a.username = username; if(canChangeProfile){ a.isManager = wantsManager; a.isCoordinator = wantsCoordinator; }
+        if(wantsSupport){ a.isManager = false; a.isCoordinator = false; }
+        a.isSupport = wantsSupport; a.username = username; if(canChangeProfile && !wantsSupport){ a.isManager = wantsManager; a.isCoordinator = wantsCoordinator; }
         if(!a.isAdmin && wantsAdmin) a.isAdmin = true;
         if(isSecureSession() && isAdminUser()){
           try{ await syncAnalystLogin(a, password); }
@@ -14501,7 +14961,7 @@ document.addEventListener('submit', async function(e){
       }
       const b = boardOfAnalyst(id); if(b) b.name = 'Quadro — '+name;
     } else {
-      const secureNow = isSecureSession() && isAdminUser() && !wantsSupport;
+      const secureNow = isSecureSession() && isAdminUser() && !!username;
       const r = createAnalyst(name, color, username, (!secureNow && password) ? await hashPassword(password) : '', wantsAdmin, admissionDate, wantsSupport, email);
       if(secureNow){
         if(wantsManager) r.analyst.isManager = true;
@@ -14746,7 +15206,7 @@ document.addEventListener('submit', async function(e){
     };
     ui.formErr='';
     state.tasks = state.tasks||[];
-    if(id){ const t = state.tasks.find(x=>x.id===id); if(t) Object.assign(t, data, {updatedAt:Date.now()}); }
+    if(id){ const t = state.tasks.find(x=>x.id===id); if(t){ if(t.analystId!==data.analystId) t.seenBy = []; Object.assign(t, data, {updatedAt:Date.now()}); } }
     else { state.tasks.push(Object.assign({id:uid('tk'), createdAt:Date.now(), createdBy:taskActorName(), scheduleIds:[], cardIds:[]}, data)); }
     ui.modal = null; persist(); render();
   }
@@ -15862,6 +16322,11 @@ if('serviceWorker' in navigator){
     function it(active, icon, label, attrs, badge){
       return '<button type="button" class="bn-item'+(active?' active':'')+'" '+attrs+'><span class="bn-ico">'+icon+'</span><span>'+label+'</span>'+(badge?'<span class="bn-badge">'+(badge>99?'99+':badge)+'</span>':'')+'</button>';
     }
+    if(isSupportUser()) return '<nav class="bottom-nav" aria-label="Atalhos principais">'
+      + it(ui.view==='tasks', '☑', 'Tarefas', 'data-action="goto-view" data-view="tasks"')
+      + it(ui.view==='contracts', '📄', 'Contratos', 'data-action="goto-view" data-view="contracts"')
+      + it(false, '☰', 'Mais', 'data-action="toggle-sidebar"')
+      + '</nav>';
     return '<nav class="bottom-nav" aria-label="Atalhos principais">'
       + it(ui.view==='dashboard', '🏠', 'Painel', 'data-action="goto-view" data-view="dashboard"')
       + it(ui.view==='board', '▦', 'Quadro', 'data-action="board-analyst-filter" data-id="'+mine+'"')
@@ -15914,7 +16379,7 @@ if('serviceWorker' in navigator){
     var cfg = FP_VIEWS[ui.view]; var vw = app.querySelector('.view'); if(!cfg || !vw) return;
     var list = fpLoad().filter(function(p){ return p.view === ui.view; });
     var cur = fpCurrent(ui.view);
-    var bar = document.createElement('div'); bar.className = 'fp-bar';
+    var bar = document.createElement('div'); bar.className = 'fp-bar'+(list.length||ui._fpNaming?'':' fp-empty');
     list.forEach(function(p){
       var chip = document.createElement('span'); chip.className = 'fp-chip'+(fpSame(p.values, cur)?' on':'');
       var a = document.createElement('button'); a.type = 'button'; a.className = 'fp-apply'; a.textContent = '⭐ '+p.name; a.setAttribute('data-ux','fp-apply'); a.setAttribute('data-id', p.id);
@@ -16083,7 +16548,8 @@ if('serviceWorker' in navigator){
     });
     var top = overlays.length ? overlays[overlays.length - 1] : null;
     if(top && !hadModal && !top.contains(document.activeElement)){
-      var touch = false; try{ touch = isTouchDevice() || (window.matchMedia && matchMedia('(pointer:coarse)').matches); }catch(e){}
+      var cardLike = !!top.querySelector('[id^="coclient-input"]');
+      var touch = cardLike; try{ touch = touch || isTouchDevice() || (window.matchMedia && matchMedia('(pointer:coarse)').matches); }catch(e){}
       var first = touch ? (top.querySelector('.modal') || top) : top.querySelector('input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])')
                || top.querySelector('[data-action="confirm-ok"]')
                || top.querySelector('button:not(.modal-close):not([disabled])');
