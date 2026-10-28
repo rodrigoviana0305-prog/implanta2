@@ -469,6 +469,19 @@ tr.row-inactive{ opacity:.55; }
 .attach-dropzone .adz-title{ font-weight:700; font-size:13px; margin-top:4px; color:var(--ink); }
 .attach-dropzone .adz-sub{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
 .attach-list{ margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+.sig-panel{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line,#e3e6e4);border-radius:10px;background:var(--surface-2,#f6f8f7);display:flex;flex-direction:column;gap:10px;}
+.sig-row{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;}
+.sig-info{flex:1 1 220px;min-width:0;font-size:13px;}
+.sig-actions{display:flex;gap:6px;flex-wrap:wrap;}
+.sig-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11.5px;font-weight:700;white-space:nowrap;}
+.sig-badge.sig-ok{background:#dff3e6;color:#17663a;}
+.sig-badge.sig-warn{background:#fff1d6;color:#8a5a00;}
+.sig-badge.sig-bad{background:#fde2e1;color:#a12a22;}
+.sig-form h4{margin:0 0 4px;font-size:14px;}
+.sig-signer{display:grid;grid-template-columns:1.3fr 1.3fr 1fr auto;gap:6px;margin-bottom:6px;}
+.sig-signer input{min-width:0;}
+.sig-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
+@media (max-width:820px){.sig-signer{grid-template-columns:1fr 1fr;}}
 .attach-item{
   display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--border);
   border-radius:9px; background:var(--surface);
@@ -2291,7 +2304,7 @@ function logout(msg){
 
 /* ============================= STATE ============================= */
 /* Versão do site exibida no rodapé do menu: 1.0.<número da geração do index.html>. Atualizar a cada entrega. */
-const APP_VERSION = '1.0.321';
+const APP_VERSION = '1.0.325';
 const STORAGE_KEY = 'implanta_v1';
 const PALETTE = [
   '#0B5C8E','#C0392B','#1E8449','#8E44AD','#E67E22','#16A085','#C2185B','#2980B9',
@@ -3093,6 +3106,7 @@ async function refreshFromCloudIfChanged(source){
   let changed = false;
   try{
     const meta = await loadSyncMeta(sbClient);
+    if(meta.signature_requests && !sameInstant(meta.signature_requests, sigMetaTs)){ sigMetaTs = meta.signature_requests; loadSignatureRequests(false); }
     const tablesToCheck = ENTITY_TABLES.concat(LAZY_TABLES.filter(t=>lazyLoadedTables[t.key]));
     const changedEntries = tablesToCheck.filter(({table})=>{
       const remoteTs = meta[table];
@@ -3604,6 +3618,8 @@ async function boot(){
       markPersistBaseline();
       bootCacheSchedule();
       startRealtimeSync();
+      sigMetaTs = (tableUpdatedAt && tableUpdatedAt.signature_requests) || null;
+      if(sigMetaTs) loadSignatureRequests(true);
     }catch(e){
       console.warn('Falha ao conectar à nuvem', e);
       cloudStatus = 'error';
@@ -4348,9 +4364,10 @@ function renderCardCertificates(cardId){
   const client = getClient(c.clientId); const board = getBoard(c.boardId); const analyst = board ? getAnalyst(board.analystId) : null;
   const list = certificateData(c);
   let h = '<div class="modal-header no-print"><h3>Certificados de treinamento</h3>'
-    + (list.length ? '<button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button>' : '')
+    + (list.length ? '<button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button>' + sigHeaderButton('certificados', c.id) : '')
     + '<button class="modal-close" data-action="close-modal">✕</button></div>';
   if(!list.length) return h + '<p class="hint">Nenhum usuário treinado registrado nas agendas concluídas deste card. Preencha o campo “Usuários treinados” nas agendas (separe os nomes por ponto e vírgula) e conclua-as.</p>';
+  h += sigPanelHtml('certificados', c.id);
   h += '<p class="hint no-print" style="margin-top:0;">'+list.length+' certificado(s), um por usuário treinado, em folha A4 paisagem. Confira os nomes antes de imprimir.</p>';
   h += '<div id="print-report" class="cert-wrap">';
   list.forEach(u=>{
@@ -8823,6 +8840,18 @@ function renderCardModalContent(card){
 function renderCardAttachmentsTab(card){
   const list = card.attachments || [];
   let html = '<p class="hint" style="margin-top:-4px;">Anexe aqui o PDF do contrato, imagens, planilhas ou outros documentos relacionados a este cliente.</p>';
+  const sigs = signatureRequests.filter(r=> ((r.kind==='fechamento' || r.kind==='certificados') && String(r.refId)===String(card.id))
+    || (r.kind==='contrato' && (()=>{ const sc = getServiceContract(r.refId); return sc && sc.cardId===card.id; })())).sort((a,b)=>(b.sentAt||0)-(a.sentAt||0));
+  if(sigs.length){
+    html += '<div class="sig-panel"><strong style="font-size:13px;">Documentos enviados para assinatura</strong>';
+    sigs.forEach(r=>{
+      html += '<div class="sig-row">'+sigBadge(r)+'<div class="sig-info"><strong>'+esc(SIG_KIND_LABEL[r.kind]||'Documento')+'</strong> · enviado em '+fmtDT(r.sentAt||Date.now())+'</div><div class="sig-actions">'
+        + sigDocButtons(r)
+        + (['enviado','parcial','finalizando'].indexOf(r.status)>=0 ? '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-refresh" data-id="'+esc(r.id)+'">↻ Atualizar</button>' : '')
+        + '</div></div>';
+    });
+    html += '</div>';
+  }
   html += '<div class="attach-dropzone" data-action="attach-upload-click" data-card="'+card.id+'">'
     + '<div class="adz-icon">📎</div>'
     + '<div class="adz-title">Clique para escolher arquivo(s)</div>'
@@ -11373,11 +11402,12 @@ function renderServiceContractsView(){
         +'<td>R$ '+fmtMoneyBR(c.totalValue)+'</td>'
         +'<td>'+nInst+'x</td>'
         +'<td>'+esc(c.responsibleName||'—')+'</td>'
-        +'<td>'+fmtDateBR(c.contractDate)+'</td>'
+        +'<td>'+fmtDateBR(c.contractDate)+(sigLatestFor('contrato', c.id) ? '<br>'+sigBadge(sigLatestFor('contrato', c.id)) : '')+'</td>'
         +'<td>'+linkedCardCell+'</td>'
         +'<td class="row-actions">'
         +'<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="service-contract" data-id="'+c.id+'">Editar</button>'
         +'<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="service-contract-print" data-id="'+c.id+'">🖨 Imprimir</button>'
+        +(sigLatestFor('contrato', c.id) && sigLatestFor('contrato', c.id).status==='assinado' && !sigDocDeleted(sigLatestFor('contrato', c.id)) ? '<button class="btn btn-sm btn-ghost" data-action="sig-doc-view" data-id="'+esc(sigLatestFor('contrato', c.id).id)+'" title="Ver o contrato assinado">✍ Assinado</button>' : '')
         +'<button class="btn btn-sm btn-danger" data-action="contract-delete" data-id="'+c.id+'">Excluir</button>'
         +'</td></tr>';
     });
@@ -12621,7 +12651,8 @@ function renderCardClosingReport(cardId){
   });
   const internalMinutes = internalSchedulesInPeriod.reduce((sum,s)=> sum + scheduleActualMinutes(s), 0);
 
-  let html = '<div class="modal-header no-print"><h3>Relatório de fechamento da implantação</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button><button class="modal-close" data-action="close-modal">✕</button></div>';
+  let html = '<div class="modal-header no-print"><h3>Relatório de fechamento da implantação</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button>'+sigHeaderButton('fechamento', c.id)+'<button class="modal-close" data-action="close-modal">✕</button></div>';
+  html += sigPanelHtml('fechamento', c.id);
   html += '<div id="print-report" class="closing-report-print">'
     + '<div class="closing-report-header"><img class="closing-report-logo" src="https://realtec.com.br/wp-content/uploads/2018/03/logorealtec.png" alt="Realtec"></div>'
     + '<h2 class="closing-report-title">Relatório de Fechamento da Implantação</h2>'
@@ -12916,7 +12947,8 @@ function renderServiceContractPrint(contractId){
   const client = c.clientId ? getClient(c.clientId) : null;
   const installments = c.installments || [];
 
-  let html = '<div class="modal-header no-print"><h3>Contrato de Prestação de Serviços</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button><button class="modal-close" data-action="close-modal">✕</button></div>';
+  let html = '<div class="modal-header no-print"><h3>Contrato de Prestação de Serviços</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button>'+sigHeaderButton('contrato', c.id)+'<button class="modal-close" data-action="close-modal">✕</button></div>';
+  html += sigPanelHtml('contrato', c.id);
 
   html += '<div class="contract-print" id="print-report">';
   html += '<div class="contract-print-header">'
@@ -13473,6 +13505,250 @@ function nodeText(node){
   const raw = (typeof node.innerText === 'string') ? node.innerText : (node.textContent||'');
   return String(raw||'');
 }
+/* ===================== Assinatura eletrônica (Assinafy) =====================
+   Contratos de serviço, relatórios de fechamento e certificados podem ser enviados
+   para assinatura. O PDF é gerado aqui no navegador e enviado à Edge Function
+   "assinafy" (Supabase), que fala com o Assinafy usando a chave guardada no servidor.
+   O acompanhamento fica na tabela "signature_requests" (servidor/24_assinaturas.sql):
+   o site só LÊ essa tabela; quem grava é a função (e o webhook do Assinafy). */
+var signatureRequests = [];
+var sigMetaTs = null, sigLoadedOnce = false, sigTableMissing = false;
+const SIG_KIND_LABEL = {contrato:'Contrato de serviço', fechamento:'Relatório de fechamento', certificados:'Certificados de treinamento'};
+const SIG_STATUS = {
+  enviado:['Aguardando assinatura','warn'], parcial:['Assinado em parte','warn'], finalizando:['Finalizando','warn'],
+  assinado:['Assinado','ok'], recusado:['Recusado','bad'], expirado:['Expirado','bad'], erro:['Erro no Assinafy','bad']
+};
+function assinafyEndpoint(){ return (cloudConfig && cloudConfig.url ? cloudConfig.url : DEFAULT_CLOUD_CONFIG.url) + '/functions/v1/assinafy'; }
+async function loadSignatureRequests(silent){
+  const sb = (typeof sbClient!=='undefined' && sbClient) || (typeof getSb==='function' ? getSb() : null);
+  if(!sb || !sb.from) return;
+  try{
+    const res = await sb.from('signature_requests').select('id, data');
+    if(!res || res.error){ sigTableMissing = true; return; }
+    sigTableMissing = false;
+    const prev = new Map(signatureRequests.map(r=>[r.id, r.status]));
+    const next = (res.data||[]).map(row=>Object.assign({}, row.data||{}, {id: row.id}));
+    /* Envio recém-feito que ainda não apareceu na leitura: mantém por 2 minutos. */
+    signatureRequests.forEach(r=>{ if(r._local && Date.now()-(r.sentAt||0) < 120000 && !next.some(x=>x.id===r.id)) next.push(r); });
+    if(sigLoadedOnce && !silent){
+      next.forEach(r=>{
+        const was = prev.get(r.id);
+        if(was && was!==r.status && (r.status==='assinado' || r.status==='recusado'))
+          showToast((r.status==='assinado' ? '✍ Assinado: ' : '✖ Assinatura recusada: ') + (r.title || SIG_KIND_LABEL[r.kind] || 'documento'), r.status==='assinado' ? 'ok' : 'warn');
+      });
+    }
+    const changed = JSON.stringify(next) !== JSON.stringify(signatureRequests);
+    signatureRequests = next; sigLoadedOnce = true;
+    if(changed && !ui.sigForm && !hasOpenFormModal()) renderWithoutPersist();
+  }catch(e){ console.warn('Assinaturas: falha ao ler signature_requests', e); }
+}
+function sigRequestsFor(kind, refId){
+  return signatureRequests.filter(r=>r.kind===kind && String(r.refId)===String(refId)).sort((a,b)=>(b.sentAt||0)-(a.sentAt||0));
+}
+function sigLatestFor(kind, refId){ return sigRequestsFor(kind, refId)[0] || null; }
+function sigBadge(r){
+  if(!r) return '';
+  const s = SIG_STATUS[r.status] || [r.status||'—','warn'];
+  return '<span class="sig-badge sig-'+s[1]+'" title="'+esc(SIG_KIND_LABEL[r.kind]||'')+'">✍ '+esc(s[0])+(r.status==='parcial' && r.total ? ' '+(r.done||0)+'/'+r.total : '')+'</span>';
+}
+function canSendSignature(){ return !!currentUser && !isManagerUser(); }
+function sigHeaderButton(kind, refId){
+  if(!canSendSignature()) return '';
+  return '<button class="btn btn-sm btn-ghost" data-action="sig-open" data-kind="'+kind+'" data-ref="'+esc(refId)+'">✍ Enviar para assinatura</button>';
+}
+function sigContextFor(kind, refId){
+  let client = null, title = SIG_KIND_LABEL[kind] || 'Documento', card = null;
+  if(kind==='contrato'){
+    const c = getServiceContract(refId); client = c && c.clientId ? getClient(c.clientId) : null;
+    title = 'Contrato de Prestação de Serviços' + (client ? ' — '+client.name : '');
+    return {client, title, contract:c};
+  }
+  card = getCard(refId); client = card ? getClient(card.clientId) : null;
+  title = (kind==='fechamento' ? 'Relatório de Fechamento da Implantação' : 'Certificados de Treinamento') + (client ? ' — '+client.name : '');
+  return {client, title, card};
+}
+/* Quem assina, por padrão (dá para editar antes de enviar):
+   contrato → responsável do cliente + o analista logado (pela Realtec);
+   fechamento → responsável do cliente; certificados → analista do card. */
+function sigDefaultSigners(kind, refId){
+  const ctx = sigContextFor(kind, refId); const cl = ctx.client;
+  const me = myAnalystId() ? getAnalyst(myAnalystId()) : null;
+  const clientSigner = {name: (ctx.contract && ctx.contract.responsibleName) || (cl && cl.contact) || '', email: (cl && cl.email) || '', whatsapp:''};
+  if(kind==='contrato'){
+    const out = [clientSigner];
+    if(me && me.email) out.push({name: me.name, email: me.email, whatsapp:''});
+    return out;
+  }
+  if(kind==='certificados'){
+    const b = ctx.card ? getBoard(ctx.card.boardId) : null; const an = (b && getAnalyst(b.analystId)) || me;
+    return [{name: an ? an.name : '', email: an && an.email ? an.email : '', whatsapp:''}];
+  }
+  return [clientSigner];
+}
+function sigPanelHtml(kind, refId){
+  const reqs = sigRequestsFor(kind, refId);
+  const f = (ui.sigForm && ui.sigForm.kind===kind && String(ui.sigForm.refId)===String(refId)) ? ui.sigForm : null;
+  if(!reqs.length && !f) return '';
+  let h = '<div class="sig-panel no-print">';
+  reqs.forEach(r=>{
+    const who = (r.signers||[]).map(s=>(s.signed ? '✓ ' : '')+esc(s.name||s.email)).join(', ');
+    const open = ['enviado','parcial','finalizando'].indexOf(r.status)>=0;
+    h += '<div class="sig-row">'+sigBadge(r)
+      + '<div class="sig-info">Enviado em '+fmtDT(r.sentAt||Date.now())+(r.sentBy ? ' por '+esc(r.sentBy) : '')+(who ? '<br><span class="hint">Signatários: '+who+'</span>' : '')
+      + (r.rejectReason ? '<br><span class="hint">Motivo da recusa: '+esc(r.rejectReason)+'</span>' : '')
+      + (r.status==='assinado' && r.signedAt ? '<br><span class="hint">Assinado em '+fmtDT(r.signedAt)+'</span>' : '')
+      + (r.ambiente==='testes' ? '<br><span class="hint">Ambiente de testes do Assinafy (sem validade jurídica).</span>' : '')
+      + '</div><div class="sig-actions">'
+      + sigDocButtons(r)
+      + (open ? '<button class="btn btn-sm btn-ghost" data-action="sig-refresh" data-id="'+esc(r.id)+'">↻ Atualizar</button>' : '')
+      + '</div></div>';
+  });
+  if(f){
+    h += '<div class="sig-form"><h4>Enviar para assinatura eletrônica</h4>'
+      + '<p class="hint">O documento abaixo vira PDF e vai para o Assinafy, que manda o link de assinatura por e-mail a cada pessoa. WhatsApp é opcional.</p>';
+    f.signers.forEach((s,i)=>{
+      h += '<div class="sig-signer">'
+        + '<input type="text" placeholder="Nome completo" data-sig-idx="'+i+'" data-sig-field="name" value="'+esc(s.name)+'">'
+        + '<input type="email" placeholder="E-mail" data-sig-idx="'+i+'" data-sig-field="email" value="'+esc(s.email)+'">'
+        + '<input type="tel" placeholder="WhatsApp (opcional)" data-sig-idx="'+i+'" data-sig-field="whatsapp" value="'+esc(s.whatsapp)+'">'
+        + (f.signers.length>1 ? '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-del-row" data-idx="'+i+'" title="Remover">✕</button>' : '<span></span>')
+        + '</div>';
+    });
+    h += '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-add-row">+ Adicionar signatário</button>'
+      + '<div class="field" style="margin-top:8px;"><label>Mensagem no e-mail (opcional)</label><textarea rows="2" data-sig-field="message">'+esc(f.message||'')+'</textarea></div>'
+      + '<div class="sig-form-actions"><button type="button" class="btn btn-ghost" data-action="sig-cancel"'+(f.sending?' disabled':'')+'>Cancelar</button>'
+      + '<button type="button" class="btn btn-primary" data-action="sig-send"'+(f.sending?' disabled':'')+'>'+(f.sending ? 'Enviando…' : '✍ Enviar para assinatura')+'</button></div>'
+      + '</div>';
+  }
+  return h + '</div>';
+}
+/* Documento assinado: ver, imprimir e baixar pela cópia guardada no Storage do Supabase (mantida sempre).
+   12 h após a assinatura a função pede ao Assinafy para apagar o documento (servidor/25_limpeza_assinaturas.sql). */
+function sigDocDeleted(r){ return !!(r && r.assinafyDeletedAt && !r.signedPdfUrl); }
+function sigDocButtons(r){
+  if(!r || r.status!=='assinado') return '';
+  if(sigDocDeleted(r)) return '<span class="hint">Documento removido do Assinafy em '+fmtDT(r.assinafyDeletedAt)+' e sem cópia guardada.</span>';
+  return '<button type="button" class="btn btn-sm btn-primary" data-action="sig-doc-view" data-id="'+esc(r.id)+'">👁 Ver assinado</button>'
+    + '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-doc-print" data-id="'+esc(r.id)+'">🖨 Imprimir</button>'
+    + '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-doc-download" data-id="'+esc(r.id)+'" title="Baixar PDF assinado">⬇</button>';
+}
+async function sigFetchSignedPdf(id){
+  const r = signatureRequests.find(x=>x.id===id);
+  if(r && r.signedPdfUrl){
+    try{ const res = await fetch(r.signedPdfUrl, {cache:'no-store'}); if(res.ok){ const b = await res.blob(); if(b.size) return new Blob([b], {type:'application/pdf'}); } }catch(e){}
+  }
+  const res = await fetch(assinafyEndpoint(), {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify({action:'baixar', id})});
+  if(!res.ok){ let out = {}; try{ out = await res.json(); }catch(e){} throw new Error(out.error || ('HTTP '+res.status)); }
+  return new Blob([await res.blob()], {type:'application/pdf'});
+}
+function sigDocFileName(id){
+  const r = signatureRequests.find(x=>x.id===id);
+  return slugifyFilename(((r && r.title) || 'documento') + ' assinado');
+}
+async function sigDocAction(kind, id){
+  let w = null;
+  if(kind==='view'){
+    w = window.open();
+    if(!w){ showAlert('Não foi possível abrir a visualização. Verifique o bloqueador de pop-ups.'); return; }
+    try{ w.document.title = 'Documento assinado'; w.document.body.style.cssText = 'margin:0;font-family:sans-serif;'; w.document.body.textContent = 'Carregando o documento assinado…'; }catch(e){}
+  } else showToast(kind==='print' ? 'Preparando a impressão…' : 'Baixando o PDF assinado…');
+  try{
+    const blob = await sigFetchSignedPdf(id);
+    const url = URL.createObjectURL(blob);
+    if(kind==='view'){
+      w.document.body.textContent = '';
+      const fr = w.document.createElement('iframe');
+      fr.style.cssText = 'border:none;position:fixed;inset:0;width:100%;height:100%;';
+      fr.src = url; w.document.body.appendChild(fr);
+    } else if(kind==='print'){
+      let fr = document.getElementById('sig-print-frame'); if(fr) fr.remove();
+      fr = document.createElement('iframe'); fr.id = 'sig-print-frame';
+      fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      fr.onload = function(){ setTimeout(function(){ try{ fr.contentWindow.focus(); fr.contentWindow.print(); }catch(e){ window.open(url, '_blank'); } }, 300); };
+      fr.src = url; document.body.appendChild(fr);
+    } else {
+      const a = document.createElement('a'); a.href = url; a.download = sigDocFileName(id);
+      document.body.appendChild(a); a.click(); a.remove();
+    }
+    setTimeout(function(){ try{ URL.revokeObjectURL(url); }catch(e){} }, 120000);
+  }catch(e){
+    if(w){ try{ w.close(); }catch(_){} }
+    showAlert('Não foi possível abrir o documento assinado.\n'+((e && e.message) || e));
+  }
+}
+function sigOpenForm(kind, refId){
+  ui.sigForm = {kind, refId, signers: sigDefaultSigners(kind, refId), message:'', sending:false};
+  render();
+}
+function sigCaptureInput(t){
+  const f = ui.sigForm; if(!f || !t || !t.dataset) return;
+  const field = t.dataset.sigField; if(!field) return;
+  if(field==='message'){ f.message = t.value; return; }
+  const i = Number(t.dataset.sigIdx); if(f.signers[i]) f.signers[i][field] = t.value;
+}
+function sigNormalizePhone(v){
+  let d = String(v||'').replace(/\D/g,''); if(!d) return '';
+  if(d.length<=11) d = '55'+d;
+  return '+'+d;
+}
+function blobToBase64(blob){
+  return new Promise((resolve, reject)=>{
+    const r = new FileReader();
+    r.onload = ()=> resolve(String(r.result||'').replace(/^data:[^,]*,/, ''));
+    r.onerror = ()=> reject(r.error || new Error('Falha ao ler o PDF.'));
+    r.readAsDataURL(blob);
+  });
+}
+async function sigSend(){
+  const f = ui.sigForm; if(!f || f.sending) return;
+  const signers = f.signers.map(s=>({name:String(s.name||'').trim(), email:String(s.email||'').trim(), whatsapp:sigNormalizePhone(s.whatsapp)})).filter(s=>s.name || s.email);
+  if(!signers.length){ showAlert('Informe ao menos um signatário.'); return; }
+  const bad = signers.find(s=>!s.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email));
+  if(bad){ showAlert('Cada signatário precisa de nome e e-mail válido. Confira: '+(bad.name||bad.email||'linha sem nome')+'.'); return; }
+  const html = htmlFromPrintReport();
+  if(!html){ showAlert('Não encontrei o documento para gerar o PDF. Feche e abra de novo.'); return; }
+  const ctx = sigContextFor(f.kind, f.refId);
+  const me = myAnalystId() ? getAnalyst(myAnalystId()) : null;
+  f.sending = true; render();
+  try{
+    const blob = await generatePdfBlob(html, {orientation: f.kind==='certificados' ? 'landscape' : 'portrait'});
+    const pdfBase64 = await blobToBase64(blob);
+    const res = await fetch(assinafyEndpoint(), {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify({
+      action:'enviar', kind:f.kind, refId:f.refId, clientId: ctx.client ? ctx.client.id : '',
+      title: ctx.title, fileName: slugifyFilename(ctx.title), pdfBase64, signers, message: f.message||'',
+      sentBy: me ? me.name : (currentUser && currentUser.name) || ''
+    })});
+    let out = {}; try{ out = await res.json(); }catch(e){}
+    if(res.status===404 && !out.error) throw new Error('A função "assinafy" ainda não foi publicada no Supabase.');
+    if(!res.ok || !out.ok) throw new Error(out.error || ('HTTP '+res.status));
+    signatureRequests = signatureRequests.filter(r=>r.id!==out.documentId).concat([{
+      id: out.documentId, kind:f.kind, refId:String(f.refId), clientId: ctx.client ? ctx.client.id : '', title: ctx.title,
+      status:'enviado', done:0, total:signers.length, signers: signers.map(s=>({name:s.name, email:s.email, signed:false})),
+      sentAt: Date.now(), sentBy: me ? me.name : '', _local: true
+    }]);
+    ui.sigForm = null;
+    showToast('Enviado para assinatura. Cada signatário recebe o link por e-mail.', 'ok');
+    loadSignatureRequests(true);
+  }catch(e){
+    f.sending = false;
+    showAlert('Não foi possível enviar para assinatura.\n'+((e && e.message) || e));
+    return;
+  }
+  render();
+}
+async function sigRefresh(ids){
+  ids = (ids||[]).filter(Boolean); if(!ids.length) return;
+  try{
+    const res = await fetch(assinafyEndpoint(), {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify({action:'status', ids})});
+    let out = {}; try{ out = await res.json(); }catch(e){}
+    if(!res.ok || !out.ok) throw new Error(out.error || ('HTTP '+res.status));
+    await loadSignatureRequests(false);
+    const r = (out.results||[])[0];
+    showToast(r && r.error ? 'Assinafy: '+r.error : 'Situação da assinatura atualizada.', r && r.error ? 'warn' : 'ok');
+    render();
+  }catch(e){ showAlert('Não foi possível consultar o Assinafy.\n'+((e && e.message) || e)); }
+}
+document.addEventListener('input', function(e){ if(e.target && e.target.dataset && e.target.dataset.sigField) sigCaptureInput(e.target); }, true);
 function htmlFromPrintReport(){
   const node = document.querySelector('.overlay .modal #print-report');
   return node ? node.outerHTML : '';
@@ -13588,8 +13864,9 @@ function nextPaint(){
     requestAnimationFrame(()=>requestAnimationFrame(resolve));
   });
 }
-function generatePdfBlob(innerHtml){
-  if(!pdfLibReady()) return loadLib('html2pdf').then(function(){ if(!pdfLibReady()) throw new Error('Biblioteca de PDF não carregada.'); return generatePdfBlob(innerHtml); });
+function generatePdfBlob(innerHtml, opts){
+  opts = opts || {};
+  if(!pdfLibReady()) return loadLib('html2pdf').then(function(){ if(!pdfLibReady()) throw new Error('Biblioteca de PDF não carregada.'); return generatePdfBlob(innerHtml, opts); });
   const overlay = showPdfGenOverlay();
   const container = document.createElement('div');
   container.style.position = 'static';
@@ -13606,7 +13883,7 @@ function generatePdfBlob(innerHtml){
     margin: 10,
     html2canvas: { scale: 2, useCORS: true, scrollX: 0, scrollY: 0 },
     pagebreak: { mode: ['css','legacy'] },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    jsPDF: { unit: 'mm', format: 'a4', orientation: opts.orientation==='landscape' ? 'landscape' : 'portrait' }
   }).outputPdf('blob')).then(blob=>{
     cleanup();
     return blob;
@@ -13816,7 +14093,7 @@ document.addEventListener('click', async function(e){
     if(!sc.clientId){ showAlert('Vincule um cliente à agenda antes de criar o contrato.'); return; }
     ui.modal = {type:'service-contract', scheduleId:sc.id}; ui.formErr=''; ui.formSuccess=''; render();
   }
-  else if(a==='close-modal' || a==='close-modal-bg'){ closeModal(); }
+  else if(a==='close-modal' || a==='close-modal-bg'){ ui.sigForm = null; closeModal(); }
   else if(a==='confirm-ok'){ const d=ui.confirmDialog; ui.confirmDialog=null; if(d && d.onConfirm) d.onConfirm(); render(); }
   else if(a==='confirm-cancel'){ ui.confirmDialog=null; render(); }
   else if(a==='close-card'){ ui.openCardId=null; ui.cardDraft=null; ui.cardModuleTab=null; ui.cardForecastModuleTab=null; render(); }
@@ -14432,6 +14709,15 @@ document.addEventListener('click', async function(e){
   else if(a==='import-clients-trigger'){ const el2=document.getElementById('import-clients-file'); if(el2) el2.click(); }
   else if(a==='download-client-template'){ downloadClientTemplate(); }
   else if(a==='print-report'){ doPrint(); }
+  else if(a==='sig-open'){ sigOpenForm(el.dataset.kind, el.dataset.ref); }
+  else if(a==='sig-cancel'){ ui.sigForm = null; render(); }
+  else if(a==='sig-add-row'){ if(ui.sigForm){ ui.sigForm.signers.push({name:'',email:'',whatsapp:''}); render(); } }
+  else if(a==='sig-del-row'){ if(ui.sigForm){ ui.sigForm.signers.splice(Number(el.dataset.idx),1); render(); } }
+  else if(a==='sig-send'){ sigSend(); }
+  else if(a==='sig-refresh'){ sigRefresh([el.dataset.id]); }
+  else if(a==='sig-doc-view'){ sigDocAction('view', el.dataset.id); }
+  else if(a==='sig-doc-print'){ sigDocAction('print', el.dataset.id); }
+  else if(a==='sig-doc-download'){ sigDocAction('download', el.dataset.id); }
   else if(a==='share-whatsapp'){
     const shareKind = el.dataset.share;
     let innerHtml = ''; let filename = 'relatorio.pdf';
