@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pfabqqdhvacakszoklxh.supabase.co wss://pfabqqdhvacakszoklxh.supabase.co https://realtecvarejo.zendesk.com https://cdn.jsdelivr.net; frame-src 'self' blob: about: https://pfabqqdhvacakszoklxh.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://pfabqqdhvacakszoklxh.supabase.co wss://pfabqqdhvacakszoklxh.supabase.co https://*.realtec.com.br:* https://realtecvarejo.zendesk.com https://cdn.jsdelivr.net; frame-src 'self' blob: about: https://pfabqqdhvacakszoklxh.supabase.co; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
 <title>NEO - Gestão de Implantação</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2F5D50">
@@ -49,6 +49,8 @@
   --shadow-1:0 1px 2px rgba(0,0,0,.4); --shadow-2:0 16px 40px rgba(0,0,0,.55);
 }
 *{box-sizing:border-box;}
+html.survey-mode,html.survey-mode body{overflow:auto !important;height:auto !important;min-height:100%;-webkit-overflow-scrolling:touch;overscroll-behavior:auto;}
+html.survey-mode #app{height:auto !important;min-height:100vh;overflow:visible !important;}
 html,body{margin:0;padding:0;height:100%;overflow:hidden;}
 body{
   background:var(--bg); color:var(--ink); font-family:var(--font-body);
@@ -173,6 +175,14 @@ h1,h2,h3,h4{ font-family:var(--font-head); margin:0; color:var(--ink); }
 .modal.wide{ max-width:760px; }
 .modal-header{ display:flex; align-items:flex-start; gap:10px; margin-bottom:14px; }
 .modal-header h3{ font-size:18px; flex:1; overflow-wrap:anywhere; }
+/* Celular: cabeçalhos com vários botões (impressão do contrato, relatório de fechamento, certificados)
+   quebram em duas linhas — título + ✕ em cima, botões embaixo — em vez de espremer o título. */
+@media (max-width:820px){
+  .modal-header{ flex-wrap:wrap; align-items:center; }
+  .modal-header h3{ flex:1 1 calc(100% - 64px); min-width:0; order:0; }
+  .modal-header .modal-close{ order:1; margin-left:auto; }
+  .modal-header > .btn{ order:2; flex:1 1 auto; justify-content:center; }
+}
 /* O emoji ❓ (como a maioria dos emojis coloridos) tem uma caixa de desenho
    bem maior que o texto ao redor no mesmo font-size — sem isso ele aparece
    enorme e desproporcional ao lado do título, principalmente no mobile. */
@@ -477,11 +487,16 @@ tr.row-inactive{ opacity:.55; }
 .sig-badge.sig-ok{background:#dff3e6;color:#17663a;}
 .sig-badge.sig-warn{background:#fff1d6;color:#8a5a00;}
 .sig-badge.sig-bad{background:#fde2e1;color:#a12a22;}
+.af-cred-ok{font-size:13px;margin:2px 0 6px;}
+.af-cred-actions{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;}
+.af-cred-form{display:grid;grid-template-columns:1.6fr 1fr auto auto;gap:6px;align-items:center;}
+.af-cred-form input{min-width:0;}
+@media (max-width:820px){.af-cred-form{grid-template-columns:1fr;}}
 .sig-form h4{margin:0 0 4px;font-size:14px;}
-.sig-signer{display:grid;grid-template-columns:1.3fr 1.3fr 1fr auto;gap:6px;margin-bottom:6px;}
+.sig-signer{display:grid;grid-template-columns:1fr 1.3fr auto;gap:6px;margin-bottom:6px;}
 .sig-signer input{min-width:0;}
 .sig-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:8px;}
-@media (max-width:820px){.sig-signer{grid-template-columns:1fr 1fr;}}
+@media (max-width:820px){.sig-signer{grid-template-columns:1fr auto;}.sig-signer input[data-sig-field="email"]{grid-column:1;}}
 .attach-item{
   display:flex; align-items:center; gap:10px; padding:9px 11px; border:1px solid var(--border);
   border-radius:9px; background:var(--surface);
@@ -1833,6 +1848,20 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
 /* Cadastros: tabela compacta e paginação */
 .clients-card{ padding:0 !important; overflow:hidden; }
 .clients-card .table-scroll{ overflow-x:auto; }
+.rt-badge{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700;vertical-align:middle;white-space:nowrap;}
+.rt-badge.rt-blocked{background:#fde2e1;color:#a12a22;}
+.rt-badge.rt-inactive{background:#e9ecef;color:#555;}
+.rt-badge.rt-active{background:#dff3e6;color:#17663a;}
+.rt-badge.rt-none{background:#fff1d6;color:#8a5a00;}
+.rt-form-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;margin:0 0 12px;padding:8px 10px;border:1px solid var(--line,#e3e6e4);border-radius:10px;background:var(--surface-2,#f6f8f7);}
+.rt-status{font-size:13px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0;margin:0 0 6px;}
+.rt-form-bar .rt-status{margin:0;}
+.rt-sum{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+.rt-sum div{border:1px solid var(--line,#e3e6e4);border-radius:10px;padding:8px;text-align:center;}
+.rt-sum strong{display:block;font-size:20px;}
+.rt-sum span{font-size:11.5px;color:var(--ink-faint,#6b7280);}
+.rt-list{margin:0;padding-left:18px;max-height:220px;overflow:auto;font-size:13px;}
+@media (max-width:820px){.rt-sum{grid-template-columns:repeat(2,1fr);}}
 .clients-table td{ padding-top:8px; padding-bottom:8px; vertical-align:middle; }
 .clients-table .c-name .cn{ font-weight:700; }
 .clients-table .c-name .cs{ font-size:11.5px; color:var(--ink-faint); margin-top:1px; }
@@ -1940,6 +1969,16 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
   .modal-xl form[data-form="schedule"] > *:has(> .field > select[name="repeatFreq"]),
   .modal-xl form[data-form="schedule"]:not(:has(select[name="repeatFreq"])) > *:has(select[name="type"]),
   .modal-xl form[data-form="card-info"] > .coclients-in-form{ break-before:column; -webkit-column-break-before:always; }
+  /* Demais formulários longos (cliente, analista, novo card, contrato, reporte comercial): largos e em 2 colunas */
+  .modal.modal-cols{ max-width:min(1200px, 94vw) !important; }
+  .modal-cols > form, .modal-cols > .cols-body{ column-count:2; column-gap:28px; }
+  .modal-cols > form > *, .modal-cols > .cols-body > *{ break-inside:avoid; -webkit-column-break-inside:avoid; }
+  .modal-cols > form > .form-actions, .modal-cols > form > .error-msg, .modal-cols > form > .success-msg,
+  .modal-cols > form > h3, .modal-cols > form > .cols-span{ column-span:all; -webkit-column-span:all; }
+}
+/* Telas grandes: card e agenda aproveitam mais a largura */
+@media screen and (min-width:1500px){
+  .modal.modal-xl{ max-width:min(1480px, 90vw) !important; }
 }
 
 /* Texto em negrito nítido: a fonte do sistema (Segoe UI no Windows) vai só até o negrito 700;
@@ -2304,7 +2343,7 @@ function logout(msg){
 
 /* ============================= STATE ============================= */
 /* Versão do site exibida no rodapé do menu: 1.0.<número da geração do index.html>. Atualizar a cada entrega. */
-const APP_VERSION = '1.0.325';
+const APP_VERSION = '1.0.346';
 const STORAGE_KEY = 'implanta_v1';
 const PALETTE = [
   '#0B5C8E','#C0392B','#1E8449','#8E44AD','#E67E22','#16A085','#C2185B','#2980B9',
@@ -3696,6 +3735,7 @@ var ui = {
   clientsFilterSegment: 'all',
   clientsFilterCity: 'all',
   clientsFilterAccountant: 'all',
+  clientsFilterStatus: 'all',
   jiraStatusFilter: 'all',
   jiraSearch: '',
   jiraAnalystFilter: 'all',
@@ -3844,6 +3884,19 @@ function parseTemplateLines(text){
   if(!sessions.length) return {error:'Informe ao menos uma sessão.'};
   return {sessions};
 }
+/* Registro rápido: tipo da agenda + módulo(s)/tela(s) (obrigatórios quando o tipo é de Treinamento). */
+function quickTimeTypes(){ return activeAgendaTypes().filter(x=>!x.isInternal && !x.isServico); }
+function quickTimeDefaultType(){ const t = quickTimeTypes()[0] || activeAgendaTypes()[0]; return t ? t.name : 'Treinamento'; }
+function quickTimeTypeModuleHtml(v){
+  const type = v.type || quickTimeDefaultType();
+  let h = '<div class="field"><label>Tipo <span style="color:var(--danger)">*</span></label><select name="type" required>'
+    + quickTimeTypes().map(t=>'<option value="'+esc(t.name)+'" '+(t.name===type?'selected':'')+'>'+esc(t.name)+'</option>').join('')
+    + '</select></div>';
+  if(typeNeedsModuleScreen(type)){
+    h += renderModuleScreenTabs('modules', 'trainedScreens', v.modules||[], v.trainedScreens||[], 'Módulo(s)', 'Telas treinadas (por módulo)', ui.quickModuleTab, 'quick', {required:true});
+  }
+  return h;
+}
 const TIMER_KEY = 'neo_quick_timer_v1';
 function readTimer(){ try{ const v = JSON.parse(localStorage.getItem(TIMER_KEY)||'null'); return v && v.cardId && v.start ? v : null; }catch(e){ return null; } }
 function writeTimer(v){ try{ if(v) localStorage.setItem(TIMER_KEY, JSON.stringify(v)); else localStorage.removeItem(TIMER_KEY); }catch(e){} }
@@ -3889,23 +3942,63 @@ function renderCardTemplatesSettings(){
 }
 function renderTemplatesSettings(){
   const admin = isAdminUser(), list = state.trainingTemplates||[];
-  const toLines = t=>(t.sessions||[]).map(x=>x.day+' | '+x.hours+' | '+(x.title||'')).join('\n');
-  let h = '<div class="section-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><h3 style="margin:0;">Modelos de treinamento</h3><button type="button" class="btn btn-sm" data-action="open-modal" data-modal="template-help">❓ Como montar um modelo</button></div><p class="hint">Séries prontas de sessões (ex.: Kick-off, Cadastros, Financeiro…). Cada linha: <code>dia | horas | título</code>, onde <em>dia</em> = dias após a data de início (0 = no próprio dia). Sábados e domingos são pulados. Para usar, abra um card → aba <strong>Agenda</strong> → <strong>Aplicar modelo</strong>.</p>';
+  let h = '<div class="section-card"><div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><h3 style="margin:0;">Modelos de treinamento</h3><div style="display:flex;gap:6px;flex-wrap:wrap;"><button type="button" class="btn btn-sm" data-action="open-modal" data-modal="template-help">❓ Como montar um modelo</button>'+(admin?'<button type="button" class="btn btn-primary btn-sm" data-action="trainingtpl-new">+ Novo modelo</button>':'')+'</div></div>'
+    + '<p class="hint">Séries prontas de sessões (ex.: Kick-off, Cadastros, Financeiro…). Cada sessão tem o dia (após a data de início), a duração, o título, o <strong>módulo</strong> e as <strong>telas</strong> que serão treinadas. Sábados e domingos são pulados. Para usar, abra um card → aba <strong>Agenda</strong> → <strong>Aplicar modelo</strong>.</p>';
   list.forEach(t=>{
-    h += '<form data-form="template" data-id="'+t.id+'" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">'
-      + '<div class="field"><label>Nome</label><input type="text" name="name" value="'+esc(t.name)+'" '+(admin?'':'disabled')+'></div>'
-      + '<div class="field"><label>Sessões</label><textarea name="lines" rows="'+Math.max(3,(t.sessions||[]).length+1)+'" '+(admin?'':'disabled')+'>'+esc(toLines(t))+'</textarea></div>'
-      + (admin ? '<div class="row-actions"><button type="submit" class="btn btn-primary btn-sm">Salvar</button><button type="button" class="btn btn-danger btn-sm" data-action="delete-template" data-id="'+t.id+'">Excluir</button></div>' : '')
-      + '</form>';
+    const probs = trainingTemplateProblems(t);
+    h += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;"><strong>'+esc(t.name)+'</strong><span class="hint" style="margin:0;">'+(t.sessions||[]).length+' sessão(ões)</span></div>'
+      + '<ul style="margin:6px 0 8px;padding-left:18px;font-size:13px;line-height:1.5;">'
+      + (t.sessions||[]).map(ss=>'<li>Dia '+ss.day+' · '+minToHM(Math.round((ss.hours||0)*60))+(ss.title?' · '+esc(ss.title):'')+' — '+(ss.module?esc(ss.module)+((ss.screens||[]).length?' ('+esc((ss.screens||[]).join(', '))+')':''):'<span style="color:var(--danger);">sem módulo</span>')+'</li>').join('')
+      + '</ul>'
+      + (probs.length ? '<div class="error-msg" style="margin:0 0 8px;">Este modelo precisa ser completado antes de ser aplicado:<br>'+probs.map(esc).join('<br>')+'</div>' : '')
+      + (admin ? '<div class="row-actions"><button type="button" class="btn btn-sm" data-action="trainingtpl-edit" data-id="'+t.id+'">Editar</button><button type="button" class="btn btn-danger btn-sm" data-action="delete-template" data-id="'+t.id+'">Excluir</button></div>' : '')
+      + '</div>';
   });
   if(!list.length) h += '<p class="hint">Nenhum modelo cadastrado ainda.</p>';
-  if(admin){
-    h += '<form data-form="template" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;"><h4 style="margin:0 0 8px;">Novo modelo</h4>'
-      + '<div class="field"><label>Nome</label><input type="text" name="name" placeholder="Ex.: Implantação padrão — Contábil" required></div>'
-      + '<div class="field"><label>Sessões (uma por linha)</label><textarea name="lines" rows="5" placeholder="0 | 2 | Kick-off e parametrização&#10;7 | 2 | Cadastros&#10;14 | 2 | Movimentação" required></textarea></div>'
-      + '<button type="submit" class="btn btn-primary btn-sm">Criar modelo</button></form>';
-  }
   return h+'</div>';
+}
+/* Editor de modelo de treinamento (modal): uma linha por sessão, com módulo (obrigatório) e telas do módulo. */
+function trainingTplBlankSession(day){ return {day: day||0, hours: 2, title:'', module:'', screens:[]}; }
+function readTrainingTplForm(form){
+  const n = parseInt(form.dataset.rows,10)||0; const fd = new FormData(form); const sessions = [];
+  for(let i=0;i<n;i++){
+    sessions.push({day: fd.get('tday_'+i), hours: fd.get('thours_'+i), title: fd.get('ttitle_'+i)||'', module: fd.get('tmod_'+i)||'', screens: fd.getAll('tscr_'+i)});
+  }
+  return {name: fd.get('name')||'', sessions};
+}
+function renderTrainingTplModal(m){
+  const v = m.values || {name:'', sessions:[trainingTplBlankSession(0)]};
+  const rows = v.sessions && v.sessions.length ? v.sessions : [trainingTplBlankSession(0)];
+  let h = '<div class="modal-header"><h3>'+(m.id?'Editar modelo de treinamento':'Novo modelo de treinamento')+'</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  if(ui.formErr) h += '<div class="error-msg">'+ui.formErr+'</div>';
+  h += '<form data-form="trainingtpl" data-id="'+esc(m.id||'')+'" data-rows="'+rows.length+'">'
+    + '<div class="field"><label>Nome <span style="color:var(--danger)">*</span></label><input type="text" name="name" value="'+esc(v.name||'')+'" placeholder="Ex.: Implantação padrão — Contábil" required></div>'
+    + '<p class="hint" style="margin-top:0;"><strong>Dia</strong> = dias após a data de início (0 = no próprio dia). <strong>Horas</strong> entre 0,25 e 8. O <strong>módulo</strong> é obrigatório; as <strong>telas</strong> aparecem depois de escolher o módulo e são obrigatórias quando o módulo tem telas cadastradas.</p>';
+  rows.forEach((ss,i)=>{
+    const mod = ss.module ? state.modules.find(x=>x.name===ss.module) : null;
+    h += '<div class="section-card" style="margin:0 0 10px;padding:10px 12px;">'
+      + '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;"><strong style="font-size:13px;">Sessão '+(i+1)+'</strong>'+(rows.length>1?'<button type="button" class="btn btn-ghost btn-sm" data-action="trainingtpl-del-row" data-idx="'+i+'">Remover</button>':'')+'</div>'
+      + '<div class="field-row">'
+      +   '<div class="field" style="max-width:90px;"><label>Dia</label><input type="number" min="0" step="1" name="tday_'+i+'" value="'+esc(ss.day)+'" required></div>'
+      +   '<div class="field" style="max-width:100px;"><label>Horas</label><input type="text" inputmode="decimal" name="thours_'+i+'" value="'+esc(String(ss.hours).replace('.',','))+'" required></div>'
+      +   '<div class="field"><label>Título</label><input type="text" name="ttitle_'+i+'" value="'+esc(ss.title||'')+'" placeholder="Ex.: Cadastros"></div>'
+      + '</div>'
+      + '<div class="field"><label>Módulo <span style="color:var(--danger)">*</span></label><select name="tmod_'+i+'" data-trainingtpl-mod="1"><option value="">— Selecione o módulo —</option>'
+      + state.modules.filter(x=> !x.inactive || x.name===ss.module).map(x=>'<option value="'+esc(x.name)+'" '+(x.name===ss.module?'selected':'')+'>'+esc(x.name)+'</option>').join('')
+      + (ss.module && !mod ? '<option value="'+esc(ss.module)+'" selected>'+esc(ss.module)+' (não existe mais)</option>' : '')
+      + '</select></div>';
+    if(mod){
+      const scrs = screensForModule(mod.id).filter(x=> !x.inactive || (ss.screens||[]).includes(x.name));
+      h += '<div class="field"><label>Telas'+(scrs.length?' <span style="color:var(--danger)">*</span>':'')+'</label>';
+      h += scrs.length ? '<div class="check-grid">'+scrs.map(x=>'<label class="check-pill"><input type="checkbox" name="tscr_'+i+'" value="'+esc(x.name)+'" '+((ss.screens||[]).includes(x.name)?'checked':'')+'>'+esc(x.name)+'</label>').join('')+'</div>' : '<span class="hint">Nenhuma tela cadastrada para este módulo.</span>';
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  h += '<button type="button" class="btn btn-sm" data-action="trainingtpl-add-row">+ Adicionar sessão</button>'
+    + '<div class="form-actions"><button type="button" class="btn btn-ghost" data-action="close-modal">Cancelar</button><button type="submit" class="btn btn-primary">'+(m.id?'Salvar modelo':'Criar modelo')+'</button></div></form>';
+  return h;
 }
 function renderChecklistSettings(){
   const admin = isAdminUser(), list = checklistTemplatesList();
@@ -3930,9 +4023,47 @@ function renderChecklistSettings(){
   }
   return h+'</div>';
 }
+function renderRealtecApiSettings(){
+  const cfg = realtecApiConfig();
+  const masked = cfg.key ? '•••• '+cfg.key.slice(-4) : '';
+  return '<div class="section-card"><h3>Base de clientes Realtec (API)</h3>'
+    + '<p class="hint">Usada em Clientes → “Sincronizar com a base Realtec” e “Buscar na base Realtec”. O site chama a API direto do navegador; a chave fica guardada no banco e só é lida por quem tem login no Implanta. Funciona nos computadores que estão na rede da Realtec.</p>'
+    + '<form data-form="realtec-api-config">'
+    + '<div class="field"><label>Endereço da API</label><input type="url" name="url" value="'+esc(cfg.url)+'"></div>'
+    + '<div class="field"><label>Chave da API '+(cfg.key ? '<span class="hint" style="margin:0;">(salva: '+esc(masked)+' — deixe em branco para manter)</span>' : '')+'</label><input type="password" name="apiKey" autocomplete="new-password" placeholder="'+(cfg.key ? 'Deixe em branco para manter a chave atual' : 'Cole aqui a chave da API')+'"></div>'
+    + '<div class="form-actions" style="justify-content:flex-start;gap:8px;"><button type="submit" class="btn btn-primary btn-sm">Salvar</button>'
+    + (cfg.key ? '<button type="button" class="btn btn-sm" data-action="realtec-api-test">Testar conexão</button><button type="button" class="btn btn-sm btn-text-danger" data-action="realtec-api-clear">Remover chave</button>' : '')
+    + '</div>'+(ui.realtecApiTest ? '<div class="hint" style="margin-top:6px;">'+esc(ui.realtecApiTest)+'</div>' : '')+'</form>'
+    + renderRealtecAutoSettings() + '</div>';
+}
+function renderRealtecAutoSettings(){
+  const row = realtecMgmtRow(), last = row.realtecAutoLast, on = realtecAutoEnabled();
+  const from = (row.realtecAutoFromCode!==undefined && row.realtecAutoFromCode!==null && row.realtecAutoFromCode!=='') ? row.realtecAutoFromCode : '';
+  return '<form data-form="realtec-auto-config" style="border-top:1px solid var(--border);margin-top:14px;padding-top:12px;">'
+    + '<h4 style="margin:0 0 6px;">Cadastro automático de clientes novos</h4>'
+    + '<p class="hint" style="margin-top:0;">A cada 30 minutos, o navegador de quem está logado na rede da Realtec confere a base. Cliente com código <strong>maior</strong> que o ponto de partida e que ainda não está no site é cadastrado sozinho (tipo “Novo”), e os analistas administradores recebem um aviso no sino. Tipo, segmento e contador continuam sendo preenchidos por vocês.</p>'
+    + '<label class="allday-toggle" style="margin-bottom:8px;"><input type="checkbox" name="auto" '+(on?'checked':'')+'> Cadastrar automaticamente</label>'
+    + '<div class="field" style="max-width:320px;"><label>Cadastrar a partir do código (maior que)</label><input type="number" min="0" step="1" name="fromCode" value="'+esc(from)+'" placeholder="Definido na 1ª conferência: '+realtecMaxSiteCode()+'"></div>'
+    + '<div class="hint">'+(last ? 'Última conferência: '+fmtDT(last.at)+(last.by?' por '+esc(last.by):'')+' — '+(last.imported||0)+' cliente(s) novo(s).' : 'Ainda não houve conferência automática.')+'</div>'
+    + '<div class="form-actions" style="justify-content:flex-start;gap:8px;"><button type="submit" class="btn btn-primary btn-sm">Salvar</button><button type="button" class="btn btn-sm" data-action="realtec-auto-now">Conferir agora</button></div></form>';
+}
+function realtecSetConfig(patch){
+  if(!Array.isArray(state.mgmtSettings)) state.mgmtSettings = [];
+  let row = state.mgmtSettings.find(r=>r && r.id==='mgmt') || state.mgmtSettings[0];
+  if(!row){ row = {id:'mgmt'}; state.mgmtSettings.push(row); }
+  Object.assign(row, patch);
+  realtecDirectCache = null;
+}
+async function realtecApiTest(){
+  ui.realtecApiTest = 'Testando…'; render();
+  const cfg = realtecApiConfig();
+  const r = await realtecDirectGet(cfg, {codigo:'0'});
+  ui.realtecApiTest = r.ok ? '✓ Conectado: a API respondeu e aceitou a chave.' : '✗ '+r.error;
+  render();
+}
 function renderMgmtSettings(){
   const m = mgmt(); const checks = ui.backupChecks;
-  let h = '<div class="section-card"><h3>Alertas</h3><form data-form="mgmt-config"><div class="field-row">'
+  let h = renderRealtecApiSettings() + '<div class="section-card"><h3>Alertas</h3><form data-form="mgmt-config"><div class="field-row">'
     + '<div class="field"><label>Alerta de saldo a partir de (% das horas usadas)</label><input type="number" name="alertPct" min="50" max="99" value="'+m.alertPct+'"></div>'
     + '<div class="field"><label>Card parado após (dias sem movimentação)</label><input type="number" name="staleDays" min="3" max="180" value="'+m.staleDays+'"></div></div>'
     + '<p class="hint">O aviso de saldo vale também ao esgotar/ficar negativo. Cards com agenda futura pendente não são considerados parados.</p>'
@@ -5114,6 +5245,8 @@ function notificationItemsForAnalyst(analystId){
   jiraStatusNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   lowBalanceNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   taskNoticesForAnalyst(analystId).forEach(it=> due.push(it));
+  taskNewNoticesForAnalyst(analystId).forEach(it=> due.push(it));
+  newClientNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   return due;
 }
 /* Saldo baixo: avisa o analista dono do card quando o consumo chega a 80% das
@@ -5146,6 +5279,21 @@ function taskNoticesForAnalyst(analystId){
   return (state.tasks||[]).filter(t=> t.analystId===analystId && t.status!=='concluido' && !(Array.isArray(t.seenBy) && t.seenBy.includes(analystId)))
     .map(t=>({ id:t.id, _notifKind:'task', title:t.title||'(sem título)', priority:t.priority||'media', clientId:t.clientId||'', noticeAt:t.createdAt||Date.now(),
       date: t.startDate || todayISO(), startTime:'00:00' }));
+}
+/* Tarefa nova: avisa todos os Analistas e Administradores (menos quem criou e o responsável, que já recebe o aviso
+   "Tarefa pendente para você"). Só vale para tarefas criadas a partir desta versão (t.notifyAll). */
+function analystGetsNewTaskNotice(a){ return !!a && !a.inactive && !a.isSupport && !a.isManager; }
+function taskNewNoticesForAnalyst(analystId){
+  const a = getAnalyst(analystId); if(!analystGetsNewTaskNotice(a)) return [];
+  return (state.tasks||[]).filter(t=> t.notifyAll && t.status!=='concluido' && t.analystId!==analystId && t.createdById!==analystId
+      && !(Array.isArray(t.seenBy) && t.seenBy.includes(analystId)))
+    .map(t=>({ id:t.id, _notifKind:'tasknew', title:t.title||'(sem título)', priority:t.priority||'media', clientId:t.clientId||'', createdBy:t.createdBy||'',
+      assignee: (getAnalyst(t.analystId)||{}).name || '', noticeAt:t.createdAt||Date.now(), date: t.startDate || todayISO(), startTime:'00:00' }));
+}
+function markTaskNoticeSeen(taskId, me, result){
+  const t = (state.tasks||[]).find(y=>y.id===taskId); if(!t || !me) return;
+  t.seenBy = Array.isArray(t.seenBy) ? t.seenBy : [];
+  if(!t.seenBy.includes(me)){ t.seenBy.push(me); const cl = t.clientId ? getClient(t.clientId) : null; logNotifHandled('task','Tarefa: '+(t.title||''),(cl?cl.name:''), result||'Lido', t.id); }
 }
 /* Avisos de requisito Jira que virou Concluído ou Desconforme. Aparecem
    para o(s) analista(s) da agenda vinculada ao requisito, por até 14 dias
@@ -5647,6 +5795,9 @@ function checkBrowserScheduleNotifications(force){
       'upcoming:'+upcoming.id
     );
   }
+  taskNewNoticesForAnalyst(id).concat(taskNoticesForAnalyst(id)).forEach(t=>{
+    sendBrowserNotification('NEO Realtec — nova tarefa', {body: t.title+(t.createdBy?' (criada por '+t.createdBy+')':''), requireInteraction:false}, 'task:'+t.id);
+  });
   const due = pendingConfirmations(id);
   due.forEach(s=>{
     sendBrowserNotification(
@@ -5917,7 +6068,9 @@ function setEntityActive(kind, id, active){
   if(!item) return;
   item.inactive = !active;
 }
-function createClient(data){ const c = {id:uid('cl'), code:data.code||'', name:data.name, companyName:data.companyName||'', cnpj:data.cnpj||'', ie:data.ie||'', contact:data.contact||'', email:data.email||'', phone:data.phone||'', segment:data.segment||'', city:data.city||'', uf:data.uf||'', cep:data.cep||'', clientType:data.clientType||'novo', crc:data.crc||'', ownerCpf:data.ownerCpf||'', accountantId:data.accountantId||'', createdAt:Date.now()}; state.clients.push(c); return c; }
+function createClient(data){ const c = {id:uid('cl'), code:data.code||'', name:data.name, companyName:data.companyName||'', cnpj:data.cnpj||'', ie:data.ie||'', contact:data.contact||'', email:data.email||'', phone:data.phone||'', segment:data.segment||'', city:data.city||'', uf:data.uf||'', cep:data.cep||'', address:data.address||'', addressNumber:data.addressNumber||'', complement:data.complement||'', district:data.district||'', clientType:data.clientType||'novo', crc:data.crc||'', ownerCpf:data.ownerCpf||'', accountantId:data.accountantId||'', createdAt:Date.now()};
+  ['realtecActive','realtecBlocked','realtecBlockedAt','realtecSyncedAt'].forEach(k=>{ if(data[k]!==undefined) c[k] = data[k]; });
+  state.clients.push(c); return c; }
 function updateClient(id, patch){
   const c=getClient(id); if(!c) return;
   const oldName = c.name;
@@ -6149,6 +6302,7 @@ function updateSchedule(id, patch){
 function completeSchedule(id, deductMinutes, note){
   const s=byId(state.schedules,id); if(!s) return;
   s.status='concluida'; s.deductMinutes=deductMinutes; if(note) s.notes = note;
+  delete s.stopwatch;   // cronômetro não salvo é descartado ao concluir
   logNotifHandled('schedule', scheduleDisplayTitle(s), scheduleDateText(s)+' · '+(s.allDay?'Dia todo':s.startTime+'–'+s.endTime), 'Confirmada', s.id);
   scheduleCardIds(s).forEach(cid=>{
     const c=getCard(cid);
@@ -6543,7 +6697,26 @@ function notifItemHtml(s){
       + '<div style="font-weight:700;font-size:13px;">☑ Tarefa pendente para você</div>'
       + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.title)+(cl?' · '+esc(cl.name||''):'')+'</div>'
       + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Prioridade: '+esc(pr.label)+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
-      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="task-notice-seen" data-id="'+s.id+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="goto-view" data-view="tasks">Ver tarefas</button></div>'
+      + '<div class="hint" style="margin:0 0 6px;">Quer acessar a tarefa?</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="task-notice-open" data-id="'+s.id+'">Acessar tarefa</button><button class="btn btn-sm btn-ghost" data-action="task-notice-seen" data-id="'+s.id+'">Ignorar</button></div>'
+      + '</div>';
+  }
+  if(s._notifKind==='tasknew'){
+    const cl = s.clientId ? getClient(s.clientId) : null, pr = taskPriorityMeta(s.priority);
+    return '<div class="notif-item">'
+      + '<div style="font-weight:700;font-size:13px;">🆕 Nova tarefa criada</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.title)+(cl?' · '+esc(cl.name||''):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">'+(s.createdBy?'Criada por '+esc(s.createdBy)+' · ':'')+(s.assignee?'Responsável: '+esc(s.assignee)+' · ':'Sem responsável · ')+'Prioridade: '+esc(pr.label)+' · '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'</div>'
+      + '<div class="hint" style="margin:0 0 6px;">Quer acessar a tarefa?</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="task-notice-open" data-id="'+s.id+'">Acessar tarefa</button><button class="btn btn-sm btn-ghost" data-action="task-notice-seen" data-id="'+s.id+'">Ignorar</button></div>'
+      + '</div>';
+  }
+  if(s._notifKind==='newclient'){
+    return '<div class="notif-item">'
+      + '<div style="font-weight:700;font-size:13px;">🆕 Cliente novo cadastrado pela base Realtec</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.name||'')+(s.code?' · código '+esc(s.code):'')+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Cadastrado automaticamente em '+new Date(s.noticeAt).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})+'. Confira tipo, segmento e contador.</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="newclient-notice-seen" data-id="'+esc(s.id)+'">Marcar como lido</button><button class="btn btn-sm btn-ghost" data-action="newclient-notice-open" data-id="'+esc(s.id)+'">Ver cadastro</button></div>'
       + '</div>';
   }
   if(s._notifKind==='balance'){
@@ -6607,7 +6780,7 @@ function renderNotifCenterModal(){
     }
     if(infos.length){
       h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 6px;"><h4 style="margin:0;font-size:12px;color:var(--ink-soft);">Avisos ('+infos.length+')</h4>'
-        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira'||x._notifKind==='task') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
+        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira'||x._notifKind==='task'||x._notifKind==='tasknew'||x._notifKind==='newclient') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
       infos.forEach(x=>{ h += notifItemHtml(x); });
     }
   } else {
@@ -8700,6 +8873,12 @@ function renderCardModalContent(card){
     const effExpectedModules = cardDraftVals ? (cardDraftVals.expectedModules||[]) : (card.expectedModules||[]);
     const effExpectedScreens = cardDraftVals ? (cardDraftVals.expectedScreens||[]) : (card.expectedScreens||[]);
 
+    if(!isManagerUser() && !isSupportUser()){
+      const curCl = getClient(card.clientId);
+      html += '<div class="card-client-line" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px;">'
+        + '<span class="hint" style="margin:0;">Cliente do card: <strong>'+esc(curCl?curCl.name:'(cliente removido)')+'</strong>'+(curCl&&curCl.code?' ('+esc(curCl.code)+')':'')+'</span>'
+        + '<button type="button" class="btn btn-sm btn-ghost" data-action="card-change-client" data-id="'+card.id+'">🔁 Trocar cliente</button></div>';
+    }
     html += '<form data-form="card-info" data-card="'+card.id+'">';
     html += '<div class="field-row">'
       + '<div class="field"><label>Total de horas contratadas</label><input type="number" min="0" step="0.5" name="contractedHours" value="'+esc(effHours)+'"></div>'
@@ -8847,6 +9026,7 @@ function renderCardAttachmentsTab(card){
     sigs.forEach(r=>{
       html += '<div class="sig-row">'+sigBadge(r)+'<div class="sig-info"><strong>'+esc(SIG_KIND_LABEL[r.kind]||'Documento')+'</strong> · enviado em '+fmtDT(r.sentAt||Date.now())+'</div><div class="sig-actions">'
         + sigDocButtons(r)
+        + sigAssinafyLink(r)
         + (['enviado','parcial','finalizando'].indexOf(r.status)>=0 ? '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-refresh" data-id="'+esc(r.id)+'">↻ Atualizar</button>' : '')
         + '</div></div>';
     });
@@ -9583,13 +9763,36 @@ function typeNeedsModuleScreen(typeName){
 }
 /* Agenda de Treinamento só pode ser concluída com módulo(s) e tela(s) preenchidos — vale também para agendas criadas
    por modelo de treinamento ou registro rápido (que nascem sem esses dados). Devolve o motivo, ou '' se estiver ok. */
+/* O que falta de módulo/tela: 'modulo', 'tela' ou '' (ok). Tela só é exigida se o módulo tiver telas cadastradas. */
+function moduleScreenMissing(mods, scrs){
+  mods = mods||[]; scrs = scrs||[];
+  if(!mods.length) return 'modulo';
+  const hasRegisteredScreens = state.modules.some(m=> mods.includes(m.name) && screensForModule(m.id).length);
+  if(hasRegisteredScreens && !scrs.length) return 'tela';
+  return '';
+}
 function scheduleModuleScreenProblem(s){
   if(!s || !typeNeedsModuleScreen(s.type)) return '';
-  const mods = s.modules||[], scrs = s.trainedScreens||[];
-  if(!mods.length) return 'Informe o(s) módulo(s) treinado(s) antes de concluir esta agenda de '+s.type+'.';
-  const hasRegisteredScreens = state.modules.some(m=> mods.includes(m.name) && screensForModule(m.id).length);
-  if(hasRegisteredScreens && !scrs.length) return 'Informe a(s) tela(s) treinada(s) antes de concluir esta agenda de '+s.type+'.';
+  const miss = moduleScreenMissing(s.modules, s.trainedScreens);
+  if(miss==='modulo') return 'Informe o(s) módulo(s) treinado(s) antes de concluir esta agenda de '+s.type+'.';
+  if(miss==='tela') return 'Informe a(s) tela(s) treinada(s) antes de concluir esta agenda de '+s.type+'.';
   return '';
+}
+/* Sessão de modelo de treinamento: precisa de módulo e, se o módulo tiver telas cadastradas, de ao menos uma tela. */
+function trainingSessionProblem(ss){
+  if(!ss) return 'sessão inválida';
+  const mod = ss.module ? state.modules.find(m=>m.name===ss.module) : null;
+  if(!ss.module) return 'sem módulo';
+  if(!mod) return 'o módulo "'+ss.module+'" não existe mais';
+  const scrs = (ss.screens||[]);
+  const valid = screensForModule(mod.id).map(x=>x.name);
+  if(valid.length && !scrs.length) return 'sem tela';
+  const gone = scrs.filter(n=> !valid.includes(n));
+  if(gone.length) return 'tela(s) que não existem mais no módulo: '+gone.join(', ');
+  return '';
+}
+function trainingTemplateProblems(t){
+  return (t && t.sessions || []).map((ss,i)=>{ const p = trainingSessionProblem(ss); return p ? 'Sessão '+(i+1)+(ss.title?' ('+ss.title+')':'')+': '+p : ''; }).filter(Boolean);
 }
 function isServicoType(typeName){ const t = state.agendaTypes.find(t=>t.name===typeName); return !!(t && t.isServico); }
 
@@ -10935,6 +11138,21 @@ function createServiceContract(data){
   state.serviceContracts.push(c);
   return c;
 }
+/* Endereço completo do cliente, montado a partir do cadastro (usado no contrato de serviço). */
+function clientFullAddress(cl){
+  if(!cl) return '';
+  let a = [cl.address, cl.addressNumber].map(x=>String(x||'').trim()).filter(Boolean).join(', ');
+  if(String(cl.complement||'').trim()) a += (a ? ' — ' : '') + String(cl.complement).trim();
+  const parts = [a, String(cl.district||'').trim()].filter(Boolean);
+  const cityUf = [String(cl.city||'').trim(), String(cl.uf||'').trim()].filter(Boolean).join('/');
+  if(cityUf) parts.push(cityUf);
+  if(String(cl.cep||'').trim()) parts.push('CEP '+String(cl.cep).trim());
+  return parts.join(', ');
+}
+/* No contrato: endereço do cadastro do cliente; contratos antigos sem endereço no cadastro mantêm o texto digitado na época. */
+function contractClientAddress(c, client){
+  return (client && String(client.address||'').trim()) ? clientFullAddress(client) : String((c && c.clientAddress) || '').trim();
+}
 function updateServiceContract(id, data){
   const c = getServiceContract(id);
   if(!c) return null;
@@ -11408,6 +11626,7 @@ function renderServiceContractsView(){
         +'<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="service-contract" data-id="'+c.id+'">Editar</button>'
         +'<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="service-contract-print" data-id="'+c.id+'">🖨 Imprimir</button>'
         +(sigLatestFor('contrato', c.id) && sigLatestFor('contrato', c.id).status==='assinado' && !sigDocDeleted(sigLatestFor('contrato', c.id)) ? '<button class="btn btn-sm btn-ghost" data-action="sig-doc-view" data-id="'+esc(sigLatestFor('contrato', c.id).id)+'" title="Ver o contrato assinado">✍ Assinado</button>' : '')
+        +(sigLatestFor('contrato', c.id) ? sigAssinafyLink(sigLatestFor('contrato', c.id)).replace('🔗 Ver no Assinafy','🔗 Assinafy') : '')
         +'<button class="btn btn-sm btn-danger" data-action="contract-delete" data-id="'+c.id+'">Excluir</button>'
         +'</td></tr>';
     });
@@ -11418,6 +11637,283 @@ function renderServiceContractsView(){
 }
 
 /* ============================= CLIENTS VIEW ============================= */
+/* ===================== Base de clientes Realtec (API core-neo) =====================
+   O site chama a Edge Function "clientes-realtec" (servidor/clientes-realtec.ts), que guarda a chave
+   da API. Cliente do site ↔ base Realtec: o vínculo é sempre pelo CÓDIGO.
+   A base atualiza: nome fantasia, razão social, CNPJ, IE, endereço, número, complemento, bairro, CEP,
+   cidade, UF e a situação (ativo / bloqueado). NUNCA mexe em: tipo, segmento, contador responsável,
+   CRC/CPF, contato, e-mail e telefone (e um campo que veio vazio da base não apaga o que existe aqui). */
+function realtecClientesEndpoint(){ return (cloudConfig && cloudConfig.url ? cloudConfig.url : DEFAULT_CLOUD_CONFIG.url) + '/functions/v1/clientes-realtec'; }
+function normClientCode(v){ return String(v==null ? '' : v).trim().replace(/^0+(?=\d)/, ''); }
+function findClientByCode(code, exceptId){ const k = normClientCode(code); if(!k) return null; return state.clients.find(c=>c.id!==exceptId && normClientCode(c.code)===k) || null; }
+function findClientByCnpj(cnpj, exceptId){ const d = String(cnpj||'').replace(/\D/g,''); if(!d) return null; return state.clients.find(c=>c.id!==exceptId && String(c.cnpj||'').replace(/\D/g,'')===d) || null; }
+/* Dois caminhos até a API (core-neo só é encontrado pela rede da Realtec):
+   1º) api/clientes-realtec.php no próprio servidor do Implanta (Coolify), que pode enxergar o core-neo;
+   2º) a função "clientes-realtec" do Supabase (nuvem), caso o 1º não exista ou não alcance a API. */
+function realtecPhpEndpoint(){ return new URL('api/clientes-realtec.php', location.href).toString(); }
+async function realtecTry(url, body){
+  let res; try{ res = await fetch(url, {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify(body)}); }
+  catch(e){ return {ok:false, unavailable:true, error: 'sem resposta'}; }
+  let out = null; try{ out = await res.json(); }catch(e){}
+  if(!out || typeof out!=='object') return {ok:false, unavailable:true, error: 'HTTP '+res.status};   // arquivo inexistente / não é PHP
+  if(res.ok && out.ok) return out;
+  return {ok:false, unavailable: !!(out.rede || out.semChave || res.status===404), error: out.error || ('HTTP '+res.status), status: res.status};
+}
+/* ---- Caminho direto: o navegador chama a API (chave guardada em Configurações → Alertas e backup,
+   na tabela app_settings, que só quem tem login consegue ler). Funciona quando o computador está na
+   rede da Realtec e a API libera o endereço do Implanta (CORS). ---- */
+const REALTEC_API_DEFAULT_URL = 'https://core.neo.realtec.com.br:4202/clienterealtecchave';
+function realtecApiConfig(){
+  const row = (state.mgmtSettings||[]).find(r=>r && r.id==='mgmt') || (state.mgmtSettings||[])[0] || {};
+  return {key: String(row.realtecApiKey||'').trim(), url: String(row.realtecApiUrl||'').trim() || REALTEC_API_DEFAULT_URL};
+}
+function realtecNormalize(r){
+  const t = v=> (v===null || v===undefined) ? '' : String(v).trim();
+  const yes = v=> v===true || v===1 || v==='1' || v==='true' || v==='S';
+  return {codigo: normClientCode(r && r.codigo), razaosocial:t(r.razaosocial), nome:t(r.nome), cnpj:t(r.cnpj), ie:t(r.ie),
+    endereco:t(r.endereco), numero:t(r.numero), complemento:t(r.complemento), bairro:t(r.bairro), cep:t(r.cep),
+    municipio:t(r.municipio), uf:t(r.uf).toUpperCase().slice(0,2), ativo:yes(r.ativo), bloqueado:yes(r.bloqueado), databloqueio: r && r.databloqueio ? t(r.databloqueio) : null};
+}
+var realtecDirectCache = null;
+async function realtecDirectGet(cfg, params){
+  const u = new URL(cfg.url);
+  Object.keys(params).forEach(k=>{ if(params[k]) u.searchParams.set(k, params[k]); });
+  let res;
+  try{ res = await fetch(u.toString(), {headers:{'Authorization': cfg.key, 'Accept':'application/json'}, cache:'no-store'}); }
+  catch(e){ return {ok:false, unavailable:true, error:'o navegador não alcançou a API (funciona só dentro da rede da Realtec e se a API liberar o endereço do Implanta — CORS)'}; }
+  let body = null; try{ body = await res.json(); }catch(e){}
+  if(res.status===401) return {ok:false, error:'A API de clientes Realtec recusou a chave ('+((body && body.message) || 'chave inválida')+'). Confira a chave em Configurações → Alertas e backup.'};
+  if(!res.ok) return {ok:false, unavailable: res.status>=500, error:'A API de clientes Realtec respondeu HTTP '+res.status+'.'};
+  const arr = Array.isArray(body) ? body : (body && Array.isArray(body.data) ? body.data : []);
+  return {ok:true, list: arr.map(realtecNormalize)};
+}
+async function realtecDirect(body){
+  const cfg = realtecApiConfig();
+  if(!cfg.key) return {ok:false, unavailable:true, error:'sem chave configurada'};
+  if(body.action==='buscar'){
+    const codigo = normClientCode(body.codigo), cnpj = String(body.cnpj||'').trim();
+    const r = await realtecDirectGet(cfg, {codigo, cnpj, ie: String(body.ie||'').trim()});
+    if(!r.ok) return r;
+    const dig = v=> String(v||'').replace(/\D/g,'');
+    let list = r.list;
+    if(codigo) list = list.filter(c=>c.codigo===codigo); else if(cnpj) list = list.filter(c=>dig(c.cnpj)===dig(cnpj));
+    return {ok:true, clientes: list.slice(0,20)};
+  }
+  if(body.action==='sync'){
+    const wanted = new Set((body.codigos||[]).map(normClientCode).filter(Boolean));
+    let all;
+    if(realtecDirectCache && Date.now()-realtecDirectCache.at < 5*60000 && realtecDirectCache.url===cfg.url) all = realtecDirectCache.list;
+    else { const r = await realtecDirectGet(cfg, {}); if(!r.ok) return r; all = r.list; realtecDirectCache = {at:Date.now(), list:all, url:cfg.url}; }
+    return {ok:true, clientes: all.filter(c=>wanted.has(c.codigo)), totalBase: all.length};
+  }
+  if(body.action==='novos'){
+    const from = Number(body.acimaDe)||0;
+    let all;
+    if(realtecDirectCache && Date.now()-realtecDirectCache.at < 5*60000 && realtecDirectCache.url===cfg.url) all = realtecDirectCache.list;
+    else { const r = await realtecDirectGet(cfg, {}); if(!r.ok) return r; all = r.list; realtecDirectCache = {at:Date.now(), list:all, url:cfg.url}; }
+    return {ok:true, clientes: all.filter(c=> /^\d+$/.test(c.codigo) && Number(c.codigo) > from).slice(0,200), totalBase: all.length};
+  }
+  return {ok:false, error:'Ação desconhecida.'};
+}
+async function realtecApi(body){
+  const viaDirect = await realtecDirect(body);
+  if(viaDirect.ok) return viaDirect;
+  if(!viaDirect.unavailable) throw new Error(viaDirect.error);      // a API respondeu com erro (ex.: chave recusada)
+  const isLocalFile = location.protocol==='file:';
+  const viaPhp = isLocalFile ? {ok:false, unavailable:true} : await realtecTry(realtecPhpEndpoint(), body);
+  if(viaPhp.ok) return viaPhp;
+  if(!viaPhp.unavailable) throw new Error(viaPhp.error);            // o servidor do Implanta alcançou a API e ela respondeu com erro
+  const viaSb = await realtecTry(realtecClientesEndpoint(), body);
+  if(viaSb.ok) return viaSb;
+  let msg = viaSb.error || 'erro desconhecido';
+  if(viaSb.status===404 && /HTTP 404/.test(msg)) msg = 'A função "clientes-realtec" ainda não foi publicada no Supabase.';
+  if(/dns error|failed to lookup|Name or service not known|não respondeu/i.test(msg)){
+    msg = 'O endereço da API de clientes só é encontrado dentro da rede da Realtec, e o Supabase (nuvem) não consegue acessá-lo.'
+      + (realtecApiConfig().key ? '\nDireto do navegador: '+viaDirect.error+'.' : '\nInforme a chave da API em Configurações → Alertas e backup para o site chamar a API direto (dentro da rede da Realtec).')
+      + (viaPhp.error && !/sem resposta|HTTP 40[34]/.test(viaPhp.error) ? '\nServidor do Implanta: '+viaPhp.error : '\nPublique o arquivo api/clientes-realtec.php no servidor do Implanta (veja o LEIA-ME) ou peça à TI para liberar o core-neo na internet.');
+  }
+  throw new Error(msg);
+}
+const REALTEC_FIELD_MAP = [['name','nome'],['companyName','razaosocial'],['cnpj','cnpj'],['ie','ie'],['address','endereco'],['addressNumber','numero'],['complement','complemento'],['district','bairro'],['cep','cep'],['city','municipio'],['uf','uf']];
+const REALTEC_FIELD_LABEL = {name:'Nome fantasia', companyName:'Razão social', cnpj:'CNPJ', ie:'IE', address:'Endereço', addressNumber:'Número', complement:'Complemento', district:'Bairro', cep:'CEP', city:'Cidade', uf:'UF'};
+function realtecStatusOf(r){ return {realtecActive: !!r.ativo, realtecBlocked: !!r.bloqueado, realtecBlockedAt: r.databloqueio || '', realtecSyncedAt: Date.now()}; }
+/* Diferenças entre o cliente do site e o registro da base (só campos que a base preencheu). */
+function realtecDiff(cl, r){
+  const patch = {}, changed = [];
+  REALTEC_FIELD_MAP.forEach(([k, rk])=>{
+    const v = String(r[rk]==null ? '' : r[rk]).trim();
+    if(!v) return;
+    if(String(cl[k]||'').trim() !== v){ patch[k] = v; changed.push(k); }
+  });
+  return {patch, changed};
+}
+function realtecStatusBadge(cl, full){
+  if(!cl || !cl.realtecSyncedAt) return full ? '<span class="rt-badge rt-none">Não conferido na base Realtec</span>' : '';
+  if(cl.realtecBlocked) return '<span class="rt-badge rt-blocked" title="Bloqueado na base Realtec">Bloqueado'+(cl.realtecBlockedAt ? ' desde '+esc(fmtDateBR(String(cl.realtecBlockedAt).slice(0,10))) : '')+'</span>';
+  if(!cl.realtecActive) return '<span class="rt-badge rt-inactive" title="Inativo na base Realtec">Inativo</span>';
+  return full ? '<span class="rt-badge rt-active">Ativo</span>' : '';
+}
+function realtecStatusLine(cl){
+  if(!cl) return '';
+  return '<div class="rt-status">Situação na base Realtec: '+realtecStatusBadge(cl, true)
+    + (cl.realtecSyncedAt ? ' <span class="hint" style="margin:0;">conferido em '+fmtDT(Math.max(Number(cl.realtecSyncedAt)||0, Number(realtecMgmtRow().realtecLastSyncAt)||0))+'</span>' : '')+'</div>';
+}
+function canSyncRealtec(){ return !!currentUser && !isManagerUser() && !isSupportUser(); }
+
+/* ===== Cadastro automático de clientes novos da base Realtec =====
+   Os códigos da base são sequenciais: "cliente novo" = código MAIOR que o ponto de partida (realtecAutoFromCode,
+   gravado na 1ª execução com o maior código que já existia no site) e que ainda não está no site.
+   Roda sozinho no navegador de quem está logado (analista/admin) a cada 30 min — só funciona onde a API é alcançada
+   (rede da Realtec). O id do cliente é fixo pelo código ("rt<código>"), então dois navegadores ao mesmo tempo não duplicam.
+   Cada cliente cadastrado assim gera um aviso no sino para os analistas administradores. */
+const REALTEC_AUTO_EVERY_MS = 30*60000;
+function realtecMgmtRow(){ return (state.mgmtSettings||[]).find(r=>r && r.id==='mgmt') || (state.mgmtSettings||[])[0] || {}; }
+function realtecAutoEnabled(){ return realtecMgmtRow().realtecAutoImport !== false; }
+function realtecMaxSiteCode(){ let mx = 0; state.clients.forEach(c=>{ const k = normClientCode(c.code); if(/^\d+$/.test(k)) mx = Math.max(mx, Number(k)); }); return mx; }
+var realtecAutoRunning = false, realtecAutoLocalAt = 0;
+async function realtecAutoImport(opts){
+  opts = opts || {};
+  const res = {imported:[], linked:[], skipped:[], error:''};
+  if(realtecAutoRunning || !canSyncRealtec()) return res;
+  if(!opts.manual && !realtecAutoEnabled()) return res;
+  realtecAutoRunning = true;
+  try{
+    let from = realtecMgmtRow().realtecAutoFromCode;
+    if(!(Number(from) >= 0) || from===null || from===''){ from = realtecMaxSiteCode(); realtecSetConfig({realtecAutoFromCode: from}); persist(); }
+    const out = await realtecApi({action:'novos', acimaDe: Number(from)});
+    (out.clientes||[]).forEach(raw=>{
+      const r = raw && raw.codigo!==undefined ? raw : null; if(!r || !r.codigo) return;
+      if(findClientByCode(r.codigo)) return;                                   // já existe
+      const label = (r.nome || r.razaosocial || 'Cliente')+' (código '+r.codigo+')';
+      const dupCnpj = r.cnpj ? findClientByCnpj(r.cnpj) : null;
+      const st = realtecStatusOf(r);
+      if(dupCnpj){
+        if(!normClientCode(dupCnpj.code)){                                     // mesmo CNPJ, sem código: só vincula o código
+          const {patch} = realtecDiff(dupCnpj, r); delete patch.cnpj;
+          updateClient(dupCnpj.id, Object.assign(patch, st, {code: r.codigo}));
+          res.linked.push(dupCnpj.name+' recebeu o código '+r.codigo+' (mesmo CNPJ)');
+        } else res.skipped.push(label+': o CNPJ já está no cliente "'+dupCnpj.name+'" (código '+dupCnpj.code+')');
+        return;
+      }
+      const data = {code: r.codigo, clientType:'novo'};
+      REALTEC_FIELD_MAP.forEach(([k, rk])=>{ const v = String(r[rk]==null ? '' : r[rk]).trim(); if(v) data[k] = v; });
+      if(!data.name) data.name = data.companyName || ('Cliente '+r.codigo);
+      const c = createClient(Object.assign(data, st));
+      c.id = 'rt'+r.codigo;
+      if(state.clients.filter(x=>x.id===c.id).length>1){ state.clients.splice(state.clients.lastIndexOf(c),1); return; }
+      c.realtecAutoImportedAt = Date.now(); c.realtecAutoSeenBy = [];
+      res.imported.push(c);
+    });
+    realtecSetConfig({realtecAutoLast: {at: Date.now(), ok: true, imported: res.imported.length, by: (currentUser && currentUser.displayName) || ''}});
+    persist();
+    if(res.imported.length && !opts.manual){
+      render();
+      if(isAdminUser()) showToast(res.imported.length+' cliente(s) novo(s) da base Realtec cadastrado(s): '+res.imported.map(c=>c.name).join(', '), 'ok', {ms:9000});
+    }
+  }catch(e){
+    res.error = (e && e.message) || String(e);
+    if(opts.manual) throw e;
+    console.warn('Cadastro automático de clientes Realtec não rodou:', res.error);
+  }finally{ realtecAutoRunning = false; realtecAutoLocalAt = Date.now(); }
+  return res;
+}
+function realtecAutoTick(){
+  try{
+    if(!currentUser || !canSyncRealtec() || !realtecAutoEnabled()) return;
+    if(typeof cloudStatus!=='undefined' && cloudStatus!=='connected') return;
+    if(csatSurveyToken && csatSurveyToken()) return;
+    if(Date.now() - realtecAutoLocalAt < REALTEC_AUTO_EVERY_MS) return;              // este navegador tentou há pouco
+    const last = realtecMgmtRow().realtecAutoLast;
+    if(last && last.ok && Date.now() - (last.at||0) < REALTEC_AUTO_EVERY_MS) return;  // outro navegador já conferiu há pouco
+    realtecAutoImport({});
+  }catch(e){}
+}
+setTimeout(function(){ realtecAutoTick(); setInterval(realtecAutoTick, 60000); }, 30000);
+/* Aviso no sino: só para analistas administradores, até marcarem como lido. */
+function newClientNoticesForAnalyst(analystId){
+  const a = getAnalyst(analystId); if(!a || !a.isAdmin) return [];
+  return state.clients.filter(c=> c.realtecAutoImportedAt && !(Array.isArray(c.realtecAutoSeenBy) && c.realtecAutoSeenBy.includes(analystId)))
+    .map(c=>({id:c.id, _notifKind:'newclient', clientId:c.id, name:c.name, code:c.code, noticeAt:c.realtecAutoImportedAt,
+      date: new Date(c.realtecAutoImportedAt).toISOString().slice(0,10), startTime:'00:00'}));
+}
+function markNewClientSeen(clientId, me){
+  const c = getClient(clientId); if(!c || !me) return;
+  c.realtecAutoSeenBy = Array.isArray(c.realtecAutoSeenBy) ? c.realtecAutoSeenBy : [];
+  if(!c.realtecAutoSeenBy.includes(me)){ c.realtecAutoSeenBy.push(me); logNotifHandled('newclient','Cliente novo: '+c.name, c.code?'Código '+c.code:'', 'Lido', c.id); }
+}
+/* Sincronizar: confere pela base todos os clientes do site que têm código. */
+async function realtecSyncAll(){
+  if(ui.realtecSync && ui.realtecSync.running) return;
+  const withCode = state.clients.filter(c=>normClientCode(c.code));
+  if(!withCode.length){ showAlert('Nenhum cliente com código para conferir na base Realtec.'); return; }
+  ui.realtecSync = {running:true}; render();
+  try{
+    const out = await realtecApi({action:'sync', codigos: withCode.map(c=>normClientCode(c.code))});
+    const byCode = new Map((out.clientes||[]).map(r=>[normClientCode(r.codigo), r]));
+    const rep = {updated:[], same:0, notFound:[], conflicts:[], noCode: state.clients.length - withCode.length, totalBase: out.totalBase||0, at: Date.now()};
+    withCode.forEach(cl=>{
+      const r = byCode.get(normClientCode(cl.code));
+      if(!r){ rep.notFound.push(cl.name+' (código '+cl.code+')'); return; }
+      const {patch, changed} = realtecDiff(cl, r);
+      if(patch.cnpj){ const dup = findClientByCnpj(patch.cnpj, cl.id); if(dup){ rep.conflicts.push(cl.name+': o CNPJ da base ('+patch.cnpj+') já está no cliente "'+dup.name+'" — CNPJ não alterado'); delete patch.cnpj; changed.splice(changed.indexOf('cnpj'),1); } }
+      const st = realtecStatusOf(r);
+      const statusChanged = cl.realtecActive!==st.realtecActive || cl.realtecBlocked!==st.realtecBlocked || (cl.realtecBlockedAt||'')!==st.realtecBlockedAt;
+      /* Economia de banco: só grava o cliente se algo mudou (ou na 1ª conferência). Cliente igual à base não é
+         regravado — antes, a data de conferência mudava em TODOS e o banco regravava os ~500 clientes a cada sincronização. */
+      if(changed.length || statusChanged || !cl.realtecSyncedAt){
+        updateClient(cl.id, Object.assign(patch, st));
+        if(changed.length || statusChanged) rep.updated.push({name: cl.name, fields: changed.map(k=>REALTEC_FIELD_LABEL[k]).concat(statusChanged ? ['Situação'] : [])});
+        else rep.same++;
+      } else rep.same++;
+    });
+    try{ const ni = await realtecAutoImport({manual:true}); rep.imported = ni.imported.map(c=>c.name+' (código '+c.code+')'); rep.linked = ni.linked; rep.conflicts = rep.conflicts.concat(ni.skipped); }
+    catch(e){ rep.conflicts.push('Não foi possível conferir clientes novos: '+((e && e.message) || e)); }
+    realtecSetConfig({realtecLastSyncAt: rep.at});   // data da última conferência geral (uma linha só, em vez de regravar cada cliente)
+    persist();
+    ui.realtecSync = null;
+    ui.modal = {type:'realtec-sync-report', report: rep};
+    render();
+  }catch(e){ ui.realtecSync = null; render(); showAlert('Não foi possível sincronizar com a base Realtec.\n'+((e && e.message) || e)); }
+}
+function renderRealtecSyncReport(m){
+  const r = m.report || {};
+  let h = '<div class="modal-header"><h3>Sincronização com a base Realtec</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
+    + '<p class="hint" style="margin-top:0;">Conferido pelo código em '+fmtDT(r.at||Date.now())+'. Tipo, segmento, contador responsável, contato, e-mail e telefone não foram alterados.</p>'
+    + '<div class="rt-sum"><div><strong>'+(r.imported||[]).length+'</strong><span>novo(s) cadastrado(s)</span></div><div><strong>'+(r.updated||[]).length+'</strong><span>atualizado(s)</span></div><div><strong>'+(r.same||0)+'</strong><span>já estavam iguais</span></div><div><strong>'+(r.notFound||[]).length+'</strong><span>código não encontrado na base</span></div><div><strong>'+(r.noCode||0)+'</strong><span>sem código (não conferidos)</span></div></div>';
+  const list = (title, items)=> items.length ? '<h4 style="margin:14px 0 6px;">'+title+'</h4><ul class="rt-list">'+items.slice(0,200).map(x=>'<li>'+x+'</li>').join('')+(items.length>200?'<li class="hint">… e mais '+(items.length-200)+'</li>':'')+'</ul>' : '';
+  h += list('Clientes novos cadastrados', (r.imported||[]).map(esc).concat((r.linked||[]).map(esc)));
+  h += list('Atualizados', (r.updated||[]).map(u=>esc(u.name)+' <span class="hint" style="margin:0;">('+esc(u.fields.join(', '))+')</span>'));
+  h += list('Avisos', (r.conflicts||[]).map(esc));
+  h += list('Código não encontrado na base Realtec', (r.notFound||[]).map(esc));
+  return h + '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="close-modal">Fechar</button></div>';
+}
+/* "Buscar na base Realtec" no formulário do cliente (novo ou edição): preenche pelo código (ou CNPJ). */
+async function realtecLookupIntoForm(form){
+  if(!form || !ui.modal) return;
+  const values = captureFormValues(form);
+  const id = form.dataset.id || '';
+  const code = normClientCode(values.code), cnpj = String(values.cnpj||'').trim();
+  if(!code && !cnpj){ showAlert('Informe o código (ou o CNPJ) do cliente para buscar na base Realtec.'); return; }
+  ui.modal.values = values; ui.modal.rtLoading = true; ui.formErr = ''; render();
+  try{
+    const out = await realtecApi(code ? {action:'buscar', codigo: code} : {action:'buscar', cnpj});
+    const list = out.clientes || [];
+    ui.modal.rtLoading = false;
+    if(!list.length){ render(); showAlert('Nada encontrado na base Realtec para '+(code ? 'o código '+code : 'o CNPJ '+cnpj)+'.'); return; }
+    const r = list[0];
+    const dupCode = findClientByCode(r.codigo, id);
+    if(dupCode){ render(); showAlert('Já existe um cliente com o código '+r.codigo+' no site: "'+dupCode.name+'". Abra o cadastro dele em vez de criar outro.'); return; }
+    const dupCnpj = r.cnpj ? findClientByCnpj(r.cnpj, id) : null;
+    if(dupCnpj){ render(); showAlert('O CNPJ '+r.cnpj+' já está cadastrado no cliente "'+dupCnpj.name+'".'); return; }
+    const v = Object.assign({}, ui.modal.values);
+    if(r.codigo) v.code = r.codigo;
+    REALTEC_FIELD_MAP.forEach(([k, rk])=>{ const val = String(r[rk]==null ? '' : r[rk]).trim(); if(val) v[k] = val; });
+    ui.modal.values = v;
+    ui.modal.realtec = realtecStatusOf(r);
+    render();
+    showToast('Dados da base Realtec preenchidos. Confira e clique em Salvar.', 'ok');
+  }catch(e){ ui.modal.rtLoading = false; render(); showAlert('Não foi possível consultar a base Realtec.\n'+((e && e.message) || e)); }
+}
 function renderClientsView(){
   let html = '<div class="cal-toolbar" style="margin-bottom:14px;">'
     + '<div class="search-box" style="min-width:260px;"><span>🔎</span><input id="client-search-input" placeholder="Buscar por nome, código, razão social ou CNPJ..." value="'+esc(ui.clientSearch)+'"></div>';
@@ -11439,13 +11935,17 @@ function renderClientsView(){
     html += '<option value="'+esc(c.id)+'" '+(ui.clientsFilterAccountant===c.id?'selected':'')+'>'+esc(c.name)+'</option>';
   });
   html += '</select></div>';
-  if(ui.clientsFilterSegment!=='all' || ui.clientsFilterCity!=='all' || ui.clientsFilterAccountant!=='all'){
+  html += '<div class="field" style="margin:0;"><select id="clients-status-filter" data-action="clients-filter">'
+    + [['all','Todas as situações'],['ativo','Ativos na base Realtec'],['inativo','Inativos'],['bloqueado','Bloqueados'],['nao','Não conferidos']].map(([v,l])=>'<option value="'+v+'" '+((ui.clientsFilterStatus||'all')===v?'selected':'')+'>'+l+'</option>').join('')
+    + '</select></div>';
+  if(ui.clientsFilterSegment!=='all' || ui.clientsFilterCity!=='all' || ui.clientsFilterAccountant!=='all' || (ui.clientsFilterStatus||'all')!=='all'){
     html += '<button type="button" class="btn btn-sm btn-ghost" data-action="clients-clear-filters">Limpar filtros</button>';
   }
   html += '<span class="grow"></span>'
     + '<input type="file" id="import-clients-file" accept=".xlsx,.xls,.csv" style="display:none;">'
     + '<button class="btn btn-sm btn-ghost" data-action="download-client-template">Baixar modelo</button>'
     + '<button class="btn btn-sm" data-action="import-clients-trigger">📥 Importar Excel</button>'
+    + (canSyncRealtec() ? '<button class="btn btn-sm btn-primary" data-action="realtec-sync" '+(ui.realtecSync && ui.realtecSync.running ? 'disabled' : '')+' title="Confere pelo código os clientes do site na base Realtec e atualiza os dados cadastrais e a situação">'+(ui.realtecSync && ui.realtecSync.running ? 'Sincronizando…' : '🔄 Sincronizar com a base Realtec')+'</button>' : '')
     + '</div>';
   const q = ui.clientSearch.trim().toLowerCase();
   let clients = state.clients;
@@ -11453,6 +11953,11 @@ function renderClientsView(){
   if(ui.clientsFilterSegment==='__none__'){ clients = clients.filter(cl=> !String(cl.segment||'').trim()); }
   else if(ui.clientsFilterSegment!=='all'){ clients = clients.filter(cl=> String(cl.segment||'').trim()===ui.clientsFilterSegment); }
   if(ui.clientsFilterCity!=='all'){ clients = clients.filter(cl=> String(cl.city||'').trim()===ui.clientsFilterCity); }
+  { const st = ui.clientsFilterStatus||'all';
+    if(st==='ativo') clients = clients.filter(cl=> cl.realtecSyncedAt && cl.realtecActive && !cl.realtecBlocked);
+    else if(st==='inativo') clients = clients.filter(cl=> cl.realtecSyncedAt && !cl.realtecActive);
+    else if(st==='bloqueado') clients = clients.filter(cl=> cl.realtecSyncedAt && cl.realtecBlocked);
+    else if(st==='nao') clients = clients.filter(cl=> !cl.realtecSyncedAt); }
   if(ui.clientsFilterAccountant==='__none__'){
     clients = clients.filter(cl=> cl.clientType!=='contador' && !cl.accountantId);
   } else if(ui.clientsFilterAccountant!=='all'){
@@ -11488,7 +11993,7 @@ function renderClientsView(){
   /* Desempenho: paginação (50 por página) e linhas compactas. Razão social vai abaixo do nome;
      CEP e contato ficam na ficha do cliente (Visualizar). */
   const PAGE = 50;
-  const sig = [q, ui.clientsFilterSegment, ui.clientsFilterCity, ui.clientsFilterAccountant, csort && csort.key, csort && csort.dir].join('|');
+  const sig = [q, ui.clientsFilterSegment, ui.clientsFilterCity, ui.clientsFilterAccountant, ui.clientsFilterStatus, csort && csort.key, csort && csort.dir].join('|');
   if(ui._clientsSig !== sig){ ui._clientsSig = sig; ui.clientsPage = 0; }
   const pages = Math.max(1, Math.ceil(sortedRows.length / PAGE));
   const page = Math.min(Math.max(0, ui.clientsPage||0), pages-1);
@@ -11520,7 +12025,7 @@ function renderClientsView(){
     const cityTxt = [cl.city, cl.uf].filter(Boolean).join(' / ') || '—';
     html += '<tr>'
       + '<td class="c-code">'+esc(cl.code||'—')+'</td>'
-      + '<td class="c-name"><div class="cn">'+esc(cl.name)+'</div>'+(cl.companyName?'<div class="cs">'+esc(cl.companyName)+'</div>':'')+'</td>'
+      + '<td class="c-name"><div class="cn">'+esc(cl.name)+(realtecStatusBadge(cl) ? ' '+realtecStatusBadge(cl) : '')+'</div>'+(cl.companyName?'<div class="cs">'+esc(cl.companyName)+'</div>':'')+'</td>'
       + '<td class="c-cnpj nowrap">'+esc(cl.cnpj||'—')+'</td>'
       + '<td class="c-type">'+typeBadge+'</td>'
       + '<td class="c-acc">'+accTxt+'</td>'
@@ -12065,6 +12570,8 @@ function renderFeriasTab(){
 }
 
 /* ============================= MODALS ============================= */
+/* Computador: telas de formulário longas abrem largas, em 2 colunas (como a agenda). Celular não muda. */
+const MODAL_COLS_TYPES = ['client-new','client-edit','client-view','analyst-new','analyst-edit','card-new','commercial-report-form','service-contract'];
 function renderModal(){
   const m = ui.modal;
   let inner = '';
@@ -12093,7 +12600,8 @@ function renderModal(){
             + '<button type="button" class="btn" data-action="analyst-ics-rotate" data-id="'+a.id+'">🔄 Gerar novo link</button>'
             + '</div></div>'
           : '<div class="field"><label>Link da agenda (Outlook/Teams)</label><p class="hint" style="margin:4px 0 0;">O link pra assinar a agenda fica disponível depois de salvar o analista.</p></div>'
-        );
+        )
+      + assinafyAnalystFieldHtml(a);
     if(canChangeProfile){
       inner += '<div class="field"><label>Perfil</label><select name="profile">'
         + '<option value="analista" '+(effProfile==='analista'?'selected':'')+'>Analista</option>'
@@ -12147,6 +12655,10 @@ function renderModal(){
       city: draft ? (draft.city||'') : (c?c.city:''),
       uf: draft ? (draft.uf||'') : (c?(c.uf||''):''),
       cep: draft ? (draft.cep||'') : (c?(c.cep||''):''),
+      address: draft ? (draft.address||'') : (c?(c.address||''):''),
+      addressNumber: draft ? (draft.addressNumber||'') : (c?(c.addressNumber||''):''),
+      complement: draft ? (draft.complement||'') : (c?(c.complement||''):''),
+      district: draft ? (draft.district||'') : (c?(c.district||''):''),
       contact: draft ? (draft.contact||'') : (c?c.contact:''),
       email: draft ? (draft.email||'') : (c?c.email:''),
       phone: draft ? (draft.phone||'') : (c?c.phone:''),
@@ -12161,6 +12673,9 @@ function renderModal(){
     inner = '<div class="modal-header"><h3>'+(c?'Editar cliente':'Novo cliente')+'</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
       + (c ? clientBalanceSummaryHtml(c.id) : '')
       + '<form data-form="client" data-id="'+(c?c.id:'')+'">'
+      + (()=>{ const st = m.realtec ? Object.assign({}, c||{}, m.realtec) : c;
+          return '<div class="rt-form-bar">'+(st ? realtecStatusLine(st) : '<div class="rt-status"><span class="hint" style="margin:0;">Digite o código (ou o CNPJ) e busque na base Realtec para preencher os dados.</span></div>')
+            + (canSyncRealtec() ? '<button type="button" class="btn btn-sm" data-action="client-realtec-lookup" '+(m.rtLoading?'disabled':'')+'>'+(m.rtLoading?'Buscando…':'🔎 Buscar na base Realtec')+'</button>' : '')+'</div>'; })()
       + '<div class="field-row"><div class="field"><label>Código</label><input type="text" name="code" value="'+esc(eff.code)+'"></div><div class="field"><label>Tipo</label><select name="clientType">'
         + '<option value="novo" '+(ctype==='novo'?'selected':'')+'>Novo</option>'
         + '<option value="base" '+(ctype==='base'?'selected':'')+'>Base</option>'
@@ -12181,11 +12696,16 @@ function renderModal(){
         : '')
       + '<div class="field-row"><div class="field"><label>Segmento</label><input type="text" name="segment" value="'+esc(eff.segment)+'"></div><div class="field"><label>Cidade</label><input type="text" name="city" value="'+esc(eff.city)+'"></div></div>'
       + '<div class="field-row"><div class="field"><label>UF</label><input type="text" name="uf" maxlength="2" value="'+esc(eff.uf)+'" placeholder="Ex: PR" style="text-transform:uppercase;"></div><div class="field"><label>CEP</label><input type="text" name="cep" value="'+esc(eff.cep)+'" placeholder="00000-000"></div></div>'
+      + '<div class="field"><label>Endereço</label><input type="text" name="address" value="'+esc(eff.address)+'" placeholder="Rua, avenida…"></div>'
+      + '<div class="field-row"><div class="field"><label>Número</label><input type="text" name="addressNumber" value="'+esc(eff.addressNumber)+'"></div><div class="field"><label>Complemento</label><input type="text" name="complement" value="'+esc(eff.complement)+'"></div></div>'
+      + '<div class="field"><label>Bairro</label><input type="text" name="district" value="'+esc(eff.district)+'"></div>'
       + '<div class="field"><label>Contato</label><input type="text" name="contact" value="'+esc(eff.contact)+'"></div>'
       + '<div class="field-row"><div class="field"><label>E-mail</label><input type="email" name="email" value="'+esc(eff.email)+'"></div><div class="field"><label>Telefone</label><input type="tel" name="phone" value="'+esc(eff.phone)+'"></div></div>'
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar</button></div>'
       + (ui.formErr ? '<div class="error-msg" style="margin:10px 0 0;">'+esc(ui.formErr)+'</div>' : '')
       + '</form>';
+  } else if(m.type==='realtec-sync-report'){
+    inner = renderRealtecSyncReport(m);
   } else if(m.type==='client-view'){
     const c = getClient(m.id);
     if(!c){ inner = '<div class="modal-header"><h3>Cliente não encontrado</h3><button class="modal-close" data-action="close-modal">✕</button></div>'; }
@@ -12195,7 +12715,9 @@ function renderModal(){
       const accountant = c.accountantId ? getClient(c.accountantId) : null;
       inner = '<div class="modal-header"><h3>Visualizar cliente</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
         + '<div class="hint" style="margin:0 0 14px;">Modo somente visualização. Os dados não podem ser alterados nesta tela.</div>'
+        + realtecStatusLine(c)
         + clientBalanceSummaryHtml(c.id)
+        + '<div class="cols-body">'
         + '<div class="field-row"><div class="field"><label>Código</label><input type="text" value="'+esc(c.code||'')+'" disabled></div><div class="field"><label>Tipo</label><input type="text" value="'+esc(ctypeLabel)+'" disabled></div></div>'
         + '<div class="field"><label>Nome fantasia</label><input type="text" value="'+esc(c.name||'')+'" disabled></div>'
         + '<div class="field"><label>Razão social</label><input type="text" value="'+esc(c.companyName||'')+'" disabled></div>'
@@ -12204,8 +12726,11 @@ function renderModal(){
         + (ctype!=='contador' && accountant ? '<div class="field"><label>Contador responsável</label><input type="text" value="'+esc(accountant.name)+'" disabled></div>' : '')
         + '<div class="field-row"><div class="field"><label>Segmento</label><input type="text" value="'+esc(c.segment||'')+'" disabled></div><div class="field"><label>Cidade</label><input type="text" value="'+esc(c.city||'')+'" disabled></div></div>'
         + '<div class="field-row"><div class="field"><label>UF</label><input type="text" value="'+esc(c.uf||'')+'" disabled></div><div class="field"><label>CEP</label><input type="text" value="'+esc(c.cep||'')+'" disabled></div></div>'
+        + '<div class="field"><label>Endereço</label><input type="text" value="'+esc([c.address, c.addressNumber].filter(Boolean).join(', ')+(c.complement?' — '+c.complement:''))+'" disabled></div>'
+        + '<div class="field"><label>Bairro</label><input type="text" value="'+esc(c.district||'')+'" disabled></div>'
         + '<div class="field"><label>Contato</label><input type="text" value="'+esc(c.contact||'')+'" disabled></div>'
         + '<div class="field-row"><div class="field"><label>E-mail</label><input type="email" value="'+esc(c.email||'')+'" disabled></div><div class="field"><label>Telefone</label><input type="tel" value="'+esc(c.phone||'')+'" disabled></div></div>'
+        + '</div>'
         + '<div class="form-actions"><button type="button" class="btn btn-primary" data-action="close-modal">Fechar</button></div>';
     }
   } else if(m.type==='product-new' || m.type==='product-edit'){
@@ -12333,15 +12858,16 @@ function renderModal(){
       + '<p class="hint" style="margin-top:0;">Um modelo é a “receita” de um treinamento: as sessões que sempre acontecem, na mesma ordem. Depois de pronto, você aplica em qualquer card com um clique e o sistema cria todas as agendas.</p>'
       + '<ol style="padding-left:20px;line-height:1.55;font-size:13.5px;">'
       + '<li><strong>Dê um nome</strong> que diga para que serve. Ex.: <em>Implantação padrão — Contábil</em>.</li>'
-      + '<li><strong>Liste as sessões, uma por linha</strong>, neste formato: <code>dia | horas | título</code></li>'
+      + '<li><strong>Adicione as sessões</strong>. Cada sessão tem dia, horas, título, <strong>módulo</strong> e <strong>telas</strong>.</li>'
       + '<li><strong>dia</strong> = quantos dias depois da data de início a sessão acontece. <code>0</code> é no próprio dia de início, <code>7</code> é uma semana depois. Fins de semana são pulados automaticamente.</li>'
       + '<li><strong>horas</strong> = duração da sessão. Aceita decimais: <code>1,5</code> é uma hora e meia. Mínimo 0,25 e máximo 8.</li>'
       + '<li><strong>título</strong> = o nome que vai aparecer na agenda (ex.: Kick-off, Cadastros).</li>'
-      + '<li>Clique em <strong>Criar modelo</strong>. Para ajustar depois, edite o texto e clique em <strong>Salvar</strong>.</li>'
+      + '<li><strong>módulo</strong> = obrigatório. Depois de escolher o módulo, aparecem as <strong>telas</strong> dele; marque as que serão treinadas (obrigatório quando o módulo tem telas cadastradas).</li>'
+      + '<li>Clique em <strong>Criar modelo</strong>. Para ajustar depois, clique em <strong>Editar</strong>.</li>'
       + '</ol>'
       + '<div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:10px 0;">'
       + '<div style="font-weight:700;font-size:12.5px;margin-bottom:4px;">Exemplo</div>'
-      + '<pre style="margin:0;font-size:12.5px;white-space:pre-wrap;">0 | 2 | Kick-off e parametrização\n3 | 1,5 | Cadastros básicos\n7 | 2 | Movimentação\n14 | 2 | Fechamento e revisão</pre>'
+      + '<pre style="margin:0;font-size:12.5px;white-space:pre-wrap;">Dia 0 · 2h · Kick-off e parametrização\nDia 3 · 1,5h · Cadastros básicos\nDia 7 · 2h · Movimentação\nDia 14 · 2h · Fechamento e revisão</pre>'
       + '<div class="hint" style="margin:6px 0 0;">Com início numa segunda-feira, cria 4 sessões: segunda (2h), quinta (1h30), segunda seguinte (2h) e a outra segunda (2h).</div></div>'
       + '<div style="font-weight:700;font-size:13px;margin:12px 0 4px;">Como usar depois</div>'
       + '<ol style="padding-left:20px;line-height:1.55;font-size:13.5px;margin-top:0;">'
@@ -12353,13 +12879,15 @@ function renderModal(){
       + '<div class="form-actions">'
       + (isAdminUser() ? '<button type="button" class="btn" data-action="template-example">Usar este exemplo no novo modelo</button>' : '')
       + '<button type="button" class="btn btn-primary" data-action="close-modal">Entendi</button></div>';
+  } else if(m.type==='trainingtpl'){
+    inner = renderTrainingTplModal(m);
   } else if(m.type==='apply-template'){
     const card = getCard(m.card); const cl = card ? getClient(card.clientId) : null;
     const tpls = state.trainingTemplates||[];
     inner = '<div class="modal-header"><h3>Aplicar modelo de treinamento</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
     if(ui.formErr) inner += '<div class="error-msg">'+esc(ui.formErr)+'</div>';
     inner += '<form data-form="apply-template" data-card="'+(card?card.id:'')+'"><p class="hint" style="margin-top:0;">Cria uma série de agendas <strong>pendentes</strong> para '+esc(cl?cl.name:'o cliente')+', no quadro do analista do card. Dias sem horário livre são deslocados para o próximo dia útil.</p>'
-      + '<div class="field"><label>Modelo</label><select name="templateId">'+tpls.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' ('+(t.sessions||[]).length+' sessões)</option>').join('')+'</select></div>'
+      + '<div class="field"><label>Modelo</label><select name="templateId">'+tpls.map(t=>'<option value="'+t.id+'">'+esc(t.name)+' ('+(t.sessions||[]).length+' sessões)'+(trainingTemplateProblems(t).length?' — incompleto':'')+'</option>').join('')+'</select></div>'
       + '<div class="field-row"><div class="field"><label>Data da 1ª sessão</label><input type="date" name="startDate" value="'+todayISO()+'" required></div>'
       + '<div class="field"><label>Horário de início</label><input type="time" name="startTime" value="09:00" required></div></div>'
       + '<div class="form-actions"><button type="submit" class="btn btn-primary">Criar agendas</button></div></form>';
@@ -12377,6 +12905,7 @@ function renderModal(){
       + '<div class="field-row"><div class="field"><label>Data</label><input type="date" name="date" value="'+esc(v.date||todayISO())+'" required></div>'
       + '<div class="field"><label>Início</label><input type="time" name="startTime" value="'+esc(v.startTime||hhmm(new Date(now.getTime()-3600000)))+'" required></div>'
       + '<div class="field"><label>Fim</label><input type="time" name="endTime" value="'+esc(v.endTime||hhmm(now))+'" required></div></div>'
+      + quickTimeTypeModuleHtml(v)
       + '<div class="field"><label>Observação</label><input type="text" name="notes" value="'+esc(v.notes||'')+'" placeholder="O que foi feito (opcional)"></div>'
       + '<p class="hint">Cria a agenda como <strong>pendente</strong> e abre ela em seguida, para você completar os detalhes e concluir.</p>'
       + '<div class="form-actions">'
@@ -12460,15 +12989,18 @@ function renderModal(){
     }
   } else if(m.type==='confirm-complete'){
     const s = byId(state.schedules, m.id);
-    const dur = scheduleMinutes(s);
+    const dur = scheduleSuggestedDeduct(s);
     const nAnalysts = scheduleAnalystIds(s).length || 1;
-    const perAnalyst = scheduleMinutesPerAnalyst(s);
-    const detailMsg = nAnalysts > 1 ? ' (base: '+minToHM(perAnalyst)+' × '+nAnalysts+' analistas)' : '';
+    const swMin = swSavedMinutes(s);
+    const perAnalyst = swMin || scheduleMinutesPerAnalyst(s);
+    const detailMsg = swMin ? ' (cronômetro: '+minToHM(swMin)+(nAnalysts>1?' × '+nAnalysts+' analistas':'')+')' : (nAnalysts > 1 ? ' (base: '+minToHM(perAnalyst)+' × '+nAnalysts+' analistas)' : '');
+    const swPending = s.stopwatch ? '<div class="error-msg" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">⏱ O cronômetro desta agenda tem tempo não salvo ('+swFmt(swElapsedMs(s))+'). <button type="button" class="btn btn-sm btn-primary" data-action="sw-save" data-id="'+s.id+'">Salvar tempo e usar</button></div>' : '';
     inner = '<div class="modal-header"><h3>Confirmar conclusão</h3><button class="modal-close" data-action="close-modal">✕</button></div>'
       + '<p class="hint">'+(s.title? '<strong>'+esc(s.title)+'</strong> · ':'')+scheduleDateText(s)+' · '+(s.allDay?'Dia todo':s.startTime+'–'+s.endTime)+' · '+esc(s.type)+'</p>'
       + (scheduleModuleScreenProblem(s)
         ? '<div class="error-msg">'+esc(scheduleModuleScreenProblem(s))+'</div><div class="form-actions"><button type="button" class="btn btn-primary" data-action="open-modal" data-modal="schedule-edit" data-id="'+s.id+'">Abrir agenda para preencher</button></div>'
         : '')
+      + swPending
       + '<form data-form="confirm-complete" data-id="'+s.id+'"'+(scheduleModuleScreenProblem(s)?' style="display:none;"':'')+'>'
       + '<div class="field"><label>Minutos a abater'+detailMsg+'</label><input type="number" min="0" name="deductMinutes" value="'+dur+'"></div>'
       + '<div class="field"><label>Observação</label><textarea name="notes">'+esc(s.notes||'')+'</textarea></div>'
@@ -12541,6 +13073,8 @@ function renderModal(){
         + '<div class="choice-desc" style="margin-top:8px;">Deseja imprimir o relatório do atendimento?</div></div>'
       + '<div class="choice-actions"><button class="btn btn-ghost" data-action="after-complete-no-print">Não</button>'
         + '<button class="btn btn-primary" data-action="after-complete-print">🖨 Sim</button></div>';
+  } else if(m.type==='card-change-client'){
+    inner = renderCardChangeClientModal(m);
   } else if(m.type==='card-conclude-confirm'){
     const c = m.payload && m.payload.cardId ? getCard(m.payload.cardId) : null;
     if(!c) return '<div class="overlay"><div class="modal"><p>Card não encontrado.</p></div></div>';
@@ -12612,7 +13146,7 @@ function renderModal(){
   } else if(m.type==='notif-center'){
     inner = renderNotifCenterModal();
   }
-  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='commercial-report-view' || m.type==='commercial-feedback' || m.type==='task-form' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+((m.type==='schedule-new'||m.type==='schedule-edit')?' modal-xl':'')+'">'+inner+'</div></div>';
+  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='trainingtpl' || m.type==='commercial-report-view' || m.type==='commercial-feedback' || m.type==='task-form' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+((m.type==='schedule-new'||m.type==='schedule-edit')?' modal-xl':'')+(MODAL_COLS_TYPES.includes(m.type)?' modal-cols':'')+'">'+inner+'</div></div>';
 }
 
 /* Seção "Riscos do projeto" do relatório de fechamento. */
@@ -12947,7 +13481,7 @@ function renderServiceContractPrint(contractId){
   const client = c.clientId ? getClient(c.clientId) : null;
   const installments = c.installments || [];
 
-  let html = '<div class="modal-header no-print"><h3>Contrato de Prestação de Serviços</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button>'+sigHeaderButton('contrato', c.id)+'<button class="modal-close" data-action="close-modal">✕</button></div>';
+  let html = '<div class="modal-header no-print"><h3>Contrato de Prestação de Serviços</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="share-whatsapp" data-share="print-report">📱 Compartilhar</button>'+sigHeaderButton('contrato', c.id)+'<button class="btn btn-sm btn-ghost" data-action="open-modal" data-modal="service-contract" data-id="'+c.id+'" title="Voltar para a edição do contrato">✏️ Editar</button><button class="modal-close" data-action="close-modal">✕</button></div>';
   html += sigPanelHtml('contrato', c.id);
 
   html += '<div class="contract-print" id="print-report">';
@@ -12960,7 +13494,7 @@ function renderServiceContractPrint(contractId){
     +   '<div class="contract-print-party"><strong>CONTRATANTE:</strong><br>'
     +     '<strong>'+esc(client?client.name:'—')+'</strong> inscrita no CNPJ: '+esc(client&&client.cnpj?client.cnpj:'—')
     +     (client&&client.ie ? ' e Inscrição Estadual '+esc(client.ie) : '')
-    +     (c.clientAddress ? ', situada à '+esc(c.clientAddress) : '')
+    +     (contractClientAddress(c, client) ? ', situada à '+esc(contractClientAddress(c, client)) : '')
     +   '</div>'
     +   '<div class="contract-print-party"><strong>CONTRATADO:</strong><br>'
     +     '<strong>'+esc(CONTRACT_REALTEC.name)+',</strong> inscrito no CNPJ '+esc(CONTRACT_REALTEC.cnpj)+' e Inscrição Estadual '+esc(CONTRACT_REALTEC.ie)+', situada à '+esc(CONTRACT_REALTEC.address)
@@ -13032,6 +13566,58 @@ function renderReportsClientPicker(){
   html += '</div>';
   return html;
 }
+/* Trocar o cliente do card: tudo que está no card (horas, histórico, anexos, checklists, relatórios…) continua nele.
+   As agendas vinculadas só mudam de cliente se o usuário escolher "Sim". */
+function cardChangeClientSchedules(card){
+  const old = card.clientId;
+  return schedulesForCard(card.id).filter(s=> s.clientId===old || (Array.isArray(s.clientIds) && s.clientIds.includes(old)));
+}
+function renderCardChangeClientModal(m){
+  const card = getCard(m.card); if(!card) return '<div class="modal-header"><h3>Card não encontrado</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  const v = m.values || {};
+  const oldCl = getClient(card.clientId);
+  const scheds = cardChangeClientSchedules(card);
+  const newId = v.clientId || '';
+  const newCl = newId ? getClient(newId) : null;
+  const otherCards = newCl ? state.cards.filter(c=>c.id!==card.id && cardIncludesClient(c, newCl.id) && !c.isConcluded) : [];
+  let h = '<div class="modal-header"><h3>🔁 Trocar cliente do card</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  if(ui.formErr) h += '<div class="error-msg">'+esc(ui.formErr)+'</div>';
+  h += '<form data-form="card-change-client" data-card="'+card.id+'">'
+    + '<p class="hint" style="margin-top:0;">Cliente atual: <strong>'+esc(oldCl?oldCl.name:'(cliente removido)')+'</strong>'+(oldCl&&oldCl.code?' ('+esc(oldCl.code)+')':'')+'. Tudo o que já foi feito no card (horas, saldo, histórico, anexos, checklists, telas e relatórios) continua nele, só que passa para o novo cliente.</p>'
+    + '<div class="field"><label>Novo cliente <span style="color:var(--danger)">*</span></label>'+renderClientPicker('clientId', newId, m.clientQuery)+'</div>';
+  if(newCl && newCl.id===card.clientId) h += '<div class="error-msg">Este já é o cliente do card. Escolha outro.</div>';
+  if(otherCards.length) h += '<div class="hint" style="color:var(--gold);">Atenção: '+esc(newCl.name)+' já tem '+otherCards.length+' card(s) em andamento. A troca continua permitida.</div>';
+  if(scheds.length){
+    const upd = v.updateSchedules || '';
+    h += '<div class="field"><label>Trocar o cliente também nas agendas deste card? <span style="color:var(--danger)">*</span></label>'
+      + '<p class="hint" style="margin:0 0 6px;">'+scheds.length+' agenda(s) vinculada(s) estão no cliente atual.</p>'
+      + '<div class="check-grid">'
+      + '<label class="check-pill"><input type="radio" name="updateSchedules" value="sim" '+(upd==='sim'?'checked':'')+'> Sim, trocar em todas as agendas</label>'
+      + '<label class="check-pill"><input type="radio" name="updateSchedules" value="nao" '+(upd==='nao'?'checked':'')+'> Não, manter as agendas como estão</label>'
+      + '</div></div>';
+  } else {
+    h += '<p class="hint">Este card não tem agendas vinculadas ao cliente atual.</p>';
+  }
+  h += '<div class="form-actions"><button type="button" class="btn btn-ghost" data-action="close-modal">Cancelar</button><button type="submit" class="btn btn-primary">Trocar cliente</button></div></form>';
+  return h;
+}
+function changeCardClient(card, newClientId, updateSchedules){
+  const oldId = card.clientId, oldCl = getClient(oldId), newCl = getClient(newClientId);
+  const scheds = cardChangeClientSchedules(card);
+  card.clientId = newClientId;
+  card.coClientIds = (Array.isArray(card.coClientIds) ? card.coClientIds : []).filter(id=> id!==newClientId && id!==oldId);
+  let changed = 0;
+  if(updateSchedules){
+    scheds.forEach(s=>{
+      if(s.clientId===oldId) s.clientId = newClientId;
+      if(Array.isArray(s.clientIds)) s.clientIds = [...new Set(s.clientIds.map(id=> id===oldId ? newClientId : id))];
+      changed++;
+    });
+  }
+  addHistory(card, 'Cliente do card trocado de "'+(oldCl?oldCl.name:'(removido)')+'" para "'+(newCl?newCl.name:'')+'"'
+    + (scheds.length ? (updateSchedules ? ' — cliente trocado também em '+changed+' agenda(s)' : ' — agendas mantidas no cliente anterior') : '')+'.');
+  return changed;
+}
 function renderClientPicker(fieldName, selectedClientId, query){
   const selected = selectedClientId ? getClient(selectedClientId) : null;
   let html = '<div class="client-picker" data-field="'+fieldName+'">';
@@ -13062,7 +13648,6 @@ function renderServiceContractForm(m){
     clientId: draft ? (draft.clientId||'') : (editing ? (editing.clientId||'') : ((m.scheduleId && byId(state.schedules,m.scheduleId)) ? (byId(state.schedules,m.scheduleId).clientId||'') : (m.cardId && getCard(m.cardId)) ? (getCard(m.cardId).clientId||'') : '')),
     scheduleId: draft ? (draft.scheduleId||'') : (editing ? (editing.scheduleId||'') : (m.scheduleId||'')),
     cardId: draft ? (draft.cardId||'') : (editing ? (editing.cardId||'') : (m.cardId||'')),
-    clientAddress: draft ? (draft.clientAddress||'') : (editing ? (editing.clientAddress||'') : ''),
     serviceDescription: draft ? (draft.serviceDescription||'') : (editing ? (editing.serviceDescription||'') : ''),
     serviceType: draft ? (draft.serviceType||'') : (editing ? (editing.serviceType||'') : ''),
     totalValue: draft ? (draft.totalValue!==undefined?draft.totalValue:'') : (editing ? editing.totalValue : ''),
@@ -13101,8 +13686,7 @@ function renderServiceContractForm(m){
       html += '<p class="hint" style="margin:-4px 0 12px;">Este cliente ainda não tem nenhum card de implantação/atendimento para vincular.</p>';
     }
   }
-  html += '<div class="field"><label>Endereço do cliente (para o contrato)</label><input type="text" name="clientAddress" value="'+esc(eff.clientAddress)+'" placeholder="Rua, número, bairro — Cidade/UF"></div>'
-    + '<div class="field"><label>Prestação de serviço</label><textarea name="serviceDescription" rows="3" placeholder="Descreva o serviço a ser prestado...">'+esc(eff.serviceDescription)+'</textarea></div>'
+  html += '<div class="field"><label>Prestação de serviço</label><textarea name="serviceDescription" rows="3" placeholder="Descreva o serviço a ser prestado...">'+esc(eff.serviceDescription)+'</textarea></div>'
     + '<div class="field"><label>Tipo do serviço *</label><select name="serviceType" required><option value="">— Selecione —</option>'+SERVICE_TYPES.map(t=>'<option value="'+esc(t)+'" '+(eff.serviceType===t?'selected':'')+'>'+esc(t)+'</option>').join('')+'</select></div>'
     + '<div class="field-row">'
     +   '<div class="field"><label>Valor total</label><input type="number" step="0.01" min="0" name="totalValue" value="'+esc(eff.totalValue)+'"></div>'
@@ -13136,10 +13720,84 @@ function renderServiceContractForm(m){
     + '</div>';
 
   html += '<div class="form-actions"><button type="submit" class="btn btn-primary">Salvar contrato</button>'
-    + '<button type="submit" class="btn" data-after="print" title="Salva o contrato e abre a impressão, sem sair desta tela">🖨 Salvar e imprimir</button></div></form>';
+    + '<button type="submit" class="btn" data-after="print" title="Salva o contrato e abre a tela de impressão, onde também dá para enviar para assinatura">🖨 Salvar e imprimir</button></div></form>';
   return html;
 }
 
+/* ===== Cronômetro da agenda =====
+   s.stopwatch = {startedAt: ms|null (null = pausado), accMs} enquanto está contando/pausado (não salvo).
+   s.stopwatchMinutes = tempo salvo; ao concluir, vira o valor sugerido em "Minutos a abater".
+   Sem cronômetro, nada muda: o padrão continua sendo a duração da agenda. */
+function swElapsedMs(s){
+  const sw = s && s.stopwatch; if(!sw) return 0;
+  return Math.max(0, (sw.accMs||0) + (sw.startedAt ? Date.now()-sw.startedAt : 0));
+}
+function swFmt(ms){ const t = Math.floor(ms/1000); return String(Math.floor(t/3600)).padStart(2,'0')+':'+String(Math.floor(t/60)%60).padStart(2,'0')+':'+String(t%60).padStart(2,'0'); }
+function swSavedMinutes(s){ return (s && typeof s.stopwatchMinutes==='number' && s.stopwatchMinutes>0) ? s.stopwatchMinutes : 0; }
+/* Minutos a abater sugeridos: cronômetro salvo × nº de analistas (mesma regra da duração); sem cronômetro, a duração. */
+function scheduleSuggestedDeduct(s){
+  const sw = swSavedMinutes(s);
+  if(!sw) return scheduleMinutes(s);
+  return sw * Math.max(1, scheduleAnalystIds(s).length);
+}
+function renderScheduleStopwatch(s){
+  if(!s || s.status!=='pendente') return '';
+  const sw = s.stopwatch, saved = swSavedMinutes(s);
+  const running = !!(sw && sw.startedAt), active = !!sw;
+  const ms = active ? swElapsedMs(s) : saved*60000;
+  let btns = '';
+  if(!active) btns = '<button type="button" class="btn btn-sm btn-primary" data-action="sw-start" data-id="'+s.id+'">▶ '+(saved?'Continuar cronômetro':'Iniciar cronômetro')+'</button>'
+    + (saved ? '<button type="button" class="btn btn-sm btn-ghost" data-action="sw-clear" data-id="'+s.id+'">Zerar tempo</button>' : '');
+  else btns = (running ? '<button type="button" class="btn btn-sm" data-action="sw-pause" data-id="'+s.id+'">⏸ Pausar</button>' : '<button type="button" class="btn btn-sm btn-primary" data-action="sw-start" data-id="'+s.id+'">▶ Continuar</button>')
+    + '<button type="button" class="btn btn-sm btn-primary" data-action="sw-save" data-id="'+s.id+'">💾 Salvar tempo</button>'
+    + '<button type="button" class="btn btn-sm btn-ghost" data-action="sw-discard" data-id="'+s.id+'">Descartar</button>';
+  const status = running ? '<span class="sw-status" style="color:var(--ok);font-weight:700;">● contando</span>'
+    : (active ? '<span class="sw-status" style="color:var(--gold);font-weight:700;">⏸ pausado — tempo ainda não salvo</span>'
+    : (saved ? '<span class="sw-status hint" style="margin:0;">Tempo salvo: <strong>'+minToHM(saved)+'</strong> — vai para os minutos a abater ao concluir.</span>' : '<span class="hint" style="margin:0;">Opcional. Se não usar, o abatimento continua pela duração da agenda.</span>'));
+  return '<div class="section-card sw-box" data-sw-box="'+s.id+'" style="margin:12px 0 0;padding:12px 13px;">'
+    + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    + '<strong style="color:var(--brand-dark);">⏱ Cronômetro</strong>'
+    + '<span data-sw-live="'+s.id+'" style="font-variant-numeric:tabular-nums;font-size:20px;font-weight:800;letter-spacing:.5px;">'+swFmt(ms)+'</span>'
+    + status + '</div>'
+    + '<div class="row-actions" style="margin-top:8px;">'+btns+'</div></div>';
+}
+function swRefreshBox(id){
+  const s = byId(state.schedules, id);
+  document.querySelectorAll('[data-sw-box="'+id+'"]').forEach(box=>{ const h = renderScheduleStopwatch(s); if(h) box.outerHTML = h; else box.remove(); });
+}
+function swAction(a, id){
+  const s = byId(state.schedules, id); if(!s || s.status!=='pendente') return;
+  const now = Date.now();
+  if(a==='sw-start'){
+    if(!s.stopwatch) s.stopwatch = {startedAt: now, accMs: swSavedMinutes(s)*60000};
+    else if(!s.stopwatch.startedAt) s.stopwatch.startedAt = now;
+  } else if(a==='sw-pause'){
+    if(s.stopwatch && s.stopwatch.startedAt){ s.stopwatch.accMs = swElapsedMs(s); s.stopwatch.startedAt = null; }
+  } else if(a==='sw-save'){
+    if(!s.stopwatch) return;
+    const ms = swElapsedMs(s);
+    const mins = ms>0 ? Math.max(1, Math.round(ms/60000)) : 0;
+    delete s.stopwatch;
+    if(mins>0) s.stopwatchMinutes = mins; else delete s.stopwatchMinutes;
+    scheduleCardIds(s).forEach(cid=>{ const c=getCard(cid); if(c && mins) addHistory(c, 'Cronômetro da agenda de '+scheduleDateText(s)+': '+minToHM(mins)+' registrado(s)'); });
+    showToast(mins ? 'Tempo salvo: '+minToHM(mins)+'. Ele será sugerido nos minutos a abater ao concluir.' : 'Nenhum tempo para salvar.', 'ok');
+  } else if(a==='sw-discard'){
+    delete s.stopwatch;
+  } else if(a==='sw-clear'){
+    delete s.stopwatchMinutes;
+  }
+  persist();
+  if(ui.modal && ui.modal.type==='confirm-complete') render();
+  else swRefreshBox(id);
+}
+setInterval(function(){
+  try{
+    document.querySelectorAll('[data-sw-live]').forEach(el=>{
+      const s = byId(state.schedules, el.dataset.swLive); if(!s || !s.stopwatch || !s.stopwatch.startedAt) return;
+      el.textContent = swFmt(swElapsedMs(s));
+    });
+  }catch(e){}
+}, 1000);
 function renderScheduleForm(m){
   const editing = m.type==='schedule-edit' ? byId(state.schedules, m.id) : null;
   const cardCtx = m.card ? getCard(m.card) : (editing && editing.cardId ? getCard(editing.cardId) : null);
@@ -13343,6 +14001,7 @@ function renderScheduleForm(m){
   }
   html+='</div>';
 
+  if(editing) html += renderScheduleStopwatch(editing);
   html += '<div class="section-card" style="margin:12px 0 0;padding:12px 13px;">'
     +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:9px;">'
     +'<strong style="color:var(--brand-dark);">⌁ Requisitos Jira</strong>'
@@ -13567,23 +14226,10 @@ function sigContextFor(kind, refId){
   title = (kind==='fechamento' ? 'Relatório de Fechamento da Implantação' : 'Certificados de Treinamento') + (client ? ' — '+client.name : '');
   return {client, title, card};
 }
-/* Quem assina, por padrão (dá para editar antes de enviar):
-   contrato → responsável do cliente + o analista logado (pela Realtec);
-   fechamento → responsável do cliente; certificados → analista do card. */
+/* Quem assina, por padrão: o responsável do cliente (dá para editar ou adicionar pessoas antes de enviar). */
 function sigDefaultSigners(kind, refId){
   const ctx = sigContextFor(kind, refId); const cl = ctx.client;
-  const me = myAnalystId() ? getAnalyst(myAnalystId()) : null;
-  const clientSigner = {name: (ctx.contract && ctx.contract.responsibleName) || (cl && cl.contact) || '', email: (cl && cl.email) || '', whatsapp:''};
-  if(kind==='contrato'){
-    const out = [clientSigner];
-    if(me && me.email) out.push({name: me.name, email: me.email, whatsapp:''});
-    return out;
-  }
-  if(kind==='certificados'){
-    const b = ctx.card ? getBoard(ctx.card.boardId) : null; const an = (b && getAnalyst(b.analystId)) || me;
-    return [{name: an ? an.name : '', email: an && an.email ? an.email : '', whatsapp:''}];
-  }
-  return [clientSigner];
+  return [{name: (ctx.contract && ctx.contract.responsibleName) || (cl && cl.contact) || '', email: (cl && cl.email) || ''}];
 }
 function sigPanelHtml(kind, refId){
   const reqs = sigRequestsFor(kind, refId);
@@ -13594,23 +14240,23 @@ function sigPanelHtml(kind, refId){
     const who = (r.signers||[]).map(s=>(s.signed ? '✓ ' : '')+esc(s.name||s.email)).join(', ');
     const open = ['enviado','parcial','finalizando'].indexOf(r.status)>=0;
     h += '<div class="sig-row">'+sigBadge(r)
-      + '<div class="sig-info">Enviado em '+fmtDT(r.sentAt||Date.now())+(r.sentBy ? ' por '+esc(r.sentBy) : '')+(who ? '<br><span class="hint">Signatários: '+who+'</span>' : '')
+      + '<div class="sig-info">Enviado em '+fmtDT(r.sentAt||Date.now())+(r.sentBy ? ' por '+esc(r.sentBy) : '')+(r.conta ? ' · '+esc(r.conta) : '')+(who ? '<br><span class="hint">Signatários: '+who+'</span>' : '')
       + (r.rejectReason ? '<br><span class="hint">Motivo da recusa: '+esc(r.rejectReason)+'</span>' : '')
       + (r.status==='assinado' && r.signedAt ? '<br><span class="hint">Assinado em '+fmtDT(r.signedAt)+'</span>' : '')
       + (r.ambiente==='testes' ? '<br><span class="hint">Ambiente de testes do Assinafy (sem validade jurídica).</span>' : '')
       + '</div><div class="sig-actions">'
       + sigDocButtons(r)
+      + sigAssinafyLink(r)
       + (open ? '<button class="btn btn-sm btn-ghost" data-action="sig-refresh" data-id="'+esc(r.id)+'">↻ Atualizar</button>' : '')
       + '</div></div>';
   });
   if(f){
     h += '<div class="sig-form"><h4>Enviar para assinatura eletrônica</h4>'
-      + '<p class="hint">O documento abaixo vira PDF e vai para o Assinafy, que manda o link de assinatura por e-mail a cada pessoa. WhatsApp é opcional.</p>';
+      + '<p class="hint">O documento abaixo vira PDF e vai para o Assinafy, que manda o link de assinatura por e-mail a cada pessoa.<br>Envio pela <strong>'+esc(sigSenderAccountLabel())+'</strong>.</p>';
     f.signers.forEach((s,i)=>{
       h += '<div class="sig-signer">'
         + '<input type="text" placeholder="Nome completo" data-sig-idx="'+i+'" data-sig-field="name" value="'+esc(s.name)+'">'
         + '<input type="email" placeholder="E-mail" data-sig-idx="'+i+'" data-sig-field="email" value="'+esc(s.email)+'">'
-        + '<input type="tel" placeholder="WhatsApp (opcional)" data-sig-idx="'+i+'" data-sig-field="whatsapp" value="'+esc(s.whatsapp)+'">'
         + (f.signers.length>1 ? '<button type="button" class="btn btn-sm btn-ghost" data-action="sig-del-row" data-idx="'+i+'" title="Remover">✕</button>' : '<span></span>')
         + '</div>';
     });
@@ -13624,6 +14270,14 @@ function sigPanelHtml(kind, refId){
 }
 /* Documento assinado: ver, imprimir e baixar pela cópia guardada no Storage do Supabase (mantida sempre).
    12 h após a assinatura a função pede ao Assinafy para apagar o documento (servidor/25_limpeza_assinaturas.sql). */
+/* Atalho para o documento no Assinafy (link devolvido pelo próprio Assinafy ao criar o documento).
+   Sem o link (documento antigo ou já apagado lá), abre o painel do Assinafy. */
+const ASSINAFY_APP_URL = 'https://app.assinafy.com.br/';
+function sigAssinafyLink(r){
+  if(!r || r.assinafyDeletedAt) return '';
+  const url = /^https:\/\/[a-z0-9.-]*assinafy\.com\.br\//i.test(r.assinafyUrl||'') ? r.assinafyUrl : ASSINAFY_APP_URL;
+  return '<a class="btn btn-sm btn-ghost" href="'+esc(url)+'" target="_blank" rel="noopener" title="'+(r.assinafyUrl?'Abrir este documento no Assinafy':'Abrir o painel do Assinafy')+'">🔗 Ver no Assinafy</a>';
+}
 function sigDocDeleted(r){ return !!(r && r.assinafyDeletedAt && !r.signedPdfUrl); }
 function sigDocButtons(r){
   if(!r || r.status!=='assinado') return '';
@@ -13676,6 +14330,76 @@ async function sigDocAction(kind, id){
     showAlert('Não foi possível abrir o documento assinado.\n'+((e && e.message) || e));
   }
 }
+/* ---------- Conta do Assinafy por analista ----------
+   A chave é enviada à função "assinafy", que a guarda na tabela assinafy_credentials
+   (trancada; só o servidor lê). No cadastro do analista fica só a indicação de que existe
+   conta própria (nome e ID da conta), nunca a chave. */
+function analystAssinafy(a){ return a && a.assinafy && a.assinafy.configured ? a.assinafy : null; }
+function assinafyAnalystFieldHtml(a){
+  if(!a) return '<div class="field"><label>Assinatura eletrônica (Assinafy)</label><p class="hint" style="margin:4px 0 0;">Depois de salvar o analista, você pode informar aqui a chave de API do Assinafy dele.</p></div>';
+  const info = analystAssinafy(a);
+  const f = (ui.afCred && ui.afCred.analystId===a.id) ? ui.afCred : null;
+  let h = '<div class="field af-cred"><label>Assinatura eletrônica (Assinafy)</label>';
+  if(info && !(f && f.editing)){
+    h += '<div class="af-cred-ok">✓ Conta própria: <strong>'+esc(info.accountName||'—')+'</strong> <span class="hint" style="margin:0;">(ID '+esc(info.accountId||'')+(info.updatedAt?' · atualizada em '+fmtDT(info.updatedAt):'')+')</span></div>'
+      + '<div class="af-cred-actions"><button type="button" class="btn btn-sm btn-ghost" data-action="af-cred-edit" data-id="'+a.id+'">Trocar chave</button>'
+      + '<button type="button" class="btn btn-sm btn-danger" data-action="af-cred-remove" data-id="'+a.id+'">Remover</button></div>'
+      + '<span class="hint">Os documentos que '+esc(a.name.split(' ')[0])+' enviar para assinatura saem por esta conta.</span>';
+  } else {
+    h += (info ? '' : '<p class="hint" style="margin:2px 0 6px;">Sem conta própria: os envios deste analista usam a conta geral da Realtec.</p>')
+      + '<div class="af-cred-form">'
+      + '<input type="password" data-af-field="apiKey" placeholder="Chave de API do Assinafy" autocomplete="new-password" value="'+esc(f?f.apiKey||'':'')+'">'
+      + '<input type="text" data-af-field="accountId" placeholder="ID da conta (opcional)" autocomplete="off" value="'+esc(f?f.accountId||'':'')+'">'
+      + '<button type="button" class="btn btn-sm btn-primary" data-action="af-cred-save" data-id="'+a.id+'"'+(f&&f.saving?' disabled':'')+'>'+(f&&f.saving?'Conferindo…':'Salvar chave')+'</button>'
+      + (info ? '<button type="button" class="btn btn-sm btn-ghost" data-action="af-cred-cancel">Cancelar</button>' : '')
+      + '</div><span class="hint">A chave é conferida no Assinafy e guardada só no servidor; ela não aparece de novo aqui. O ID da conta só é necessário se a chave tiver mais de uma conta.</span>';
+  }
+  return h + '</div>';
+}
+async function afCredSave(analystId){
+  const f = ui.afCred && ui.afCred.analystId===analystId ? ui.afCred : {analystId, apiKey:'', accountId:''};
+  ui.afCred = f;
+  const apiKey = String(f.apiKey||'').trim();
+  if(apiKey.length < 20){ showAlert('Cole a chave de API do Assinafy.'); return; }
+  f.saving = true; render();
+  try{
+    const res = await fetch(assinafyEndpoint(), {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify({action:'cred-salvar', analystId, apiKey, accountId: String(f.accountId||'').trim()})});
+    let out = {}; try{ out = await res.json(); }catch(e){}
+    if(res.status===404 && !out.error) throw new Error('A função "assinafy" ainda não foi publicada no Supabase.');
+    if(!res.ok || !out.ok){
+      let msg = out.error || ('HTTP '+res.status);
+      if(Array.isArray(out.contas) && out.contas.length) msg += '\nContas desta chave:\n' + out.contas.map(c=>'• '+(c.nome||'—')+' — ID '+c.id).join('\n');
+      throw new Error(msg);
+    }
+    const a = getAnalyst(analystId);
+    if(a){ a.assinafy = {configured:true, accountId: out.accountId, accountName: out.accountName||'', updatedAt: Date.now()}; }
+    ui.afCred = null;
+    showToast('Conta do Assinafy salva'+(out.accountName?': '+out.accountName:'')+'.', 'ok');
+    render();
+  }catch(e){ f.saving = false; render(); showAlert('Não foi possível salvar a chave do Assinafy.\n'+((e && e.message) || e)); }
+}
+function afCredRemove(analystId){
+  showConfirm('Remover a conta do Assinafy deste analista? Os próximos envios dele passam a usar a conta geral.', async function(){
+    try{
+      const res = await fetch(assinafyEndpoint(), {method:'POST', headers: await authedFunctionHeaders(), body: JSON.stringify({action:'cred-remover', analystId})});
+      let out = {}; try{ out = await res.json(); }catch(e){}
+      if(!res.ok || !out.ok) throw new Error(out.error || ('HTTP '+res.status));
+      const a = getAnalyst(analystId); if(a) delete a.assinafy;
+      ui.afCred = null; showToast('Conta do Assinafy removida.', 'ok'); render();
+    }catch(e){ showAlert('Não foi possível remover.\n'+((e && e.message) || e)); }
+  });
+}
+document.addEventListener('input', function(e){
+  const t = e.target; if(!t || !t.dataset || !t.dataset.afField) return;
+  const form = t.closest('form'); const aid = form && form.dataset.id; if(!aid) return;
+  if(!ui.afCred || ui.afCred.analystId!==aid) ui.afCred = {analystId: aid, apiKey:'', accountId:'', editing: !!(ui.afCred && ui.afCred.editing && ui.afCred.analystId===aid)};
+  ui.afCred[t.dataset.afField] = t.value;
+}, true);
+function sigSenderAccountLabel(){
+  const me = myAnalystId() ? getAnalyst(myAnalystId()) : null;
+  const info = analystAssinafy(me);
+  return info ? 'sua conta do Assinafy ('+(info.accountName||info.accountId)+')' : 'conta geral da Realtec no Assinafy';
+}
 function sigOpenForm(kind, refId){
   ui.sigForm = {kind, refId, signers: sigDefaultSigners(kind, refId), message:'', sending:false};
   render();
@@ -13685,11 +14409,6 @@ function sigCaptureInput(t){
   const field = t.dataset.sigField; if(!field) return;
   if(field==='message'){ f.message = t.value; return; }
   const i = Number(t.dataset.sigIdx); if(f.signers[i]) f.signers[i][field] = t.value;
-}
-function sigNormalizePhone(v){
-  let d = String(v||'').replace(/\D/g,''); if(!d) return '';
-  if(d.length<=11) d = '55'+d;
-  return '+'+d;
 }
 function blobToBase64(blob){
   return new Promise((resolve, reject)=>{
@@ -13701,7 +14420,7 @@ function blobToBase64(blob){
 }
 async function sigSend(){
   const f = ui.sigForm; if(!f || f.sending) return;
-  const signers = f.signers.map(s=>({name:String(s.name||'').trim(), email:String(s.email||'').trim(), whatsapp:sigNormalizePhone(s.whatsapp)})).filter(s=>s.name || s.email);
+  const signers = f.signers.map(s=>({name:String(s.name||'').trim(), email:String(s.email||'').trim()})).filter(s=>s.name || s.email);
   if(!signers.length){ showAlert('Informe ao menos um signatário.'); return; }
   const bad = signers.find(s=>!s.name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.email));
   if(bad){ showAlert('Cada signatário precisa de nome e e-mail válido. Confira: '+(bad.name||bad.email||'linha sem nome')+'.'); return; }
@@ -13724,7 +14443,7 @@ async function sigSend(){
     signatureRequests = signatureRequests.filter(r=>r.id!==out.documentId).concat([{
       id: out.documentId, kind:f.kind, refId:String(f.refId), clientId: ctx.client ? ctx.client.id : '', title: ctx.title,
       status:'enviado', done:0, total:signers.length, signers: signers.map(s=>({name:s.name, email:s.email, signed:false})),
-      sentAt: Date.now(), sentBy: me ? me.name : '', _local: true
+      sentAt: Date.now(), sentBy: me ? me.name : '', assinafyUrl: out.assinafyUrl || '', _local: true
     }]);
     ui.sigForm = null;
     showToast('Enviado para assinatura. Cada signatário recebe o link por e-mail.', 'ok');
@@ -13749,6 +14468,7 @@ async function sigRefresh(ids){
   }catch(e){ showAlert('Não foi possível consultar o Assinafy.\n'+((e && e.message) || e)); }
 }
 document.addEventListener('input', function(e){ if(e.target && e.target.dataset && e.target.dataset.sigField) sigCaptureInput(e.target); }, true);
+document.addEventListener('change', function(e){ if(e.target && e.target.dataset && e.target.dataset.sigField) sigCaptureInput(e.target); }, true);
 function htmlFromPrintReport(){
   const node = document.querySelector('.overlay .modal #print-report');
   return node ? node.outerHTML : '';
@@ -13942,11 +14662,11 @@ const FORM_MODAL_TYPES = new Set([
   'vacation-entry-new','vacation-entry-edit',
   'service-contract',
   'commercial-report-form','commercial-feedback','task-form','commercial-report-email-preview',
-  'confirm-complete','quick-time','apply-template','csat-form','risk-form'
+  'confirm-complete','quick-time','apply-template','csat-form','risk-form','card-change-client','trainingtpl'
 ]);
 
 ['click','submit','change'].forEach(function(t){ document.addEventListener(t, function(){ window.__mgrInteracted = true; }, true); });
-const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-)/;
+const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-|sw-|card-change-client|trainingtpl-)/;
 document.addEventListener('click', async function(e){
   let needsRender = false;
   const notifPanelClick = e.target.closest('.notif-panel');
@@ -14043,16 +14763,34 @@ document.addEventListener('click', async function(e){
     state.trainingTemplates = (state.trainingTemplates||[]).filter(t=>t.id!==el.dataset.id); persist(); render();
   }
   else if(a==='template-example'){
-    ui.modal = null; ui.view='settings'; ui.settingsTab='modelos'; render();
-    const nf = [...document.querySelectorAll('form[data-form="template"]')].find(f=>!f.dataset.id);
-    if(nf){ nf.querySelector('[name=name]').value = 'Implantação padrão'; nf.querySelector('[name=lines]').value = '0 | 2 | Kick-off e parametrização\n3 | 1,5 | Cadastros básicos\n7 | 2 | Movimentação\n14 | 2 | Fechamento e revisão'; nf.scrollIntoView({block:'center'}); }
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    ui.view='settings'; ui.settingsTab='modelos'; ui.formErr='';
+    const ex = (day,hours,title)=>Object.assign(trainingTplBlankSession(day),{hours,title});
+    ui.modal = {type:'trainingtpl', id:null, values:{name:'Implantação padrão', sessions:[ex(0,2,'Kick-off e parametrização'),ex(3,1.5,'Cadastros básicos'),ex(7,2,'Movimentação'),ex(14,2,'Fechamento e revisão')]}};
+    render();
+  }
+  else if(a==='trainingtpl-new'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    ui.formErr=''; ui.modal = {type:'trainingtpl', id:null, values:null}; render();
+  }
+  else if(a==='trainingtpl-edit'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const t = (state.trainingTemplates||[]).find(x=>x.id===el.dataset.id); if(!t) return;
+    ui.formErr=''; ui.modal = {type:'trainingtpl', id:t.id, values:JSON.parse(JSON.stringify({name:t.name, sessions:(t.sessions||[]).map(ss=>Object.assign(trainingTplBlankSession(0), ss, {screens:(ss.screens||[]).slice()}))}))}; render();
+  }
+  else if(a==='trainingtpl-add-row' || a==='trainingtpl-del-row'){
+    const form = el.closest('form'); if(!form || !ui.modal) return;
+    const v = readTrainingTplForm(form);
+    if(a==='trainingtpl-add-row'){ const last = v.sessions[v.sessions.length-1]; v.sessions.push(trainingTplBlankSession(last ? (parseInt(last.day,10)||0)+7 : 0)); }
+    else v.sessions.splice(parseInt(el.dataset.idx,10),1);
+    ui.modal.values = v; render();
   }
   else if(a==='quick-open'){ ui.formErr=''; ui.sidebarOpen=false; ui.modal = {type:'quick-time', values:null}; render(); }
   else if(a==='timer-stop'){
     const tm = readTimer(); const now = new Date();
     const hhmm = d=>String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
     const st = tm ? new Date(tm.start) : now;
-    ui.formErr=''; ui.modal = {type:'quick-time', values:{cardId: tm?tm.cardId:'', date: st.getFullYear()+'-'+String(st.getMonth()+1).padStart(2,'0')+'-'+String(st.getDate()).padStart(2,'0'), startTime:hhmm(st), endTime:hhmm(now), notes:''}, fromTimer:true};
+    ui.formErr=''; ui.modal = {type:'quick-time', values:{cardId: tm?tm.cardId:'', date: st.getFullYear()+'-'+String(st.getMonth()+1).padStart(2,'0')+'-'+String(st.getDate()).padStart(2,'0'), startTime:hhmm(st), endTime:hhmm(now), notes:'', type:(tm&&tm.type)||'', modules:(tm&&tm.modules)||[], trainedScreens:(tm&&tm.trainedScreens)||[]}, fromTimer:true};
     render();
   }
   else if(a==='timer-cancel'){ writeTimer(null); ui.modal=null; render(); }
@@ -14093,7 +14831,7 @@ document.addEventListener('click', async function(e){
     if(!sc.clientId){ showAlert('Vincule um cliente à agenda antes de criar o contrato.'); return; }
     ui.modal = {type:'service-contract', scheduleId:sc.id}; ui.formErr=''; ui.formSuccess=''; render();
   }
-  else if(a==='close-modal' || a==='close-modal-bg'){ ui.sigForm = null; closeModal(); }
+  else if(a==='close-modal' || a==='close-modal-bg'){ ui.sigForm = null; ui.afCred = null; closeModal(); }
   else if(a==='confirm-ok'){ const d=ui.confirmDialog; ui.confirmDialog=null; if(d && d.onConfirm) d.onConfirm(); render(); }
   else if(a==='confirm-cancel'){ ui.confirmDialog=null; render(); }
   else if(a==='close-card'){ ui.openCardId=null; ui.cardDraft=null; ui.cardModuleTab=null; ui.cardForecastModuleTab=null; render(); }
@@ -14105,15 +14843,34 @@ document.addEventListener('click', async function(e){
       notifItems().forEach(x=>{
         if(x._notifKind==='balance'){ const c=getCard(x.id); if(c){ c.balanceAlertSeen = c.balanceAlertSeen||{}; c.balanceAlertSeen[me]=x.level; const cl0=getClient(c.clientId); logNotifHandled('balance',(x.level>=100?'Saldo de horas esgotado':'Saldo de horas acabando'),cl0?cl0.name:'Cliente','Lido',c.id); } }
         else if(x._notifKind==='jira'){ const r=getJiraRequirement(x.id); if(r && r.statusNotice){ r.statusNotice.seen = Array.isArray(r.statusNotice.seen)?r.statusNotice.seen:[]; if(!r.statusNotice.seen.includes(me)){ r.statusNotice.seen.push(me); const cl1=r.clientId?getClient(r.clientId):null; logNotifHandled('jira','Requisito '+(r.number||''),(cl1?cl1.name:''),'Lido',r.id); } } }
+        else if(x._notifKind==='newclient'){ markNewClientSeen(x.id, me); }
+        else if(x._notifKind==='tasknew'){ markTaskNoticeSeen(x.id, me, 'Ignorada'); }
         else if(x._notifKind==='task'){ const t=(state.tasks||[]).find(y=>y.id===x.id); if(t){ t.seenBy = Array.isArray(t.seenBy)?t.seenBy:[]; if(!t.seenBy.includes(me)){ t.seenBy.push(me); logNotifHandled('task','Tarefa: '+(t.title||''),'', 'Lido', t.id); } } }
       });
       persist();
     }
     render();
   }
+  else if(a==='realtec-auto-now'){
+    if(!isAdminUser()) return;
+    showToast('Conferindo clientes novos na base Realtec…');
+    realtecAutoImport({manual:true}).then(r=>{ render(); showAlert(r.imported.length ? r.imported.length+' cliente(s) novo(s) cadastrado(s):\n'+r.imported.map(c=>c.name+' (código '+c.code+')').join('\n')+(r.skipped.length?'\n\nAvisos:\n'+r.skipped.join('\n'):'') : 'Nenhum cliente novo na base acima do código '+realtecMgmtRow().realtecAutoFromCode+'.'+(r.linked.length?'\n'+r.linked.join('\n'):'')+(r.skipped.length?'\n\nAvisos:\n'+r.skipped.join('\n'):'')); })
+      .catch(e=>{ showAlert('Não foi possível conferir a base Realtec.\n'+((e && e.message) || e)); });
+  }
+  else if(a==='newclient-notice-seen' || a==='newclient-notice-open'){
+    const me = myAnalystId(); markNewClientSeen(el.dataset.id, me); persist();
+    if(a==='newclient-notice-open'){ ui.showNotif=false; ui.formErr=''; ui.modal = {type:'client-edit', id: el.dataset.id}; }
+    render();
+  }
   else if(a==='task-notice-seen'){
-    const t=(state.tasks||[]).find(y=>y.id===el.dataset.id), me=myAnalystId();
-    if(t && me){ t.seenBy = Array.isArray(t.seenBy)?t.seenBy:[]; if(!t.seenBy.includes(me)){ t.seenBy.push(me); const cl=t.clientId?getClient(t.clientId):null; logNotifHandled('task','Tarefa: '+(t.title||''),(cl?cl.name:''),'Lido',t.id); } persist(); }
+    markTaskNoticeSeen(el.dataset.id, myAnalystId(), 'Ignorada'); persist();
+    render();
+  }
+  else if(a==='task-notice-open'){
+    const t = (state.tasks||[]).find(y=>y.id===el.dataset.id);
+    markTaskNoticeSeen(el.dataset.id, myAnalystId(), 'Acessada'); persist();
+    ui.showNotif = false; ui.sidebarOpen = false; ui.view = 'tasks'; ui.formErr = '';
+    ui.modal = t ? {type:'task-form', id:t.id} : null;
     render();
   }
   else if(a==='toggle-notif'){ ui.showNotif = !ui.showNotif; render(); }
@@ -14385,6 +15142,7 @@ document.addEventListener('click', async function(e){
     const context = el.dataset.context;
     if(context==='card') ui.cardModuleTab = moduleId;
     else if(context==='schedule') ui.scheduleModuleTab = moduleId;
+    else if(context==='quick') ui.quickModuleTab = moduleId;
     else if(context==='cardtpl') ui.cardTplModuleTab = moduleId;
     else if(context==='cardnew') ui.cardNewModuleTab = moduleId;
     else if(context==='forecast') ui.cardForecastModuleTab = moduleId;
@@ -14393,6 +15151,10 @@ document.addEventListener('click', async function(e){
       wrap.querySelectorAll('.module-tab-btn').forEach(btn=> btn.classList.toggle('active', btn.dataset.moduleId===moduleId));
       wrap.querySelectorAll('.module-tab-panel').forEach(p=> { p.style.display = (p.dataset.moduleId===moduleId) ? '' : 'none'; });
     }
+  }
+  else if(a==='card-change-client'){
+    if(isManagerUser() || isSupportUser()) return;
+    ui.formErr=''; ui.modal = {type:'card-change-client', card: el.dataset.id, values:{}, clientQuery:''}; render();
   }
   else if(a==='client-picker-select'){
     const form = el.closest('form'); const field = el.dataset.field;
@@ -14697,6 +15459,8 @@ document.addEventListener('click', async function(e){
   else if(a==='delete-client'){ const id = el.dataset.id; const cl = getClient(id); if(!cl) return; const links = cardsForClient(id).length + schedulesForClient(id).length; if(links){ showAlert('Há vínculos.'); return; } showConfirm('Excluir este cliente?', function(){ deleteClient(id); }); }
   else if(a==='delete-schedule'){ const id = el.dataset.id; showConfirm('Excluir este agendamento?', function(){ deleteSchedule(id); ui.modal=null; render(); }); }
   else if(a==='mark-not-done'){ markNotDone(el.dataset.id); render(); }
+  else if(a==='sw-start' || a==='sw-pause' || a==='sw-save' || a==='sw-discard'){ swAction(a, el.dataset.id); }
+  else if(a==='sw-clear'){ const id = el.dataset.id; const sf = el.closest('form[data-form="schedule"]'); if(sf && ui.modal) ui.modal.values = captureFormValues(sf); showConfirm('Zerar o tempo salvo do cronômetro? O abatimento volta a ser pela duração da agenda.', function(){ swAction('sw-clear', id); }); }
   else if(a==='revert-to-pending'){ const id = el.dataset.id; const s = byId(state.schedules, id); showConfirm(s && s.status==='concluida' ? 'Reverter a conclusão?' : 'Reverter para pendente?', function(){ revertToPending(id); ui.modal=null; }); }
   else if(a==='delete-product'){ const id = el.dataset.id; const linked = cardsUsingProduct(id); const linkedModules = modulesForProduct(id); if(linked.length){ showAlert('Há clientes vinculados.'); } else if(linkedModules.length){ showAlert('Há módulos vinculados a este produto.'); } else { showConfirm('Excluir?', function(){ state.productTags = state.productTags.filter(t=>t.id!==id); }); } }
   else if(a==='delete-module'){ const id = el.dataset.id; const mod = byId(state.modules, id); if(!mod) return; const linked = schedulesUsingModule(mod.name); const s = screensForModule(id); if(linked.length){ showAlert('Há agendamentos usando este módulo.'); } else if(s.length){ showAlert('Há telas neste módulo.'); } else { showConfirm('Excluir?', function(){ state.modules = state.modules.filter(m=>m.id!==id); }); } }
@@ -14711,11 +15475,15 @@ document.addEventListener('click', async function(e){
   else if(a==='print-report'){ doPrint(); }
   else if(a==='sig-open'){ sigOpenForm(el.dataset.kind, el.dataset.ref); }
   else if(a==='sig-cancel'){ ui.sigForm = null; render(); }
-  else if(a==='sig-add-row'){ if(ui.sigForm){ ui.sigForm.signers.push({name:'',email:'',whatsapp:''}); render(); } }
+  else if(a==='sig-add-row'){ if(ui.sigForm){ ui.sigForm.signers.push({name:'',email:''}); render(); } }
   else if(a==='sig-del-row'){ if(ui.sigForm){ ui.sigForm.signers.splice(Number(el.dataset.idx),1); render(); } }
   else if(a==='sig-send'){ sigSend(); }
   else if(a==='sig-refresh'){ sigRefresh([el.dataset.id]); }
   else if(a==='sig-doc-view'){ sigDocAction('view', el.dataset.id); }
+  else if(a==='af-cred-save'){ afCredSave(el.dataset.id); }
+  else if(a==='af-cred-edit'){ ui.afCred = {analystId: el.dataset.id, apiKey:'', accountId:'', editing:true}; render(); }
+  else if(a==='af-cred-cancel'){ ui.afCred = null; render(); }
+  else if(a==='af-cred-remove'){ afCredRemove(el.dataset.id); }
   else if(a==='sig-doc-print'){ sigDocAction('print', el.dataset.id); }
   else if(a==='sig-doc-download'){ sigDocAction('download', el.dataset.id); }
   else if(a==='share-whatsapp'){
@@ -14749,8 +15517,12 @@ document.addEventListener('click', async function(e){
   else if(a==='dashboard-clear-filters'){
     ui.dashboardStart=''; ui.dashboardEnd=''; ui.dashboardAnalyst='all'; ui.dashboardSegment='all'; ui.dashboardCity='all'; ui.dashboardStatus='todos'; render();
   }
+  else if(a==='realtec-sync'){ realtecSyncAll(); }
+  else if(a==='realtec-api-test'){ realtecApiTest(); }
+  else if(a==='realtec-api-clear'){ showConfirm('Remover a chave da API de clientes Realtec?', function(){ realtecSetConfig({realtecApiKey:''}); ui.realtecApiTest=''; persist(); render(); }); }
+  else if(a==='client-realtec-lookup'){ realtecLookupIntoForm(el.closest('form')); }
   else if(a==='clients-clear-filters'){
-    ui.clientsFilterSegment='all'; ui.clientsFilterCity='all'; ui.clientsFilterAccountant='all'; render();
+    ui.clientsFilterSegment='all'; ui.clientsFilterCity='all'; ui.clientsFilterAccountant='all'; ui.clientsFilterStatus='all'; render();
   }
   else if(a==='dashboard-set-filter'){
     const filter=el.dataset.filter, value=el.dataset.value || 'all';
@@ -14892,6 +15664,7 @@ document.addEventListener('change', function(e){
     if(e.target.id==='clients-segment-filter') ui.clientsFilterSegment=e.target.value;
     else if(e.target.id==='clients-city-filter') ui.clientsFilterCity=e.target.value;
     else if(e.target.id==='clients-accountant-filter') ui.clientsFilterAccountant=e.target.value;
+    else if(e.target.id==='clients-status-filter') ui.clientsFilterStatus=e.target.value;
     render();
   }
   else if(e.target.id==='jira-search'){
@@ -15131,6 +15904,18 @@ document.addEventListener('change', function(e){
   else if(e.target.matches('form[data-form="schedule"] input[name="analystIds"]')){
     const label = e.target.closest('.multi-analyst-item');
     if(label){ if(e.target.checked) label.classList.add('checked'); else label.classList.remove('checked'); }
+  }
+  else if(e.target.matches('form[data-form="trainingtpl"] select[data-trainingtpl-mod]')){
+    const form = e.target.closest('form'); const v = readTrainingTplForm(form);
+    const i = parseInt(String(e.target.name).split('_')[1],10); if(v.sessions[i]) v.sessions[i].screens = [];
+    if(ui.modal){ ui.modal.values = v; render(); }
+  }
+  else if(e.target.matches('form[data-form="quick-time"] select[name="type"], form[data-form="quick-time"] input[name="modules"]')){
+    const form = e.target.closest('form'); const values = captureFormValues(form);
+    if(!Array.isArray(values.modules)) values.modules = [];
+    if(!Array.isArray(values.trainedScreens)) values.trainedScreens = [];
+    if(e.target.name==='modules' && e.target.checked){ const mod = state.modules.find(m=>m.name===e.target.value); if(mod) ui.quickModuleTab = mod.id; }
+    if(ui.modal){ ui.modal.values = values; render(); }
   }
   else if(e.target.matches('form[data-form="schedule"] input[name="modules"]')){
     const form = e.target.closest('form'); const values = captureFormValues(form);
@@ -15464,6 +16249,8 @@ document.addEventListener('submit', async function(e){
       cnpj: fd.get('cnpj').trim(), ie: fd.get('ie').trim(), contact: fd.get('contact').trim(),
       email: fd.get('email').trim(), phone: fd.get('phone').trim(), segment: fd.get('segment').trim(),
       city: fd.get('city').trim(), uf: (fd.get('uf')||'').trim().toUpperCase().slice(0,2), cep: (fd.get('cep')||'').trim(),
+      address: (fd.get('address')||'').trim(), addressNumber: (fd.get('addressNumber')||'').trim(),
+      complement: (fd.get('complement')||'').trim(), district: (fd.get('district')||'').trim(),
       clientType: fd.get('clientType')||'novo',
       crc: (fd.get('crc')||'').trim(), ownerCpf: (fd.get('ownerCpf')||'').trim(),
       accountantId: (fd.get('clientType')==='contador' ? '' : (fd.get('accountantId')||'').trim())
@@ -15471,7 +16258,8 @@ document.addEventListener('submit', async function(e){
     { const inp = form.querySelector('#accountant-search'); if(inp && fd.get('clientType')!=='contador'){ const r = accountantResolveText(inp.value); if(!r.ok){ ui.formErr = 'Contador não encontrado: selecione um item da lista ou apague o campo.'; ui.modal.values = captureFormValues(form); render(); return; } data.accountantId = r.id; } }
     const id = form.dataset.id;
     if(!data.name){ showAlert('Informe o nome do cliente.'); return; }
-    if(data.code && state.clients.some(c=>c.code===data.code && c.id!==id)){ showAlert('Código duplicado.'); return; }
+    { const dupC = data.code ? findClientByCode(data.code, id) : null; if(dupC){ showAlert('Código '+data.code+' já cadastrado para o cliente "'+dupC.name+'".'); return; } }
+    if(ui.modal && ui.modal.realtec) Object.assign(data, ui.modal.realtec);   // situação vinda da base Realtec
     const cnpjDigits = String(data.cnpj||'').replace(/\D/g,'');
     if(cnpjDigits){
       const dup = state.clients.find(c=>c.id!==id && String(c.cnpj||'').replace(/\D/g,'')===cnpjDigits);
@@ -15539,6 +16327,20 @@ document.addEventListener('submit', async function(e){
       addHistory(newCard, 'Recebeu '+minToHM(importedFromCards.reduce((s,x)=>s+x.bal,0)*60)+' de saldo importado de card(s) anterior(es) deste cliente.');
     }
     ui.modal=null; render();
+  }
+  else if(type==='card-change-client'){
+    const card = getCard(form.dataset.card); if(!card){ ui.modal=null; render(); return; }
+    const values = captureFormValues(form);
+    const keep = msg=>{ ui.formErr = msg; ui.modal.values = values; render(); };
+    const newId = fd.get('clientId')||'';
+    if(!newId || !getClient(newId)) return keep('Escolha o novo cliente.');
+    if(newId===card.clientId) return keep('Este já é o cliente do card. Escolha outro.');
+    const n = cardChangeClientSchedules(card).length;
+    const upd = fd.get('updateSchedules')||'';
+    if(n && !upd) return keep('Responda se o cliente deve ser trocado também nas agendas.');
+    const changed = changeCardClient(card, newId, upd==='sim');
+    ui.modal=null; ui.formErr=''; persist(); render();
+    showToast('Cliente do card trocado para '+getClient(newId).name+(n ? (upd==='sim' ? ' e em '+changed+' agenda(s).' : '. As agendas foram mantidas.') : '.'), 'ok');
   }
   else if(type==='card-info'){
     const cardId = form.dataset.card;
@@ -15674,8 +16476,8 @@ document.addEventListener('submit', async function(e){
     };
     ui.formErr='';
     state.tasks = state.tasks||[];
-    if(id){ const t = state.tasks.find(x=>x.id===id); if(t){ if(t.analystId!==data.analystId) t.seenBy = []; Object.assign(t, data, {updatedAt:Date.now()}); } }
-    else { state.tasks.push(Object.assign({id:uid('tk'), createdAt:Date.now(), createdBy:taskActorName(), scheduleIds:[], cardIds:[]}, data)); }
+    if(id){ const t = state.tasks.find(x=>x.id===id); if(t){ if(t.analystId!==data.analystId) t.seenBy = (Array.isArray(t.seenBy)?t.seenBy:[]).filter(x=>x!==data.analystId); /* só o novo responsável volta a ser avisado */ Object.assign(t, data, {updatedAt:Date.now()}); } }
+    else { state.tasks.push(Object.assign({id:uid('tk'), createdAt:Date.now(), createdBy:taskActorName(), createdById: myAnalystId()||'', notifyAll:true, scheduleIds:[], cardIds:[]}, data)); }
     ui.modal = null; persist(); render();
   }
   else if(type==='commercial-feedback'){
@@ -15746,7 +16548,6 @@ document.addEventListener('submit', async function(e){
       clientId,
       scheduleId: form.dataset.schedule || '',
       cardId: fd.get('cardId') || '',
-      clientAddress: (fd.get('clientAddress')||'').trim(),
       serviceDescription,
       serviceType,
       totalValue,
@@ -15757,8 +16558,13 @@ document.addEventListener('submit', async function(e){
     };
     const saved = id ? updateServiceContract(id, data) : createServiceContract(data);
     const wantPrint = !!(e.submitter && e.submitter.dataset && e.submitter.dataset.after==='print');
-    ui.modal=null; render();
-    if(wantPrint && saved) setTimeout(function(){ printServiceContractNow(saved.id); }, 80);
+    /* A tela continua aberta depois de salvar: passa a editar o contrato salvo (um novo não é criado de novo). */
+    /* "Salvar e imprimir" abre a mesma tela de impressão do botão 🖨 Imprimir da lista (com "Enviar para assinatura"). */
+    if(saved && wantPrint){ ui.modal = {type:'service-contract-print', id: saved.id}; }
+    else if(saved){ ui.modal = Object.assign({}, ui.modal, {type:'service-contract', id: saved.id, values: null, clientQuery:''}); }
+    else ui.modal = null;
+    render();
+    if(saved) showToast(id ? 'Contrato salvo.' : 'Contrato criado e salvo.', 'ok');
   }
   else if(type==='vacation-entry'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
@@ -15993,6 +16799,33 @@ document.addEventListener('submit', async function(e){
     else state.trainingTemplates.push({id:uid('tp'), name, sessions:parsed.sessions});
     persist(); render(); showAlert('Modelo salvo.');
   }
+  else if(type==='trainingtpl'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const v = readTrainingTplForm(form);
+    const keep = msg=>{ ui.formErr = msg; ui.modal.values = v; render(); };
+    const name = String(v.name||'').trim();
+    if(!name) return keep('Dê um nome ao modelo.');
+    if(!v.sessions.length) return keep('Adicione ao menos uma sessão.');
+    const sessions = [], errs = [];
+    v.sessions.forEach((r,i)=>{
+      const day = parseInt(r.day,10), hours = parseFloat(String(r.hours||'').replace(',','.'));
+      const ss = {day, hours, title:String(r.title||'').trim(), module:r.module||'', screens:(r.screens||[]).slice()};
+      const lbl = 'Sessão '+(i+1)+': ';
+      if(!(day>=0)) errs.push(lbl+'informe o dia (0 ou mais).');
+      if(!(hours>=0.25 && hours<=8)) errs.push(lbl+'horas entre 0,25 e 8.');
+      const p = trainingSessionProblem(ss);
+      if(p==='sem módulo') errs.push(lbl+'escolha o módulo.');
+      else if(p==='sem tela') errs.push(lbl+'marque ao menos uma tela do módulo '+ss.module+'.');
+      else if(p) errs.push(lbl+p+'.');
+      sessions.push(ss);
+    });
+    if(errs.length) return keep(errs.map(esc).join('<br>'));
+    state.trainingTemplates = state.trainingTemplates||[];
+    const id = form.dataset.id;
+    if(id){ const t = state.trainingTemplates.find(x=>x.id===id); if(t){ t.name=name; t.sessions=sessions; } }
+    else state.trainingTemplates.push({id:uid('tp'), name, sessions});
+    ui.modal=null; ui.formErr=''; persist(); render(); showToast('Modelo de treinamento salvo.', 'ok');
+  }
   else if(type==='checklist-template'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
     const name = (fd.get('name')||'').trim();
@@ -16012,6 +16845,24 @@ document.addEventListener('submit', async function(e){
     if(cl && text){ cl.items.push({id:uid('ci'), text, required: cl.kind==='encerramento', done:false}); addHistory(c,'Item adicionado ao checklist "'+cl.name+'": '+text); persist(); }
     render();
   }
+  else if(type==='realtec-auto-config'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const raw = String(fd.get('fromCode')||'').trim();
+    const n = raw==='' ? null : parseInt(raw,10);
+    if(raw!=='' && !(n>=0)){ showAlert('Informe um código válido (número).'); return; }
+    realtecSetConfig({realtecAutoImport: fd.get('auto')==='on', realtecAutoFromCode: n});
+    persist(); render(); showToast('Cadastro automático salvo.', 'ok');
+  }
+  else if(type==='realtec-api-config'){
+    if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
+    const url = String(fd.get('url')||'').trim() || REALTEC_API_DEFAULT_URL;
+    if(!/^https:\/\/[a-z0-9.-]+\.realtec\.com\.br(:\d{2,5})?\//i.test(url)){ showAlert('O endereço da API precisa começar com https:// e ser do domínio realtec.com.br.'); return; }
+    const key = String(fd.get('apiKey')||'').trim();
+    const patch = {realtecApiUrl: url === REALTEC_API_DEFAULT_URL ? '' : url};
+    if(key) patch.realtecApiKey = key;
+    if(!key && !realtecApiConfig().key){ showAlert('Cole a chave da API.'); return; }
+    realtecSetConfig(patch); ui.realtecApiTest = ''; persist(); render(); showToast('Configuração da API de clientes salva.', 'ok');
+  }
   else if(type==='mgmt-config'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
     const sd = parseInt(fd.get('staleDays'),10), ap = parseInt(fd.get('alertPct'),10);
@@ -16026,6 +16877,8 @@ document.addEventListener('submit', async function(e){
     if(!analystId){ ui.formErr='Card sem analista responsável.'; render(); return; }
     const startDate = fd.get('startDate'), startTime = fd.get('startTime')||'09:00';
     const typeObj = activeAgendaTypes().find(x=>!x.isInternal && !x.isServico) || activeAgendaTypes()[0];
+    const tplProbs = trainingTemplateProblems(t);
+    if(tplProbs.length){ ui.formErr = 'O modelo "'+t.name+'" está incompleto (falta módulo/tela). Um administrador precisa completá-lo em Configurações → Modelos. '+tplProbs.join(' · '); render(); return; }
     let created = 0, shifted = 0;
     const nextWeekday = iso=>{ let d=iso; while(!isWeekdayISO(d)) d = addDaysISO(d,1); return d; };
     for(const ss of (t.sessions||[])){
@@ -16039,7 +16892,7 @@ document.addEventListener('submit', async function(e){
       if(tries>=15) continue;
       if(tries>0) shifted++;
       createSchedule({analystId, analystIds:[analystId], clientId:card.clientId, cardId:card.id, date, endDate:date, allDay:false, startTime:hh(st), endTime:hh(en),
-        type: typeObj?typeObj.name:'Treinamento', category:'implantacao', title: ss.title||t.name, notes:'', modules:[], trainedScreens:[], trainedUsers:''});
+        type: typeObj?typeObj.name:'Treinamento', category:'implantacao', title: ss.title||t.name, notes:'', modules: ss.module?[ss.module]:[], trainedScreens:(ss.screens||[]).slice(), trainedUsers:''});
       created++;
     }
     addHistory(card, 'Modelo "'+t.name+'" aplicado: '+created+' agenda(s) criada(s)'+(shifted?' ('+shifted+' deslocada(s) por conflito)':''));
@@ -16049,20 +16902,26 @@ document.addEventListener('submit', async function(e){
   else if(type==='quick-time'){
     const mode = e.submitter && e.submitter.value;
     const cardId = fd.get('cardId'); const card = getCard(cardId);
-    if(!card){ ui.formErr='Selecione o cliente.'; ui.modal.values={cardId:'',date:fd.get('date'),startTime:fd.get('startTime'),endTime:fd.get('endTime'),notes:fd.get('notes')}; render(); return; }
+    const qType = fd.get('type') || quickTimeDefaultType();
+    const qMods = fd.getAll('modules'), qScrs = fd.getAll('trainedScreens');
+    if(!card){ ui.formErr='Selecione o cliente.'; ui.modal.values={cardId:'',date:fd.get('date'),startTime:fd.get('startTime'),endTime:fd.get('endTime'),notes:fd.get('notes'),type:qType,modules:qMods,trainedScreens:qScrs}; render(); return; }
     if(mode==='start'){
-      writeTimer({cardId, start: Date.now()}); ui.modal=null; ui.formErr=''; render(); return;
+      writeTimer({cardId, start: Date.now(), type:qType, modules:qMods, trainedScreens:qScrs}); ui.modal=null; ui.formErr=''; render(); return;
     }
     const date = fd.get('date'), st = fd.get('startTime'), en = fd.get('endTime');
-    const keep = ()=>{ ui.modal.values={cardId,date,startTime:st,endTime:en,notes:fd.get('notes')||''}; render(); };
+    const keep = ()=>{ ui.modal.values={cardId,date,startTime:st,endTime:en,notes:fd.get('notes')||'',type:qType,modules:qMods,trainedScreens:qScrs}; render(); };
     if(timeToMin(en)<=timeToMin(st)){ ui.formErr='O horário final deve ser depois do inicial.'; keep(); return; }
+    if(typeNeedsModuleScreen(qType)){
+      const miss = moduleScreenMissing(qMods, qScrs);
+      if(miss==='modulo'){ ui.formErr='Informe o(s) módulo(s) treinado(s) — obrigatório para agenda de '+qType+'.'; keep(); return; }
+      if(miss==='tela'){ ui.formErr='Informe a(s) tela(s) treinada(s) — obrigatório para agenda de '+qType+'.'; keep(); return; }
+    }
     const board = getBoard(card.boardId); const analystId = board ? board.analystId : myAnalystId();
     const cf = scheduleConflictDetail([analystId], date, st, en, null);
     if(cf){ ui.formErr = cf; keep(); return; }
-    const typeObj = activeAgendaTypes().find(x=>!x.isInternal && !x.isServico) || activeAgendaTypes()[0];
-    const mins = timeToMin(en)-timeToMin(st);
+    const needMS = typeNeedsModuleScreen(qType);
     const sc = createSchedule({analystId, analystIds:[analystId], clientId:card.clientId, cardId:card.id, date, endDate:date, allDay:false, startTime:st, endTime:en,
-      type: typeObj?typeObj.name:'Treinamento', category:'implantacao', title:'Registro rápido', notes: fd.get('notes')||''});
+      type: qType, category:'implantacao', title:'Registro rápido', notes: fd.get('notes')||'', modules: needMS?qMods:[], trainedScreens: needMS?qScrs:[]});
     writeTimer(null); persist(); ui.formErr='';
     ui.modal = {type:'schedule-edit', id:sc.id}; render();
   }
@@ -16618,7 +17477,11 @@ function csatSurveyToken(){ try{ return new URLSearchParams(location.search).get
 async function runSurveyPage(token){
   document.title = 'Pesquisa de satisfação — Realtec';
   const root = document.getElementById('app');
-  const wrapS = (inner)=>'<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg,#f4f6fa);"><div style="background:var(--card,#fff);color:var(--text,#1c2430);max-width:520px;width:100%;border-radius:16px;padding:26px 22px;box-shadow:0 8px 30px rgba(0,0,0,.12);font-family:system-ui,sans-serif;">'+inner+'</div></div>';
+  /* A página da pesquisa precisa rolar (o app trava a rolagem de html/body para o layout fixo).
+     Sem isso, no celular o botão "Enviar resposta" ficava abaixo da tela e não dava para alcançar. */
+  document.documentElement.classList.add('survey-mode');
+  /* margin:auto centraliza quando cabe na tela e, quando não cabe, começa do topo e deixa rolar (align-items:center cortaria o topo). */
+  const wrapS = (inner)=>'<div style="min-height:100vh;min-height:100dvh;display:flex;padding:16px 16px 40px;box-sizing:border-box;background:var(--bg,#f4f6fa);"><div style="margin:auto;background:var(--card,#fff);color:var(--text,#1c2430);max-width:520px;width:100%;box-sizing:border-box;border-radius:16px;padding:26px 22px;box-shadow:0 8px 30px rgba(0,0,0,.12);font-family:system-ui,sans-serif;">'+inner+'</div></div>';
   root.innerHTML = wrapS('<p>Carregando…</p>');
   let sb, info = null;
   try{
