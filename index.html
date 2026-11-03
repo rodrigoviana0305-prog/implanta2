@@ -1993,6 +1993,7 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
 .mt-row-act{ grid-template-columns:22px minmax(0,2.4fr) minmax(0,1.3fr) 140px 130px 34px; }
 .mt-row-par{ grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 34px; }
 .mt-n{ font-weight:700; color:var(--ink-soft); font-size:12.5px; }
+.mt-carried{ font-size:11px; color:var(--brand); font-weight:600; margin:2px 0 2px 28px; }
 .check-pill.mt-on{ background:var(--brand-soft); border-color:var(--brand); color:var(--brand-dark); }
 .mt-list{ display:flex; flex-direction:column; gap:8px; }
 .mt-item{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:var(--surface-2); }
@@ -2374,7 +2375,7 @@ function logout(msg){
 
 /* ============================= STATE ============================= */
 /* Versão do site exibida no rodapé do menu: 1.0.<número da geração do index.html>. Atualizar a cada entrega. */
-const APP_VERSION = '1.0.358';
+const APP_VERSION = '1.0.361';
 const STORAGE_KEY = 'implanta_v1';
 const PALETTE = [
   '#0B5C8E','#C0392B','#1E8449','#8E44AD','#E67E22','#16A085','#C2185B','#2980B9',
@@ -6585,7 +6586,7 @@ function renderShell(){
 /* ============================= SIDEBAR ============================= */
 function renderSupportSidebar(){
   let html = '<div class="side-section"><div class="side-label"><span>Suporte</span></div>'
-    + navItem('tasks','☑','Tarefas Pendentes')
+    + navItem('tasks','✅','Tarefas Pendentes')
     + navItem('contracts','📄','Contratos de Serviços') + '</div>';
   html += '<div class="side-foot" style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">'
     + '<button class="btn btn-sm btn-ghost" data-action="cycle-theme" title="Alternar tema" style="justify-content:flex-start;gap:8px;">'+themeButtonLabel()+'</button>'
@@ -6601,15 +6602,15 @@ function renderSidebar(){
   html += '<div class="side-mobile-tools">'
     + (isSupportUser() ? '' : '<button type="button" class="side-item" data-action="open-global-search"><span>🔎</span><span style="flex:1;">Buscar</span></button>')
     + '<button type="button" class="side-item" data-action="open-faq-search"><span>❓</span><span style="flex:1;">Ajuda</span></button>'
-    + ((isSupportUser() || isManagerUser() || !myAnalystId()) ? '' : '<button type="button" class="side-item" data-action="quick-open"><span>⏱</span><span style="flex:1;">Registro rápido de horas</span></button>')
+    + ((isSupportUser() || isManagerUser() || !myAnalystId()) ? '' : '<button type="button" class="side-item" data-action="quick-open"><span>⏱️</span><span style="flex:1;">Registro rápido de horas</span></button>')
     + '</div>';
   if(isSupportUser()) return html + renderSupportSidebar();
   html += '<div class="side-section">';
-  html += navItem('dashboard','🏠','Painel Geral');
+  html += navItem('dashboard','📊','Painel Geral');
   html += '</div>';
   html += '<div class="side-section"><div class="side-label"><span>Implantações</span></div>';
   html += '<button class="side-item'+(ui.view==='board' && ui.boardAnalystFilter==='all'?' active':'')+'" data-action="board-analyst-filter" data-id="all">'
-    + '<span>▦</span><span style="flex:1;">Todos os analistas</span>'
+    + '<span>👥</span><span style="flex:1;">Todos os analistas</span>'
     + (totalPendingBoardBadge()? '<span class="side-badge">'+totalPendingBoardBadge()+'</span>' : '')
     + '</button>';
   /* Lista de analistas recolhível: recolhida, mostra só o meu quadro, o selecionado e quem tem pendência. */
@@ -6637,14 +6638,14 @@ function renderSidebar(){
 
   const totalPend = notifItems().length;
   html += '<div class="side-section"><div class="side-label"><span>Gestão</span></div>';
-  html += navItem('calendar','◷','Agenda', totalPend);
-  html += navItem('tasks','☑','Tarefas Pendentes');
-  html += navItem('meetings','🗒','Reuniões');
-  html += navItem('jira','⌁','Requisitos Jira');
+  html += navItem('calendar','📅','Agenda', totalPend);
+  html += navItem('tasks','✅','Tarefas Pendentes');
+  html += navItem('meetings','💬','Reuniões');
+  html += navItem('jira','⇄','Requisitos Jira');
   html += navItem('contracts','📄','Contratos de Serviços');
   html += navItem('clients','◉','Cadastros');
-  html += navItem('reports','▥','Relatórios');
-  html += navItem('settings','⚙','Configurações');
+  html += navItem('reports','📈','Relatórios');
+  html += navItem('settings','⚙️','Configurações');
   html += '<a class="side-item" href="https://realtec.atlassian.net/jira/dashboards/10502" target="_blank" rel="noopener noreferrer" style="text-decoration:none;">'
         + '<img src="https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3gH-YxYAuaEuzft15oHDRUdvwwG_422hsdWx-ne2rcQ&s=10" alt="JIRA" style="width:16px;height:16px;object-fit:contain;flex:0 0 auto;border-radius:3px;">'
         + '<span style="flex:1;">JIRA</span>'
@@ -7029,8 +7030,8 @@ function globalSearchResults(q){
 }
 function globalSearchScreens(){
   const list = [
-    ['dashboard','🏠','Painel Geral'],['calendar','◷','Agenda'],['tasks','☑','Tarefas Pendentes'],['meetings','🗒','Reuniões'],['jira','⌁','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
-    ['clients','◉','Cadastros (clientes)'],['reports','▥','Relatórios'],['settings','⚙','Configurações'],['manual','📘','Manual do Usuário'],
+    ['dashboard','📊','Painel Geral'],['calendar','📅','Agenda'],['tasks','✅','Tarefas Pendentes'],['meetings','💬','Reuniões'],['jira','⇄','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
+    ['clients','◉','Cadastros (clientes)'],['reports','📈','Relatórios'],['settings','⚙️','Configurações'],['manual','📘','Manual do Usuário'],
     ['settings:produtos','⚙','Configurações — Produtos'],['settings:modulos','⚙','Configurações — Módulos do sistema'],['settings:telas','⚙','Configurações — Telas'],
     ['settings:tipos','⚙','Configurações — Tipos de agenda'],['settings:modelos','⚙','Configurações — Modelos de treinamento'],
     ['settings:cardtpl','⚙','Configurações — Modelos de card'],['settings:checklists','⚙','Configurações — Checklists']
@@ -7080,9 +7081,15 @@ function renderManualView(){
     ['man-painel','📊','Painel Geral'],
     ['man-quadro','🗂','Implantações (quadro)'],
     ['man-agenda','🗓','Agenda'],
+    ['man-avisos','🔔','Avisos (sino)'],
+    ['man-tarefas','☑','Tarefas Pendentes'],
+    ['man-contratos','📄','Contratos e assinatura'],
+    ['man-9box','▦','9Box'],
+    ['man-reunioes','🗒','Reuniões'],
     ['man-relatorios','📈','Relatórios'],
     ['man-clientes','🏢','Clientes'],
     ['man-config','⚙️','Configurações'],
+    ['man-ferias','🏖','Férias'],
     ['man-jira','🔗','Requisitos Jira'],
     ['man-backup','💾','Backup e auditoria'],
     ['man-mobile','📱','Dicas para celular'],
@@ -7098,7 +7105,7 @@ function renderManualView(){
   html += '<div class="section-card manual-content" id="man-intro">'
     + '<h2>🚀 Primeiros passos</h2>'
     + '<p>O <strong>Implanta (NEO)</strong> é o sistema da Realtec para acompanhar a implantação e o atendimento dos clientes, no estilo de um quadro Trello: cada analista tem seu próprio quadro, com um card por cliente.</p>'
-    + '<p>Ao entrar, use seu usuário e senha cadastrados (ou o usuário mestre <code>administrador</code>, que tem acesso a tudo). O menu lateral, à esquerda, é o ponto de partida para navegar entre as telas do sistema: Painel Geral, Implantações, Agenda, Relatórios, Clientes, Requisitos Jira, Configurações e este Manual.</p>'
+    + '<p>Ao entrar, use seu usuário e senha cadastrados (ou o usuário mestre <code>administrador</code>, que tem acesso a tudo). O menu lateral, à esquerda, é o ponto de partida para navegar entre as telas do sistema: Painel Geral, Implantações, Agenda, Tarefas Pendentes, 9Box, Reuniões, Requisitos Jira, Contratos de Serviços, Cadastros (clientes), Relatórios, Configurações e este Manual.</p>'
     + '<p>Os dados ficam sincronizados na nuvem em tempo real — o que um analista faz aparece automaticamente para os outros, sem precisar atualizar a página.</p>'
     + '<div class="manual-tip"><strong>💡 Dica:</strong> o sino no topo da tela mostra confirmações pendentes e agendas próximas. Vale a pena checar sempre que ele acender.</div>'
     + '</div>';
@@ -7106,6 +7113,16 @@ function renderManualView(){
   html += '<div class="section-card manual-content" id="man-novidades">'
     + '<h2>🆕 Novidades recentes</h2>'
     + '<ul>'
+    + '<li>▦ <strong>9Box:</strong> avaliação de desempenho × comportamento por ciclos, com autoavaliação, avaliação do líder, matriz de 9 quadrantes e o <strong>Relatório de avaliação</strong> com a análise de cada analista. Veja o tópico 9Box.</li>'
+    + '<li>🗒 <strong>Reuniões:</strong> registre a ata (check-in da equipe, comitê técnico) e gere o documento pronto para imprimir e assinar. Veja o tópico Reuniões.</li>'
+    + '<li>🏖 <strong>Avisos de férias</strong> (Administradores e Coordenadora): no dia em que um período é liberado e quando faltam 4 meses (e depois 1 mês) para vencer o prazo sem as férias marcadas.</li>'
+    + '<li>🏢 <strong>Base de clientes Realtec:</strong> clientes novos da base entram sozinhos (os administradores são avisados), as alterações dos cadastros são conferidas a cada 3 dias às 8h e cliente bloqueado na base deixa o card em vermelho suave.</li>'
+    + '<li>⏱ <strong>Cronômetro na agenda:</strong> inicie, pause e salve o tempo dentro da agenda; ao concluir, ele vira o valor sugerido em “Minutos a abater”.</li>'
+    + '<li>🔁 <strong>Trocar o cliente do card</strong> mantendo tudo o que foi feito, com a opção de trocar também nas agendas.</li>'
+    + '<li>☑ <strong>Tarefa nova avisa a equipe:</strong> Analistas e Administradores recebem no sino “Nova tarefa criada”, com Acessar tarefa ou Ignorar.</li>'
+    + '<li>✍ <strong>Assinatura eletrônica (Assinafy)</strong> do contrato de serviço, do relatório de fechamento e dos certificados. O contrato continua aberto ao salvar, e “Salvar e imprimir” abre a tela de impressão com “Enviar para assinatura”.</li>'
+    + '<li>📊 <strong>Painel Geral:</strong> painel “Telas mais treinadas” e altura ajustável de cada painel (com rolagem por dentro).</li>'
+    + '<li>🎓 <strong>Treinamento com módulo e tela</strong> também nos modelos de treinamento e no registro rápido de horas.</li>'
     + '<li>🎯 <strong>Projeção e risco:</strong> relatório que dá uma nota de risco (0–100) para cada implantação, mostra a fila de trabalho de cada analista em semanas e as parcelas dos contratos por mês. O Painel Geral mostra a <em>Meta de horas faturáveis</em> de cada analista com projeção para o fim do mês (meta definida em Configurações → Analistas).</li>'
     + '<li>⭐ <strong>Satisfação do cliente:</strong> no card (aba Informações) use “Pedir avaliação” para enviar a pergunta por WhatsApp/e-mail e “Registrar resposta” para lançar a nota de 0 a 10. O relatório Satisfação mostra média, NPS, taxa de resposta, ranking por analista e os comentários.</li>'
     + '<li>🔄 <strong>Salvamento sem sobrescrever colegas:</strong> se duas pessoas alteram o mesmo card/agenda ao mesmo tempo, o sistema mescla as alterações (campos diferentes são somados; listas como histórico são unidas) e avisa na tela. Se falhar a conexão, ele tenta salvar de novo sozinho e as alterações ficam guardadas no navegador. O histórico de cada card guarda as 300 entradas mais recentes.</li>'
@@ -7155,6 +7172,7 @@ function renderManualView(){
     + '<li>⏱️ <strong>Tempo de ciclo da implantação</strong> — dias entre o comercial e o início, e entre o início e a conclusão, por analista e por tipo de cliente (média, mediana e quantidade).</li>'
     + '<li>📣 <strong>Reportes comerciais por gravidade</strong> — tendência mensal dos últimos 12 meses, com filtro por tipo de impedimento.</li>'
     + '</ul>'
+    + '<p><strong>Altura dos painéis:</strong> no modo Reordenar, use <strong>▁ Menor</strong> / <strong>▇ Maior</strong> ou arraste o canto de baixo do painel; quando o conteúdo não cabe, aparece rolagem por dentro. <strong>↺ Altura automática</strong> volta ao normal.</p>'
     + '<p>Para organizar a tela, clique em <strong>Reordenar painéis</strong>. Cada painel ganha uma barra: <strong>arraste a barra</strong> e solte sobre outro painel para colocá-lo naquela posição, ou use os botões <strong>▲ Subir</strong>, <strong>▼ Descer</strong>, <strong>⤒ Início</strong> e <strong>⤓ Final</strong>; também dá para alternar entre meia largura e largura total e mudar a altura (<strong>▁ Menor</strong>, <strong>▇ Maior</strong> ou arrastando o canto de baixo do painel). Painel menor que o conteúdo ganha barra de rolagem por dentro; <strong>↺ Altura automática</strong> volta ao normal. A ordem fica salva neste computador/navegador, e a tela não volta ao topo quando você reordena. Use o botão de compartilhar para enviar uma imagem do painel por WhatsApp.</p>'
     + '</div>';
 
@@ -7172,6 +7190,8 @@ function renderManualView(){
     + '</ul>'
     + '<p>O saldo de horas do card é sempre <strong>horas contratadas − horas usadas</strong>. Ao concluir um card, o sistema pergunta se o saldo restante deve ser zerado ou aproveitado; e se o card tiver recebido saldo de um card anterior, é possível estornar esse saldo de volta ao excluir o card.</p>'
     + '<p>As colunas <strong>Concluído</strong> e <strong>Cancelado</strong> ficam sempre no final do quadro, nessa ordem, e não podem ser movidas para o meio das demais. Quando o saldo de um card chega a <strong>80%</strong> das horas contratadas, o analista responsável recebe um aviso no sino (🔔) — “Saldo de horas acabando” —, que se repete ao chegar a 100%. Clique em “Marcar como lido” para dispensar.</p>'
+    + '<p><strong>🔁 Trocar cliente:</strong> na aba Resumo do card, use “Trocar cliente”. Tudo o que já foi feito (horas, saldo, histórico, anexos, checklists, telas e relatórios) continua no card, só que no novo cliente. Se houver agendas, o sistema pergunta se o cliente deve ser trocado também nelas. A troca fica no histórico.</p>'
+    + '<p><strong>Cliente bloqueado:</strong> quando o cliente está bloqueado na base Realtec, o card aparece com fundo vermelho suave e o selo “Bloqueado desde…”.</p>'
     + '</div>';
 
   html += '<div class="section-card manual-content" id="man-agenda">'
@@ -7182,6 +7202,61 @@ function renderManualView(){
     + '<p>A opção de incluir <strong>mais de um cliente</strong> na mesma agenda aparece apenas para agendas do tipo <strong>Interna</strong>; em agendas de implantação ou serviço, cada agenda é de um cliente.</p>'
     + '<p><strong>Chamado no Jira pela agenda:</strong> na edição da agenda, escolha criar o chamado, informe tipo, título e descrição. Com a caixa marcada, o sistema acrescenta à descrição o cliente, o analista, o(s) módulo(s), a(s) tela(s) e os links dos anexos. O requisito criado fica vinculado à agenda e ao analista.</p>'
     + '<p>Existem agendas de implantação (vinculadas a um card, abatendo horas do saldo), agendas internas (não abatem saldo do cliente, mas continuam contando como horas trabalhadas do analista) e agendas de serviço/Férias, conforme o tipo escolhido.</p>'
+    + '<p><strong>Treinamento:</strong> agendas do tipo Treinamento exigem módulo(s) e tela(s). As telas aparecem depois de marcar o módulo. A mesma regra vale para o registro rápido de horas (⏱) e para os modelos de treinamento.</p>'
+    + '<p><strong>⏱ Cronômetro:</strong> abra uma agenda pendente já salva e use o bloco Cronômetro: <strong>Iniciar</strong>, <strong>Pausar</strong>, <strong>Continuar</strong> e <strong>Salvar tempo</strong>. O tempo fica guardado na agenda (pode fechar ou recarregar a página). Ao concluir, o tempo salvo vem em “Minutos a abater” (vezes o número de analistas da agenda) e pode ser ajustado. Sem cronômetro, o abatimento continua pela duração da agenda.</p>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-avisos">'
+    + '<h2>🔔 Avisos (sino)</h2>'
+    + '<p>O sino no topo reúne o que precisa da sua atenção. Clique em “Abrir central de notificações e histórico” para ver tudo, marcar os avisos como lidos e consultar o histórico (últimos 30 itens). Cada pessoa vê só os próprios avisos.</p>'
+    + '<ul>'
+    + '<li>⚠️ <strong>Agenda pendente de confirmação</strong> e ⏰ <strong>próxima agenda</strong> (em até 30 minutos).</li>'
+    + '<li>🟠 <strong>Saldo de horas acabando / esgotado</strong> nos seus cards.</li>'
+    + '<li>✅ ⛔ <strong>Requisito Jira</strong> concluído ou desconforme.</li>'
+    + '<li>☑ <strong>Tarefa pendente para você</strong> e 🆕 <strong>Nova tarefa criada</strong> (para Analistas e Administradores): escolha <strong>Acessar tarefa</strong> ou <strong>Ignorar</strong>.</li>'
+    + '<li>🆕 <strong>Cliente novo cadastrado pela base Realtec</strong> (Administradores).</li>'
+    + '<li>🏖 <strong>Férias liberadas</strong> e ⏳ <strong>férias perto de vencer</strong> (Administradores e Coordenadora). Veja o tópico Férias.</li>'
+    + '</ul>'
+    + '<p>Se as notificações do navegador estiverem ligadas (menu do usuário), os mesmos avisos aparecem também fora do site.</p>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-tarefas">'
+    + '<h2>☑ Tarefas Pendentes</h2>'
+    + '<p>Lista de tarefas da equipe de implantação, com responsável, prioridade, prazo e checklist. Uma tarefa pode virar agenda ou card. Ao criar uma tarefa, todos os Analistas e Administradores são avisados no sino (menos quem criou); o responsável recebe “Tarefa pendente para você”. Perfis Suporte veem apenas Tarefas Pendentes e Contratos de Serviços.</p>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-contratos">'
+    + '<h2>📄 Contratos e assinatura eletrônica</h2>'
+    + '<ul>'
+    + '<li><strong>Contrato de serviço:</strong> preencha cliente, card (opcional), descrição, tipo, valor e parcelas. O endereço vem do cadastro do cliente e aparece só no contrato impresso. <strong>Salvar contrato</strong> grava e mantém a tela aberta; <strong>🖨 Salvar e imprimir</strong> grava e abre a tela de impressão, com o botão <strong>✏️ Editar</strong> para voltar.</li>'
+    + '<li><strong>✍ Enviar para assinatura (Assinafy):</strong> na tela de impressão do contrato, do relatório de fechamento ou dos certificados. O responsável do cliente é o signatário padrão (dá para incluir outros). O status aparece no site; depois de assinado, use ✍ Assinado para ver, imprimir ou baixar o documento, e 🔗 Ver no Assinafy para abrir lá.</li>'
+    + '<li>Cada analista pode cadastrar a própria chave do Assinafy no cadastro dele (Configurações → Analistas); sem chave própria, o envio usa a conta geral da Realtec.</li>'
+    + '</ul>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-9box">'
+    + '<h2>▦ 9Box — avaliação de desempenho e comportamento</h2>'
+    + '<ol>'
+    + '<li><strong>Critérios e notas de corte</strong> (administrador): cadastre os critérios de <strong>Comportamento</strong> e de <strong>Desempenho</strong> (nome e “o que observar”) e os cortes da média (padrão: abaixo de 3 = Baixo; a partir de 4 = Alto).</li>'
+    + '<li><strong>+ Novo ciclo:</strong> nome, data e os analistas avaliados. O ciclo guarda os critérios da época.</li>'
+    + '<li><strong>Avaliações:</strong> cada analista preenche a própria <strong>autoavaliação</strong> (notas de 1 a 5) enquanto o ciclo está aberto; o líder faz a <strong>avaliação do líder</strong> de cada um (pode salvar rascunho e enviar depois). A autoavaliação aparece ao lado das notas do líder.</li>'
+    + '<li><strong>Relatórios 9Box:</strong> matriz com os 9 quadrantes (Destaques, Aprimorar técnica, Insuficientes…), percentuais por quadrante, filtros por perfil e nome, e PDF.</li>'
+    + '<li><strong>📋 Relatório de avaliação:</strong> visão geral da equipe (médias, pontos fortes e a desenvolver) e a análise individual Desempenho × Comportamento de cada analista: quadrante, comparação com a equipe, autoavaliação × líder, pontos fortes e de atenção, recomendações e observações do líder. Tem Baixar PDF e Imprimir.</li>'
+    + '<li><strong>Encerrar ciclo:</strong> só depois de encerrado o analista vê o próprio resultado. Quem não tiver avaliação do líder enviada fica como “Não avaliados”.</li>'
+    + '</ol>'
+    + '<p class="manual-tip"><strong>🔒 Privacidade:</strong> o analista nunca vê a avaliação de outra pessoa, e só vê a avaliação do líder sobre ele depois do encerramento. Essas regras são garantidas pelo servidor.</p>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-reunioes">'
+    + '<h2>🗒 Reuniões</h2>'
+    + '<p>Registra a ata de cada reunião no modelo da Realtec. Clique em <strong>+ Nova reunião</strong> e preencha:</p>'
+    + '<ul>'
+    + '<li><strong>Dados da reunião:</strong> tipo (Check-in Líder e Equipe, Comitê Técnico ou Outro), data, horário e local (Implantação NEO ou Suporte NEO).</li>'
+    + '<li><strong>Objetivo</strong> e <strong>assuntos discutidos</strong>: principais pontos, demandas, dificuldades e fatores de pressão, necessidades de apoio e oportunidades de melhoria.</li>'
+    + '<li><strong>Plano de ação:</strong> ação, responsável, prazo e status (adicione quantas linhas precisar). Ao escolher o <strong>Local</strong>, o sistema pergunta se quer trazer as ações <strong>pendentes e em andamento</strong> da última reunião daquele local, com os mesmos dados (também há o botão “Trazer para esta reunião”). Quando uma ação trazida é marcada como concluída e a reunião é salva, ela também fica concluída na reunião anterior e deixa de contar como “em aberto” na lista.</li>'
+    + '<li><strong>Observações</strong>, <strong>horário de encerramento</strong> e <strong>participantes</strong> (clique nos nomes da equipe para incluir com o cargo; dá para incluir pessoas de fora).</li>'
+    + '</ul>'
+    + '<p><strong>🖨 Salvar e gerar ata</strong> abre o documento pronto, com espaço para assinatura de cada participante; campos vazios saem com linhas para completar à mão. Na lista, use 🖨 Ata, Editar e Excluir. Administradores e analistas registram; o perfil Consulta só consulta e imprime.</p>'
     + '</div>';
 
   html += '<div class="section-card manual-content" id="man-relatorios">'
@@ -7207,6 +7282,13 @@ function renderManualView(){
   html += '<div class="section-card manual-content" id="man-clientes">'
     + '<h2>🏢 Clientes</h2>'
     + '<p>Cadastro completo dos clientes: nome, razão social, CNPJ, cidade/UF, contato e o <strong>tipo de cliente</strong> — <strong>Novo</strong>, <strong>Base</strong> ou <strong>Contador</strong> (esse último libera campos extras, como CRC e CPF do responsável).</p>'
+    + '<p><strong>Base de clientes Realtec:</strong></p>'
+    + '<ul>'
+    + '<li><strong>🔎 Buscar na base Realtec</strong> (no cadastro do cliente): preenche nome, razão social, CNPJ, IE, endereço e situação pelo código (ou CNPJ). Código e CNPJ não podem se repetir.</li>'
+    + '<li><strong>Sincronizar com a base Realtec</strong> (tela Clientes): confere pelo código todos os clientes do site e só grava quem mudou. Nunca altera tipo, segmento, contador, contato, e-mail e telefone; campo vazio na base não apaga o que está no site.</li>'
+    + '<li><strong>Automático:</strong> clientes novos da base (código acima do ponto de partida) são cadastrados sozinhos e os administradores são avisados; as alterações são conferidas a cada 3 dias, a partir das 8h. Funciona com alguém logado na rede da Realtec. Ajustes em Configurações → Alertas e backup.</li>'
+    + '<li><strong>Situação:</strong> o cadastro mostra Ativo, Inativo ou Bloqueado (com a data); dá para filtrar a lista por situação.</li>'
+    + '</ul>'
     + '</div>';
 
   html += '<div class="section-card manual-content" id="man-config">'
@@ -7217,9 +7299,20 @@ function renderManualView(){
     + '<li><strong>Outlook</strong> — integração para sincronizar a agenda.</li>'
     + '<li><strong>Férias</strong> (admin) — controle de períodos de férias dos analistas.</li>'
     + '<li><strong>Acesso</strong> (admin) — usuário e senha de cada analista (a troca da própria senha também pode ser feita direto pelo menu do usuário, sem precisar de um administrador).</li>'
-    + '<li><strong>Modelos de treinamento</strong> — séries de sessões prontas (uma linha por sessão: <code>dia | horas | título</code>); só administradores editam, todos aplicam nos cards.</li>'
-    + '<li><strong>Alertas e backup</strong> (admin) — limites do alerta de saldo e de card parado, e o resultado dos testes automáticos de restauração do backup.</li>'
+    + '<li><strong>Modelos de treinamento</strong> — séries de sessões prontas: cada sessão tem dia, horas, título, <strong>módulo</strong> e <strong>telas</strong> (obrigatórios). Só administradores editam; todos aplicam nos cards (aba Agenda → Aplicar modelo), e as agendas já nascem com módulo e telas.</li>'
+    + '<li><strong>Alertas e backup</strong> (admin) — limites do alerta de saldo e de card parado, a <strong>API da base de clientes Realtec</strong> (endereço, chave, testar conexão, cadastro automático e conferência a cada 3 dias) e o resultado dos testes automáticos de restauração do backup.</li>'
     + '<li><strong>Nuvem</strong> (admin) — status da sincronização com o banco de dados, além de backup e restauração (veja “Backup e auditoria”).</li>'
+    + '</ul>'
+    + '</div>';
+
+  html += '<div class="section-card manual-content" id="man-ferias">'
+    + '<h2>🏖 Férias</h2>'
+    + '<p>Em Configurações → Férias (administradores). Cada 12 meses a partir da data de admissão formam um período de 30 dias. O período fica <strong>Bloqueado</strong> enquanto a janela de 12 meses não termina e <strong>Liberado</strong> depois. Os lançamentos (em análise, pendente/agendada, concluída) são registrados por período.</p>'
+    + '<ul>'
+    + '<li><strong>Prazo para tirar:</strong> 12 meses depois que o período é liberado (coluna na tabela de períodos; fica em vermelho quando faltam 4 meses ou menos e ainda há dias sem marcar).</li>'
+    + '<li><strong>Aviso de férias liberadas:</strong> no dia em que o período é liberado, Administradores e Coordenadora recebem o aviso no sino, com <strong>Organizar férias</strong>.</li>'
+    + '<li><strong>Aviso de férias perto de vencer:</strong> com 4 meses e com 1 mês para o prazo, e depois de vencido, quando ainda há dias sem marcar. Período bloqueado nunca gera aviso.</li>'
+    + '<li>Sem data de admissão no cadastro do analista, os períodos não são calculados.</li>'
     + '</ul>'
     + '</div>';
 
@@ -7251,6 +7344,8 @@ function renderManualView(){
     + '<ul>'
     + '<li>Arraste a partir da <strong>borda esquerda da tela para a direita</strong> para abrir o menu lateral — útil quando o menu não está fixo na tela, em telas pequenas.</li>'
     + '<li>O filtro do Painel Geral se ajusta à largura do celular: os campos ficam em duas colunas e os botões de salvar/limpar ocupam a linha toda.</li>'
+    + '<li>A <strong>barra inferior</strong> dá acesso rápido a Painel, Quadro, Agenda (com o número de pendências), Jira e Mais (abre o menu completo).</li>'
+    + '<li>No computador, as telas longas (cliente, analista, contrato, reunião, card e agenda) abrem largas e em duas colunas; no celular ficam em uma coluna.</li>'
     + '<li>Na Agenda, os botões de <strong>Dia anterior</strong> e <strong>Próximo dia</strong> funcionam normalmente, permitindo navegar livremente pelos dias sem voltar sozinho para hoje.</li>'
     + '</ul>'
     + '</div>';
@@ -7311,9 +7406,52 @@ function readMeetingForm(form){
     location:g('m_location'), objective:g('m_objective'), notes:g('m_notes'), closeTime:g('m_close'), actions:[], participants:[]};
   MEETING_SUBJECTS.forEach(([k])=> d[k] = g('m_'+k));
   const na = parseInt(form.dataset.actions,10)||0, np = parseInt(form.dataset.parts,10)||0;
-  for(let i=0;i<na;i++) d.actions.push({text:g('act_text_'+i), owner:g('act_owner_'+i), due:g('act_due_'+i), status:g('act_status_'+i)||'pendente'});
+  for(let i=0;i<na;i++){
+    const a = {text:g('act_text_'+i), owner:g('act_owner_'+i), due:g('act_due_'+i), status:g('act_status_'+i)||'pendente'};
+    if(g('act_id_'+i)) a.id = g('act_id_'+i);
+    if(g('act_fromm_'+i)){ a.fromMeetingId = g('act_fromm_'+i); a.fromActionId = g('act_froma_'+i); }
+    d.actions.push(a);
+  }
   for(let i=0;i<np;i++) d.participants.push({name:g('par_name_'+i), role:g('par_role_'+i), analystId:g('par_aid_'+i)});
   return d;
+}
+/* Última reunião do mesmo local (antes desta) com ações pendentes ou em andamento que ainda não foram trazidas. */
+function meetingPreviousWithOpen(draft, currentId){
+  const loc = (draft && draft.location) || '';
+  const cur = (state.meetings||[]).find(x=>x.id===currentId);
+  const curKey = (draft && draft.date ? draft.date : todayISO()) + '|' + String(cur ? (cur.createdAt||0) : Date.now()).padStart(15,'0');
+  const prev = (state.meetings||[]).filter(x=> x.id!==currentId && (x.location||'')===loc && ((x.date||'')+'|'+String(x.createdAt||0).padStart(15,'0')) < curKey)
+    .sort((a,b)=> ((b.date||'')+'|'+String(b.createdAt||0).padStart(15,'0')).localeCompare((a.date||'')+'|'+String(a.createdAt||0).padStart(15,'0')))[0];
+  if(!prev) return null;
+  const already = new Set((draft.actions||[]).filter(a=>a.fromMeetingId===prev.id).map(a=>a.fromActionId));
+  const open = (prev.actions||[]).map((a,i)=>({a,i})).filter(x=> String(x.a.text||'').trim() && x.a.status!=='concluido' && !(x.a.id && already.has(x.a.id)));
+  return open.length ? {meeting:prev, open} : null;
+}
+/* Copia as ações em aberto da reunião anterior para o rascunho, ligadas à ação de origem. */
+function meetingCarryInto(draft, prevInfo){
+  const prev = prevInfo.meeting; let changedPrev = false;
+  draft.actions = (draft.actions||[]).filter(a=> String(a.text||a.owner||a.due||'').trim());
+  prevInfo.open.forEach(({a})=>{
+    if(!a.id){ a.id = uid('ma'); changedPrev = true; }
+    draft.actions.push({id:uid('ma'), text:a.text||'', owner:a.owner||'', due:a.due||'', status:a.status||'pendente', fromMeetingId:prev.id, fromActionId:a.id});
+  });
+  if(changedPrev) persist();
+  return prevInfo.open.length;
+}
+/* Ao salvar: o status de uma ação trazida volta para a ação de origem (e para a origem dela, se também foi trazida),
+   para a reunião anterior não continuar mostrando como pendente o que foi concluído depois. */
+function meetingPropagateStatus(meeting){
+  let changed = 0;
+  (meeting.actions||[]).forEach(a=>{
+    let fm = a.fromMeetingId, fa = a.fromActionId, guard = 0;
+    while(fm && fa && guard++ < 50){
+      const src = (state.meetings||[]).find(x=>x.id===fm); if(!src) break;
+      const sa = (src.actions||[]).find(x=>x.id===fa); if(!sa) break;
+      if(sa.status!==a.status){ sa.status = a.status; sa.statusFrom = meeting.id; src.updatedAt = Date.now(); changed++; }
+      fm = sa.fromMeetingId; fa = sa.fromActionId;
+    }
+  });
+  return changed;
 }
 function renderMeetingForm(m){
   const d = m.draft || blankMeeting();
@@ -7341,8 +7479,13 @@ function renderMeetingForm(m){
   MEETING_SUBJECTS.forEach(([k,l,ph])=>{ h += '<div class="field"><label>'+esc(l)+'</label><textarea name="m_'+k+'" rows="3"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'+esc(d[k]||'')+'</textarea></div>'; });
   h += '<h4 class="mt-sec cols-span">Plano de ação</h4><div class="mt-block">'
     + '<datalist id="mt-people">'+people.map(a=>'<option value="'+esc(a.name)+'"></option>').join('')+'</datalist>';
+  const prevMt = meetingPreviousWithOpen(d, m.id);
+  if(prevMt) h += '<div class="hint" style="margin:0 0 8px;">Última reunião de '+esc(d.location||'')+': '+fmtDateBR(prevMt.meeting.date)+' · '+prevMt.open.length+' ação(ões) pendente(s) ou em andamento. <button type="button" class="btn btn-sm btn-ghost" data-action="meeting-carry">↳ Trazer para esta reunião</button></div>';
   acts.forEach((a,i)=>{
-    h += '<div class="mt-row mt-row-act"><span class="mt-n">'+(i+1)+'.</span>'
+    const src = a.fromMeetingId ? (state.meetings||[]).find(x=>x.id===a.fromMeetingId) : null;
+    h += (src ? '<div class="mt-carried">↳ trazida da reunião de '+fmtDateBR(src.date)+'</div>' : '')
+      + '<div class="mt-row mt-row-act"><span class="mt-n">'+(i+1)+'.</span>'
+      + '<input type="hidden" name="act_id_'+i+'" value="'+esc(a.id||'')+'"><input type="hidden" name="act_fromm_'+i+'" value="'+esc(a.fromMeetingId||'')+'"><input type="hidden" name="act_froma_'+i+'" value="'+esc(a.fromActionId||'')+'">'
       + '<input type="text" name="act_text_'+i+'" value="'+esc(a.text||'')+'" placeholder="Ação" aria-label="Ação '+(i+1)+'">'
       + '<input type="text" name="act_owner_'+i+'" list="mt-people" value="'+esc(a.owner||'')+'" placeholder="Responsável" aria-label="Responsável">'
       + '<input type="date" name="act_due_'+i+'" value="'+esc(a.due||'')+'" aria-label="Prazo">'
@@ -15104,7 +15247,7 @@ const FORM_MODAL_TYPES = new Set([
 ]);
 
 ['click','submit','change'].forEach(function(t){ document.addEventListener(t, function(){ window.__mgrInteracted = true; }, true); });
-const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-|sw-|card-change-client|trainingtpl-|meeting-(new|edit|delete|add|del|toggle))/;
+const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-|sw-|card-change-client|trainingtpl-|meeting-(new|edit|delete|add|del|toggle|carry))/;
 document.addEventListener('click', async function(e){
   let needsRender = false;
   const notifPanelClick = e.target.closest('.notif-panel');
@@ -15215,6 +15358,12 @@ document.addEventListener('click', async function(e){
     if(!canEditMeetings()) return;
     const mt = (state.meetings||[]).find(x=>x.id===el.dataset.id); if(!mt) return;
     ui.formErr=''; ui.modal = {type:'meeting-form', id:mt.id, draft: JSON.parse(JSON.stringify(mt))}; render();
+  }
+  else if(a==='meeting-carry'){
+    const form = el.closest('form[data-form="meeting"]'); if(!form || !ui.modal) return;
+    const d = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form)); ui.modal.draft = d;
+    const prev = meetingPreviousWithOpen(d, ui.modal.id); if(!prev){ render(); return; }
+    const n = meetingCarryInto(d, prev); render(); showToast(n+' ação(ões) trazida(s) da reunião de '+fmtDateBR(prev.meeting.date)+'.', 'ok');
   }
   else if(a==='meeting-print'){ ui.formErr=''; ui.modal = {type:'meeting-print', id: el.dataset.id}; render(); }
   else if(a==='meeting-delete'){
@@ -16388,6 +16537,17 @@ document.addEventListener('change', function(e){
     const label = e.target.closest('.multi-analyst-item');
     if(label){ if(e.target.checked) label.classList.add('checked'); else label.classList.remove('checked'); }
   }
+  else if(e.target.matches('form[data-form="meeting"] select[name="m_location"]')){
+    const form = e.target.closest('form'); if(!ui.modal) return;
+    const d = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form)); ui.modal.draft = d;
+    const prev = meetingPreviousWithOpen(d, ui.modal.id);
+    if(!prev){ render(); return; }
+    const mid = ui.modal.id;
+    showConfirm('Trazer os planos de ação pendentes e em andamento da última reunião de '+d.location+' ('+fmtDateBR(prev.meeting.date)+')? São '+prev.open.length+' ação(ões), com os mesmos dados.', function(){
+      if(!ui.modal || ui.modal.type!=='meeting-form' || ui.modal.id!==mid) return;
+      const n = meetingCarryInto(ui.modal.draft, prev); showToast(n+' ação(ões) trazida(s) da reunião de '+fmtDateBR(prev.meeting.date)+'.', 'ok');
+    });
+  }
   else if(e.target.matches('form[data-form="meeting"] input[name="m_type"]')){
     const form = e.target.closest('form'); if(ui.modal){ ui.modal.draft = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form)); render(); }
   }
@@ -17291,12 +17451,14 @@ document.addEventListener('submit', async function(e){
     if(!d.date){ ui.formErr = 'Informe a data da reunião.'; ui.modal.draft = d; render(); return; }
     if(d.type==='outro' && !d.typeOther){ ui.formErr = 'Informe qual é o tipo da reunião (Outro).'; ui.modal.draft = d; render(); return; }
     d.actions = d.actions.filter(x=>String(x.text||x.owner||x.due||'').trim());
+    d.actions.forEach(x=>{ if(!x.id) x.id = uid('ma'); });
     d.participants = d.participants.filter(x=>String(x.name||'').trim());
     state.meetings = state.meetings||[];
     const id = form.dataset.id;
     let saved;
     if(id){ saved = state.meetings.find(x=>x.id===id); if(saved) Object.assign(saved, d, {updatedAt:Date.now(), updatedBy:taskActorName()}); }
     if(!saved){ saved = Object.assign({id:uid('mt'), createdAt:Date.now(), createdBy:taskActorName(), createdById: myAnalystId()||''}, d); state.meetings.push(saved); }
+    meetingPropagateStatus(saved);
     ui.formErr=''; persist();
     if(e.submitter && e.submitter.value==='print'){ ui.modal = {type:'meeting-print', id:saved.id}; }
     else { ui.modal = {type:'meeting-form', id:saved.id, draft: JSON.parse(JSON.stringify(saved))}; }
@@ -18157,15 +18319,15 @@ if('serviceWorker' in navigator){
       return '<button type="button" class="bn-item'+(active?' active':'')+'" '+attrs+'><span class="bn-ico">'+icon+'</span><span>'+label+'</span>'+(badge?'<span class="bn-badge">'+(badge>99?'99+':badge)+'</span>':'')+'</button>';
     }
     if(isSupportUser()) return '<nav class="bottom-nav" aria-label="Atalhos principais">'
-      + it(ui.view==='tasks', '☑', 'Tarefas', 'data-action="goto-view" data-view="tasks"')
+      + it(ui.view==='tasks', '✅', 'Tarefas', 'data-action="goto-view" data-view="tasks"')
       + it(ui.view==='contracts', '📄', 'Contratos', 'data-action="goto-view" data-view="contracts"')
       + it(false, '☰', 'Mais', 'data-action="toggle-sidebar"')
       + '</nav>';
     return '<nav class="bottom-nav" aria-label="Atalhos principais">'
-      + it(ui.view==='dashboard', '🏠', 'Painel', 'data-action="goto-view" data-view="dashboard"')
+      + it(ui.view==='dashboard', '📊', 'Painel', 'data-action="goto-view" data-view="dashboard"')
       + it(ui.view==='board', '▦', 'Quadro', 'data-action="board-analyst-filter" data-id="'+mine+'"')
-      + it(ui.view==='calendar', '◷', 'Agenda', 'data-action="goto-view" data-view="calendar"', pend)
-      + it(ui.view==='jira', '⌁', 'Jira', 'data-action="goto-view" data-view="jira"')
+      + it(ui.view==='calendar', '📅', 'Agenda', 'data-action="goto-view" data-view="calendar"', pend)
+      + it(ui.view==='jira', '⇄', 'Jira', 'data-action="goto-view" data-view="jira"')
       + it(false, '☰', 'Mais', 'data-action="toggle-sidebar"')
       + '</nav>';
   };
@@ -19160,7 +19322,7 @@ if('serviceWorker' in navigator){
     var re = new RegExp('<button class="side-item[^"]*" data-action="goto-view" data-view="'+anchor+'">');
     var m = re.exec(html);
     if(!m) return html;
-    return html.slice(0,m.index) + navItem('ninebox','▦','9Box', pendingSelfCount()) + html.slice(m.index);
+    return html.slice(0,m.index) + navItem('ninebox','🎯','9Box', pendingSelfCount()) + html.slice(m.index);
   };
   var origView = window.renderView;
   window.renderView = function(){
@@ -19179,7 +19341,7 @@ if('serviceWorker' in navigator){
   var origScreens = window.globalSearchScreens;
   window.globalSearchScreens = function(){
     var list = origScreens.apply(this, arguments);
-    if(canSeeGuide()) list.push({id:'ninebox', ico:'▦', label:'9Box'});
+    if(canSeeGuide()) list.push({id:'ninebox', ico:'🎯', label:'9Box'});
     return list;
   };
 
