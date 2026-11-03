@@ -990,6 +990,13 @@ th{background:var(--surface-2);color:var(--ink-soft);}
 .dash-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; min-width:0; }
 .dash-card-full{ grid-column:1 / -1; min-width:0; }
 .dash-card{ min-width:0; }
+/* Painel com altura escolhida: rola por dentro; o título fica fixo no topo */
+.dash-card-fixedh{ height:var(--dash-h); overflow-y:auto !important; overscroll-behavior:contain; padding-top:0 !important; }
+.dash-card-fixedh > .report-section-head{ position:sticky; top:0; z-index:3; background:var(--surface); padding-top:20px; }
+.dash-card-fixedh.dash-reorder-active{ padding-top:20px !important; }
+.dash-card-fixedh.dash-reorder-active > .report-section-head{ position:static; padding-top:0; }
+/* Modo "Reordenar painéis": também dá para arrastar o canto de baixo do painel para mudar a altura */
+.dash-reorder-active{ resize:vertical; overflow:auto; min-height:160px; }
 .dash-barlist{ display:flex; flex-direction:column; gap:11px; }
 .dash-bar-row{ display:grid; grid-template-columns:130px 1fr 74px; align-items:center; gap:9px; font-size:12.5px; min-width:0; }
 .dash-bar-label{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:flex; align-items:center; gap:6px; color:var(--ink); min-width:0; }
@@ -1745,13 +1752,13 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
     -webkit-backdrop-filter:saturate(180%) blur(16px); backdrop-filter:saturate(180%) blur(16px);
     border-top:1px solid var(--border); box-shadow:0 -8px 28px rgba(23,50,77,.10);
   }
-  .bn-item{ flex:1; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:54px; border:0; background:none; border-radius:18px; color:var(--ink-soft); font-size:11px; font-weight:600; cursor:pointer; padding:4px 2px; }
-  .bn-item .bn-ico{ font-size:21px; line-height:1; }
+  .bn-item{ flex:1; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; min-height:58px; border:0; background:none; border-radius:18px; color:var(--ink-soft); font-size:11px; font-weight:600; cursor:pointer; padding:4px 2px; }
+  .bn-item .bn-ico{ font-size:25px; line-height:1; }   /* ícones ~20% maiores (eram 21px) */
   .bn-item.active{ color:var(--brand-dark); background:var(--brand-soft); }
-  .bn-badge{ position:absolute; top:4px; left:calc(50% + 6px); min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:var(--danger); color:#fff; font-size:10.5px; line-height:17px; text-align:center; font-weight:700; }
-  .view{ padding-bottom:calc(96px + env(safe-area-inset-bottom)) !important; }
-  #app-toasts{ bottom:calc(86px + env(safe-area-inset-bottom)); }
-  .sync-pill,.live-sync-indicator,#trained-users-toast{ bottom:calc(86px + env(safe-area-inset-bottom)) !important; }
+  .bn-badge{ position:absolute; top:4px; left:calc(50% + 8px); min-width:17px; height:17px; padding:0 4px; border-radius:999px; background:var(--danger); color:#fff; font-size:10.5px; line-height:17px; text-align:center; font-weight:700; }
+  .view{ padding-bottom:calc(100px + env(safe-area-inset-bottom)) !important; }
+  #app-toasts{ bottom:calc(90px + env(safe-area-inset-bottom)); }
+  .sync-pill,.live-sync-indicator,#trained-users-toast{ bottom:calc(90px + env(safe-area-inset-bottom)) !important; }
 
   .board-lists{ scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch; gap:12px !important; min-height:0 !important; padding-bottom:10px; overscroll-behavior-x:contain; }
   .board-lists > .list-col{ flex:0 0 100% !important; width:100% !important; max-width:100%; scroll-snap-align:start; scroll-snap-stop:always; max-height:calc(100dvh - 330px); min-height:200px; }
@@ -1976,6 +1983,9 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
   .modal-cols > form > .form-actions, .modal-cols > form > .error-msg, .modal-cols > form > .success-msg,
   .modal-cols > form > h3, .modal-cols > form > .cols-span{ column-span:all; -webkit-column-span:all; }
 }
+/* Card de cliente bloqueado na base Realtec: fundo e borda num vermelho bem suave */
+.card-mini.card-client-blocked{ background:color-mix(in srgb, var(--danger) 6%, var(--surface)) !important; border-color:color-mix(in srgb, var(--danger) 22%, transparent) !important; }
+.card-mini.card-client-blocked:hover{ border-color:color-mix(in srgb, var(--danger) 38%, transparent) !important; }
 /* Telas grandes: card e agenda aproveitam mais a largura */
 @media screen and (min-width:1500px){
   .modal.modal-xl{ max-width:min(1480px, 90vw) !important; }
@@ -2343,7 +2353,7 @@ function logout(msg){
 
 /* ============================= STATE ============================= */
 /* Versão do site exibida no rodapé do menu: 1.0.<número da geração do index.html>. Atualizar a cada entrega. */
-const APP_VERSION = '1.0.346';
+const APP_VERSION = '1.0.356';
 const STORAGE_KEY = 'implanta_v1';
 const PALETTE = [
   '#0B5C8E','#C0392B','#1E8449','#8E44AD','#E67E22','#16A085','#C2185B','#2980B9',
@@ -3057,7 +3067,7 @@ var realtimePollTimer = null;
 var realtimeRefreshInFlight = false;
 var realtimeRefreshQueued = false;
 var realtimeLastRefreshAt = 0;
-var REALTIME_POLL_MS = 180000;
+var REALTIME_POLL_MS = 60000;   /* conferência de segurança: 1 min (lê só a tabela pequena sync_meta) */
 var REALTIME_MIN_REFRESH_GAP_MS = 4000;
 
 function showLiveSyncIndicator(){
@@ -3210,7 +3220,9 @@ function startRealtimeSync(){
   if(!sbClient || cloudStatus!=='connected') return;
   try{
     realtimeChannel = sbClient.channel('implanta-tables-live');
-    ENTITY_TABLES.concat(LAZY_TABLES).filter(t=>!isOptionalTableKey(t.key) || t.key==='serviceContracts').forEach(({table})=>{
+    /* Todas as tabelas sincronizadas (inclusive contratos, tarefas e modelos). Tabela que ainda não está na publicação
+       do tempo real (servidor/27_tempo_real_completo.sql) simplesmente não manda aviso; a conferência periódica cobre. */
+    ENTITY_TABLES.concat(LAZY_TABLES).forEach(({table})=>{
       realtimeChannel.on('postgres_changes', {event:'*', schema:'public', table:table},
         ()=>{ refreshFromCloudIfChanged('realtime'); });
     });
@@ -3821,6 +3833,72 @@ function computeVacationPeriods(analyst, allEntries){
     return {index:p.index, start:p.start, end:p.end, dias:VACATION_DAYS_PER_PERIOD, analise, pendente, concluida, saldo, status, entries:linked};
   });
 }
+/* Aviso de férias liberadas: no dia em que um período passa de Bloqueado para Liberado, os Administradores e a
+   Coordenadora recebem um aviso no sino para combinar as férias com o analista. Fica até marcarem como lido
+   (guardado no próprio cadastro de quem leu, em feriasAvisosLidos). Só vale para liberações a partir de FERIAS_AVISO_DESDE,
+   para não acender avisos de períodos antigos. */
+const FERIAS_AVISO_DESDE = '2026-11-03';
+/* Período liberado de fato (mesma regra da aba Férias). Aviso de férias nunca é mostrado para período Bloqueado. */
+function vacationPeriodReleased(p){ return !!p && p.status==='Liberado' && p.end <= todayISO(); }
+function analystIsAdminOrCoord(a){ return !!a && !a.inactive && (!!a.isAdmin || !!a.isCoordinator); }
+function vacationReleaseNoticesForAnalyst(viewerId){
+  const me = getAnalyst(viewerId); if(!analystIsAdminOrCoord(me)) return [];
+  const today = todayISO(), seen = Array.isArray(me.feriasAvisosLidos) ? me.feriasAvisosLidos : [];
+  const out = [];
+  state.analysts.forEach(a=>{
+    if(!a || a.id===viewerId || a.inactive || a.isManager || !a.admissionDate) return;
+    computeVacationPeriods(a, []).forEach(p=>{
+      if(!vacationPeriodReleased(p) || p.end < FERIAS_AVISO_DESDE || p.end > today) return;
+      const key = a.id+':'+p.index;
+      if(seen.includes(key)) return;
+      out.push({id:key, _notifKind:'ferias', analystId:a.id, name:a.name, periodIndex:p.index, start:p.start, end:p.end,
+        noticeAt: new Date(p.end+'T08:00:00').getTime(), date:p.end, startTime:'00:00'});
+    });
+  });
+  return out;
+}
+/* Prazo para tirar as férias de um período (fim do período concessivo): 12 meses depois que o período fecha. */
+function vacationDeadlineISO(p){ return addYearsISO(p.end, 1); }
+/* Aviso de férias perto de vencer: período Liberado, com dias ainda não marcados (saldo > 0, sem lançamento em análise,
+   pendente ou concluído cobrindo tudo) e faltando 4 meses ou menos para o prazo. Avisa de novo com 1 mês e depois de vencer.
+   Precisa dos lançamentos de férias: carrega a tabela (que normalmente só abre na aba Férias) para quem recebe o aviso. */
+var vacationEntriesLoadAsked = false;
+function vacationDueNoticesForAnalyst(viewerId){
+  const me = getAnalyst(viewerId); if(!analystIsAdminOrCoord(me)) return [];
+  /* Sem os lançamentos de férias carregados da nuvem (inclusive com a nuvem fora do ar), não avisa:
+     não dá para saber o que já foi marcado. Só no modo sem nuvem usa o que está no navegador. */
+  if(typeof cloudStatus!=='undefined' && cloudStatus!=='local' && !(typeof lazyLoadedTables!=='undefined' && lazyLoadedTables.vacationEntries)){
+    if(cloudStatus==='connected' && !vacationEntriesLoadAsked && typeof ensureLazyTableLoaded==='function'){ vacationEntriesLoadAsked = true; ensureLazyTableLoaded('vacationEntries').finally(()=>{ vacationEntriesLoadAsked = false; }); }
+    return [];      // sem os lançamentos carregados não dá para saber o que já foi marcado
+  }
+  const today = todayISO(), seen = Array.isArray(me.feriasAvisosLidos) ? me.feriasAvisosLidos : [];
+  const out = [];
+  state.analysts.forEach(a=>{
+    if(!a || a.id===viewerId || a.inactive || a.isManager || !a.admissionDate) return;
+    computeVacationPeriods(a, state.vacationEntries||[]).forEach(p=>{
+      if(!vacationPeriodReleased(p) || !(p.saldo>0)) return;
+      const deadline = vacationDeadlineISO(p);
+      if(today < addMonthsISO(deadline, -4)) return;
+      const level = today > deadline ? 'vencido' : (today >= addMonthsISO(deadline, -1) ? '1m' : '4m');
+      const key = 'venc:'+a.id+':'+p.index+':'+level;
+      if(seen.includes(key)) return;
+      const daysLeft = daysBetweenISO(today, deadline);
+      out.push({id:key, _notifKind:'feriasvenc', analystId:a.id, name:a.name, periodIndex:p.index, start:p.start, end:p.end, saldo:p.saldo,
+        deadline, level, daysLeft, noticeAt: Date.now(), date: today, startTime:'00:00'});
+    });
+  });
+  return out;
+}
+function markVacationNoticeSeen(key, viewerId){
+  const me = getAnalyst(viewerId); if(!me || !key) return;
+  me.feriasAvisosLidos = Array.isArray(me.feriasAvisosLidos) ? me.feriasAvisosLidos : [];
+  if(me.feriasAvisosLidos.includes(key)) return;
+  me.feriasAvisosLidos.push(key);
+  if(me.feriasAvisosLidos.length > 200) me.feriasAvisosLidos = me.feriasAvisosLidos.slice(-200);
+  const parts = key.split(':'); const isVenc = parts[0]==='venc';
+  const a = getAnalyst(isVenc ? parts[1] : parts[0]), idx = isVenc ? parts[2] : parts[1];
+  logNotifHandled('ferias', (isVenc ? 'Férias perto de vencer: ' : 'Férias liberadas: ')+(a?a.name:''), 'Período '+idx, 'Lido', key);
+}
 function computeVacationSummary(periods){
   const liberados = (periods||[]).filter(p=> p.status==='Liberado');
   return {
@@ -4043,6 +4121,8 @@ function renderRealtecAutoSettings(){
     + '<h4 style="margin:0 0 6px;">Cadastro automático de clientes novos</h4>'
     + '<p class="hint" style="margin-top:0;">A cada 30 minutos, o navegador de quem está logado na rede da Realtec confere a base. Cliente com código <strong>maior</strong> que o ponto de partida e que ainda não está no site é cadastrado sozinho (tipo “Novo”), e os analistas administradores recebem um aviso no sino. Tipo, segmento e contador continuam sendo preenchidos por vocês.</p>'
     + '<label class="allday-toggle" style="margin-bottom:8px;"><input type="checkbox" name="auto" '+(on?'checked':'')+'> Cadastrar automaticamente</label>'
+    + '<label class="allday-toggle" style="margin-bottom:4px;"><input type="checkbox" name="autoSync" '+(realtecAutoSyncEnabled()?'checked':'')+'> Conferir alterações dos clientes automaticamente a cada 3 dias, às 8h</label>'
+    + '<div class="hint" style="margin:0 0 10px;">Só os clientes que mudaram na base são gravados. '+(row.realtecLastSyncAt ? 'Última conferência: '+fmtDT(row.realtecLastSyncAt)+(row.realtecAutoSyncLast && row.realtecAutoSyncLast.at===row.realtecLastSyncAt ? ' (automática, '+(row.realtecAutoSyncLast.updated||0)+' atualizado(s))' : '')+'. ' : 'Ainda não houve conferência. ')+'Próxima: '+fmtDateBR(realtecNextSyncISO())+' a partir das 8h.</div>'
     + '<div class="field" style="max-width:320px;"><label>Cadastrar a partir do código (maior que)</label><input type="number" min="0" step="1" name="fromCode" value="'+esc(from)+'" placeholder="Definido na 1ª conferência: '+realtecMaxSiteCode()+'"></div>'
     + '<div class="hint">'+(last ? 'Última conferência: '+fmtDT(last.at)+(last.by?' por '+esc(last.by):'')+' — '+(last.imported||0)+' cliente(s) novo(s).' : 'Ainda não houve conferência automática.')+'</div>'
     + '<div class="form-actions" style="justify-content:flex-start;gap:8px;"><button type="submit" class="btn btn-primary btn-sm">Salvar</button><button type="button" class="btn btn-sm" data-action="realtec-auto-now">Conferir agora</button></div></form>';
@@ -5247,6 +5327,8 @@ function notificationItemsForAnalyst(analystId){
   taskNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   taskNewNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   newClientNoticesForAnalyst(analystId).forEach(it=> due.push(it));
+  vacationReleaseNoticesForAnalyst(analystId).forEach(it=> due.push(it));
+  vacationDueNoticesForAnalyst(analystId).forEach(it=> due.push(it));
   return due;
 }
 /* Saldo baixo: avisa o analista dono do card quando o consumo chega a 80% das
@@ -5795,6 +5877,12 @@ function checkBrowserScheduleNotifications(force){
       'upcoming:'+upcoming.id
     );
   }
+  vacationDueNoticesForAnalyst(id).forEach(v=>{
+    sendBrowserNotification('NEO Realtec — férias perto de vencer', {body: v.name+': '+v.saldo+' dia(s) do período '+v.periodIndex+' sem marcar. Prazo: '+fmtDateBR(v.deadline)+'.', requireInteraction:false}, 'feriasvenc:'+v.id);
+  });
+  vacationReleaseNoticesForAnalyst(id).forEach(v=>{
+    sendBrowserNotification('NEO Realtec — férias liberadas', {body: v.name+': período '+v.periodIndex+' liberado. Combine as férias com o analista.', requireInteraction:false}, 'ferias:'+v.id);
+  });
   taskNewNoticesForAnalyst(id).concat(taskNoticesForAnalyst(id)).forEach(t=>{
     sendBrowserNotification('NEO Realtec — nova tarefa', {body: t.title+(t.createdBy?' (criada por '+t.createdBy+')':''), requireInteraction:false}, 'task:'+t.id);
   });
@@ -6711,6 +6799,25 @@ function notifItemHtml(s){
       + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="task-notice-open" data-id="'+s.id+'">Acessar tarefa</button><button class="btn btn-sm btn-ghost" data-action="task-notice-seen" data-id="'+s.id+'">Ignorar</button></div>'
       + '</div>';
   }
+  if(s._notifKind==='ferias'){
+    const isToday = s.end===todayISO();
+    return '<div class="notif-item">'
+      + '<div style="font-weight:700;font-size:13px;">🏖 Férias liberadas'+(isToday?' hoje':'')+'</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.name)+' · período '+s.periodIndex+'</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">O período de '+fmtDateBR(s.start)+' a '+fmtDateBR(s.end)+' passou de Bloqueado para Liberado'+(isToday?'':' em '+fmtDateBR(s.end))+'. Combine as férias com o analista.</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="ferias-notice-open" data-id="'+esc(s.id)+'">Organizar férias</button><button class="btn btn-sm btn-ghost" data-action="ferias-notice-seen" data-id="'+esc(s.id)+'">Marcar como lido</button></div>'
+      + '</div>';
+  }
+  if(s._notifKind==='feriasvenc'){
+    const head = s.level==='vencido' ? '⛔ Férias vencidas sem marcar' : (s.level==='1m' ? '⚠️ Férias vencem em menos de 1 mês' : '⏳ Férias vencem em até 4 meses');
+    const when = s.level==='vencido' ? 'O prazo terminou em '+fmtDateBR(s.deadline)+'.' : 'Prazo para tirar: até '+fmtDateBR(s.deadline)+' ('+s.daysLeft+' dia'+(s.daysLeft===1?'':'s')+').';
+    return '<div class="notif-item">'
+      + '<div style="font-weight:700;font-size:13px;">'+head+'</div>'
+      + '<div style="font-weight:700;font-size:13px;margin-top:3px;">'+esc(s.name)+' · período '+s.periodIndex+' · '+s.saldo+' dia'+(s.saldo===1?'':'s')+' sem marcar</div>'
+      + '<div style="font-size:11.5px;color:var(--ink-soft);margin:2px 0 6px;">Período de '+fmtDateBR(s.start)+' a '+fmtDateBR(s.end)+'. '+when+' Combine as férias com o analista e registre o lançamento.</div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="ferias-notice-open" data-id="'+esc(s.id)+'">Organizar férias</button><button class="btn btn-sm btn-ghost" data-action="ferias-notice-seen" data-id="'+esc(s.id)+'">Marcar como lido</button></div>'
+      + '</div>';
+  }
   if(s._notifKind==='newclient'){
     return '<div class="notif-item">'
       + '<div style="font-weight:700;font-size:13px;">🆕 Cliente novo cadastrado pela base Realtec</div>'
@@ -6780,13 +6887,13 @@ function renderNotifCenterModal(){
     }
     if(infos.length){
       h += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0 6px;"><h4 style="margin:0;font-size:12px;color:var(--ink-soft);">Avisos ('+infos.length+')</h4>'
-        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira'||x._notifKind==='task'||x._notifKind==='tasknew'||x._notifKind==='newclient') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
+        + (infos.some(x=>x._notifKind==='balance'||x._notifKind==='jira'||x._notifKind==='task'||x._notifKind==='tasknew'||x._notifKind==='newclient'||x._notifKind==='ferias'||x._notifKind==='feriasvenc') ? '<button type="button" class="btn btn-sm btn-ghost" data-action="notif-mark-all-read">Marcar avisos como lidos</button>' : '') + '</div>';
       infos.forEach(x=>{ h += notifItemHtml(x); });
     }
   } else {
     if(!log.length) h += '<div class="faq-search-status">Nada tratado ainda. Aqui aparecem as agendas confirmadas ou marcadas como não realizadas e os avisos que você marcou como lidos (últimos '+NOTIF_LOG_MAX+').</div>';
     log.forEach(x=>{
-      const ico = x.kind==='schedule' ? (x.result==='Confirmada'?'✅':'🚫') : (x.kind==='balance'?'💰':'🧩');
+      const ico = x.kind==='schedule' ? (x.result==='Confirmada'?'✅':'🚫') : (x.kind==='balance'?'💰':(x.kind==='ferias'?'🏖':'🧩'));
       h += '<div class="notif-item" style="display:flex;gap:10px;align-items:flex-start;"><span style="width:22px;text-align:center;">'+ico+'</span><div style="flex:1;min-width:0;">'
         + '<div style="font-weight:700;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(x.title)+'</div>'
         + '<div style="font-size:11.5px;color:var(--ink-soft);">'+esc(x.sub)+'</div></div>'
@@ -7012,7 +7119,7 @@ function renderManualView(){
     + '</ul>'
     + '<p><strong>Filtros do Painel Geral:</strong> logo abaixo do título há os filtros de <strong>Data inicial</strong> e <strong>Data final</strong> (por padrão, os últimos 30 dias), Analista, Segmento, Cidade e Status dos projetos. Os indicadores e gráficos consideram o que estiver selecionado. Digite a data direto no campo ou escolha no calendário. Use <strong>💾 Salvar filtros</strong> para o painel abrir sempre assim para você (as datas salvas são relativas, por exemplo “últimos 7 dias”), <strong>Remover salvos</strong> para esquecer e <strong>Limpar filtros</strong> para voltar ao padrão.</p>'
     + '<p>Um pouco mais abaixo, os alertas chamam atenção para o que precisa de ação: ⚠️ <strong>Pendências vencidas</strong>, 💸 <strong>Projetos com saldo negativo</strong> e 📞 <strong>Clientes sem atividade recente</strong>.</p>'
-    + '<p>O restante da tela é formado por painéis (gráficos e listas) como Projetos em andamento, Visão executiva da carteira, Evolução do período, Horas dos analistas, Horas por mês (comparação entre analistas), Categoria de horas × Cards de clientes novos iniciados, Horas disponíveis dos clientes, Agendas por tipo de contato, Horas por tipo de agenda, Módulos mais treinados, Clientes por segmento, Clientes por cidade, Clientes por contador e Ranking de atendimento sem abatimento.</p>'
+    + '<p>O restante da tela é formado por painéis (gráficos e listas) como Projetos em andamento, Visão executiva da carteira, Evolução do período, Horas dos analistas, Horas por mês (comparação entre analistas), Categoria de horas × Cards de clientes novos iniciados, Horas disponíveis dos clientes, Agendas por tipo de contato, Horas por tipo de agenda, Módulos mais treinados, Telas mais treinadas, Clientes por segmento, Clientes por cidade, Clientes por contador e Ranking de atendimento sem abatimento.</p>'
     + '<p>Painéis de análise adicionados:</p>'
     + '<ul>'
     + '<li>📉 <strong>Burndown de horas por card</strong> — mostra como o saldo contratado foi caindo. Cada redução aparece como um ponto com a <strong>data</strong> e as horas abatidas; passe o mouse para ver o saldo restante. O tracejado vermelho projeta quando o saldo zera, pelo ritmo das últimas 4 semanas. Clique em um card da tabela para ver o gráfico dele.</li>'
@@ -7020,7 +7127,7 @@ function renderManualView(){
     + '<li>⏱️ <strong>Tempo de ciclo da implantação</strong> — dias entre o comercial e o início, e entre o início e a conclusão, por analista e por tipo de cliente (média, mediana e quantidade).</li>'
     + '<li>📣 <strong>Reportes comerciais por gravidade</strong> — tendência mensal dos últimos 12 meses, com filtro por tipo de impedimento.</li>'
     + '</ul>'
-    + '<p>Para organizar a tela, clique em <strong>Reordenar painéis</strong>. Cada painel ganha uma barra: <strong>arraste a barra</strong> e solte sobre outro painel para colocá-lo naquela posição, ou use os botões <strong>▲ Subir</strong>, <strong>▼ Descer</strong>, <strong>⤒ Início</strong> e <strong>⤓ Final</strong>; também dá para alternar entre meia largura e largura total. A ordem fica salva neste computador/navegador, e a tela não volta ao topo quando você reordena. Use o botão de compartilhar para enviar uma imagem do painel por WhatsApp.</p>'
+    + '<p>Para organizar a tela, clique em <strong>Reordenar painéis</strong>. Cada painel ganha uma barra: <strong>arraste a barra</strong> e solte sobre outro painel para colocá-lo naquela posição, ou use os botões <strong>▲ Subir</strong>, <strong>▼ Descer</strong>, <strong>⤒ Início</strong> e <strong>⤓ Final</strong>; também dá para alternar entre meia largura e largura total e mudar a altura (<strong>▁ Menor</strong>, <strong>▇ Maior</strong> ou arrastando o canto de baixo do painel). Painel menor que o conteúdo ganha barra de rolagem por dentro; <strong>↺ Altura automática</strong> volta ao normal. A ordem fica salva neste computador/navegador, e a tela não volta ao topo quando você reordena. Use o botão de compartilhar para enviar uma imagem do painel por WhatsApp.</p>'
     + '</div>';
 
   html += '<div class="section-card manual-content" id="man-quadro">'
@@ -7164,9 +7271,11 @@ function renderView(){
    são uma preferência de exibição pessoal. */
 const DASHBOARD_CARD_ORDER_KEY = 'implanta_dashboard_card_order_v1';
 const DASHBOARD_CARD_SIZE_KEY = 'implanta_dashboard_card_size_v1';
+const DASHBOARD_CARD_HEIGHT_KEY = 'implanta_dashboard_card_height_v1';
+const DASH_H_MIN = 160, DASH_H_MAX = 2000;
 const DASHBOARD_CARDS_DEFAULT_ORDER = [
   'projetos','visao-executiva','evolucao','horas-analistas','horas-mes','categoria-novos','horas-clientes',
-  'contato','horas-tipo','modulos','clientes-segmento','clientes-cidade','clientes-contador','ranking-sem-abatimento',
+  'contato','horas-tipo','modulos','telas','clientes-segmento','clientes-cidade','clientes-contador','ranking-sem-abatimento',
   'burndown','carga-semana','ciclo','reportes-comercial'
 ];
 const DASHBOARD_CARD_LABELS = {
@@ -7180,6 +7289,7 @@ const DASHBOARD_CARD_LABELS = {
   'contato':'Agendas por tipo de contato',
   'horas-tipo':'Horas por tipo de agenda',
   'modulos':'Módulos mais treinados',
+  'telas':'Telas mais treinadas',
   'clientes-segmento':'Clientes por segmento',
   'clientes-cidade':'Clientes por cidade',
   'clientes-contador':'Clientes por contador',
@@ -7202,6 +7312,7 @@ const DASHBOARD_CARD_DEFAULT_SIZES = {
   'contato':'half',
   'horas-tipo':'half',
   'modulos':'half',
+  'telas':'half',
   'clientes-segmento':'half',
   'clientes-cidade':'half',
   'clientes-contador':'half',
@@ -7237,7 +7348,13 @@ function getDashboardCardOrder(){
   if(!Array.isArray(saved)) saved = [];
   const known = new Set(DASHBOARD_CARDS_DEFAULT_ORDER);
   const cleaned = saved.filter(k=>known.has(k));
-  DASHBOARD_CARDS_DEFAULT_ORDER.forEach(k=>{ if(!cleaned.includes(k)) cleaned.push(k); });
+  /* Painel novo que ainda não está na ordem salva da pessoa: entra logo depois do vizinho dele na ordem padrão
+     (ex.: "Telas mais treinadas" aparece ao lado de "Módulos mais treinados"), em vez de ir para o fim. */
+  DASHBOARD_CARDS_DEFAULT_ORDER.forEach((k,i)=>{
+    if(cleaned.includes(k)) return;
+    const prev = DASHBOARD_CARDS_DEFAULT_ORDER.slice(0,i).reverse().find(p=>cleaned.includes(p));
+    if(prev) cleaned.splice(cleaned.indexOf(prev)+1, 0, k); else cleaned.unshift(k);
+  });
   return cleaned;
 }
 function setDashboardCardOrder(order){
@@ -7281,10 +7398,39 @@ function setDashboardCardSize(key, size){
   dashLayoutWrite('sizes', DASHBOARD_CARD_SIZE_KEY, sizes);
   render();
 }
+/* Altura de cada painel (px). Sem valor = automática (do tamanho do conteúdo). Com valor, o painel fica com essa
+   altura e ganha barra de rolagem por dentro quando o conteúdo não cabe. */
+function getDashboardCardHeights(){
+  let saved = dashLayoutRead('heights', DASHBOARD_CARD_HEIGHT_KEY, {});
+  if(!saved || typeof saved!=='object' || Array.isArray(saved)) saved = {};
+  const out = {};
+  Object.keys(saved).forEach(k=>{ const v = Math.round(Number(saved[k])); if(v>=DASH_H_MIN && v<=DASH_H_MAX) out[k] = v; });
+  return out;
+}
+function setDashboardCardHeight(key, px){
+  const hs = getDashboardCardHeights();
+  if(px==null) delete hs[key]; else hs[key] = Math.max(DASH_H_MIN, Math.min(DASH_H_MAX, Math.round(px)));
+  dashLayoutWrite('heights', DASHBOARD_CARD_HEIGHT_KEY, hs);
+  render();
+}
+/* Arrastar o canto do painel (modo Reordenar): ao soltar o mouse, guarda a altura escolhida. */
+document.addEventListener('mouseup', function(){
+  if(!ui.dashboardReorderMode) return;
+  document.querySelectorAll('[data-dash-key].dash-reorder-active').forEach(el=>{
+    if(!el.style.height) return;
+    const px = parseFloat(el.style.height), key = el.dataset.dashKey;
+    const cur = getDashboardCardHeights()[key];
+    if(px>0 && (!cur || Math.abs(cur-px)>4)) setDashboardCardHeight(key, px);
+  });
+}, true);
+function dashCardCurrentHeight(key){
+  const el = document.querySelector('[data-dash-key="'+key+'"]');
+  return el ? el.getBoundingClientRect().height : 0;
+}
 function resetDashboardLayout(){
   const an = dashLayoutUser();
   if(an && an.dashLayout){ delete an.dashLayout; persist(); }
-  try{ [DASHBOARD_CARD_ORDER_KEY, DASHBOARD_CARD_SIZE_KEY].forEach(k=>{ localStorage.removeItem(k); localStorage.removeItem(dashLayoutLocalKey(k)); }); }catch(e){}
+  try{ [DASHBOARD_CARD_ORDER_KEY, DASHBOARD_CARD_SIZE_KEY, DASHBOARD_CARD_HEIGHT_KEY].forEach(k=>{ localStorage.removeItem(k); localStorage.removeItem(dashLayoutLocalKey(k)); }); }catch(e){}
   render();
 }
 /* Troca a classe de largura (dash-card / dash-card-full) do <div> raiz do
@@ -7300,22 +7446,28 @@ function setCardWidthClasses(cardHtml, size){
 }
 function wrapDashboardCard(key, cardHtml, idx, total, size){
   cardHtml = setCardWidthClasses(cardHtml, size);
-  if(!ui.dashboardReorderMode) return cardHtml;
+  const fixedH = getDashboardCardHeights()[key];
+  if(fixedH){
+    cardHtml = cardHtml.replace(/^<div class="/, '<div style="--dash-h:'+fixedH+'px" class="dash-card-fixedh ');
+  }
+  if(!ui.dashboardReorderMode) return cardHtml.replace(/^<div /, '<div data-dash-key="'+key+'" ');
   const otherSize = size==='full' ? 'half' : 'full';
   const sizeBtnLabel = size==='full' ? '▣<span class="dash-lbl"> Meia largura</span>' : '⛶<span class="dash-lbl"> Largura total</span>';
   const bar = '<div class="dash-reorder-bar" draggable="true" data-dash-drag="'+key+'" title="Arraste para onde quiser">'
     + '<span class="dash-reorder-handle">⠿ '+esc(DASHBOARD_CARD_LABELS[key]||key)+' <span class="hint" style="margin:0;">(arraste)</span></span>'
     + '<span class="dash-reorder-actions">'
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-resize-card" data-key="'+key+'" data-size="'+otherSize+'">'+sizeBtnLabel+'</button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-height" data-key="'+key+'" data-dir="-1" title="Diminuir a altura (o conteúdo que não couber rola por dentro)">▁<span class="dash-lbl"> Menor</span></button>'
+    + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-height" data-key="'+key+'" data-dir="1" title="Aumentar a altura">▇<span class="dash-lbl"> Maior</span></button>'
+    + (fixedH ? '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-height" data-key="'+key+'" data-dir="0" title="Voltar à altura automática (do tamanho do conteúdo)">↺<span class="dash-lbl"> Altura automática</span></button>' : '')
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="-1" title="Subir"'+(idx===0?' disabled':'')+'>▲<span class="dash-lbl"> Subir</span></button>'
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card" data-key="'+key+'" data-dir="1" title="Descer"'+(idx===total-1?' disabled':'')+'>▼<span class="dash-lbl"> Descer</span></button>'
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="start" title="Mover para o início"'+(idx===0?' disabled':'')+'>⤒<span class="dash-lbl"> Início</span></button>'
     + '<button type="button" class="btn btn-xs btn-ghost" data-action="dashboard-move-card-to" data-key="'+key+'" data-target="end" title="Mover para o final"'+(idx===total-1?' disabled':'')+'>⤓<span class="dash-lbl"> Final</span></button>'
     + '</span></div>';
   return cardHtml
-    .replace(/^<div class="/, '<div data-dash-key="'+key+'" class="')
-    .replace('<div class="report-section-head">', bar + '<div class="report-section-head">')
-    .replace('<div class="report-section ', '<div class="report-section dash-reorder-active ');
+    .replace(/^<div ([^>]*?)class="/, (m, pre)=>'<div data-dash-key="'+key+'" '+pre+'class="dash-reorder-active ')
+    .replace('<div class="report-section-head">', bar + '<div class="report-section-head">');
 }
 
 /* ==================== Horas por mês (linha) — comparação entre analistas ==================== */
@@ -8536,6 +8688,35 @@ function renderDashboardView(){
   }
   modulosHtml += '</div>';
 
+  /* Telas mais treinadas: mesma regra dos módulos (agendas concluídas no período, filtro de analista), contando as telas treinadas. */
+  let telasHtml = '<div class="report-section dash-card">'
+    + '<div class="report-section-head"><div class="report-section-icon" style="background:var(--brand-soft);color:var(--brand);">🖥</div>'
+    + '<div style="flex:1;"><h2 class="report-section-title">Telas mais treinadas</h2>'
+    + '<p class="report-section-desc">Ranking das telas treinadas em agendas concluídas <strong>'+periodLabel+'</strong>, com o módulo de cada uma. O filtro de analista também se aplica a este relatório.</p></div></div>';
+  const screenCounts = {};
+  state.schedules.forEach(s=>{
+    if(s.status!=='concluida') return;
+    if(selectedAnalyst && !scheduleAnalystIds(s).includes(selectedAnalyst.id)) return;
+    if(!scheduleInPeriod(s)) return;
+    [...new Set((s.trainedScreens||[]).map(x=>String(x||'').trim()).filter(Boolean))].forEach(name=>{ screenCounts[name] = (screenCounts[name]||0) + 1; });
+  });
+  const screenModuleName = name=>{ const sc = state.screens.find(x=>x.name===name); const md = sc && state.modules.find(m=>m.id===sc.moduleId); return md ? md.name : ''; };
+  const screenEntries = Object.entries(screenCounts).sort((a,b)=>b[1]-a[1] || a[0].localeCompare(b[0],'pt-BR')).slice(0,10);
+  if(!screenEntries.length){
+    telasHtml += '<div class="report-empty">Nenhuma tela treinada em agendas concluídas no período selecionado. Marque as <strong>Telas treinadas</strong> nas agendas para que apareçam aqui.</div>';
+  } else {
+    const maxSc = Math.max(1, ...screenEntries.map(e=>e[1]));
+    telasHtml += '<div class="dash-barlist">';
+    screenEntries.forEach(([scName,count])=>{
+      const pct = Math.round((count/maxSc)*100), modN = screenModuleName(scName);
+      telasHtml += '<div class="dash-bar-row"><div class="dash-bar-label" style="flex-direction:column;align-items:flex-start;justify-content:center;gap:0;" title="'+esc(scName+(modN?' — '+modN:''))+'"><span style="max-width:100%;overflow:hidden;text-overflow:ellipsis;">'+esc(scName)+'</span>'+(modN?'<small style="display:block;color:var(--ink-faint);font-weight:600;font-size:11px;line-height:1.2;overflow:hidden;text-overflow:ellipsis;">'+esc(modN)+'</small>':'')+'</div>'
+        + '<div class="dash-bar-track"><div class="dash-bar-fill" style="width:'+pct+'%;background:var(--gold);"></div></div>'
+        + '<div class="dash-bar-value">'+count+'x</div></div>';
+    });
+    telasHtml += '</div>';
+  }
+  telasHtml += '</div>';
+
   const naoAbatidoByClientDash = naoAbatidoByClientMap({start:periodStart, end:periodEnd, analystId: selectedAnalyst ? selectedAnalyst.id : null});
   const naoAbatidoRanking = dashboardClients
     .map(cl=>({client:cl, mins:naoAbatidoByClientDash[cl.id]||0}))
@@ -8579,6 +8760,7 @@ function renderDashboardView(){
     'contato': contatoHtml,
     'horas-tipo': horasTipoHtml,
     'modulos': modulosHtml,
+    'telas': telasHtml,
     'clientes-segmento': clientesSegmentoHtml,
     'clientes-cidade': clientesCidadeHtml,
     'clientes-contador': clientesContadorHtml,
@@ -8763,8 +8945,8 @@ function renderCardMini(card, listName, filterId){
     }
   }
   if(ui.boardCardView==='compact'){
-    return '<div class="card-mini card-mini-compact'+(card.isConcluded?' done':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';">'
-      + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+cardCoBadge(card)+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
+    return '<div class="card-mini card-mini-compact'+(card.isConcluded?' done':'')+(client && client.realtecBlocked?' card-client-blocked':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';"'+(client && client.realtecBlocked?' title="Cliente bloqueado na base Realtec"':'')+'>'
+      + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+cardCoBadge(card)+(client && client.realtecBlocked ? ' '+realtecStatusBadge(client) : '')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
       + (analyst
         ? '<div class="card-meta analyst-meta">'+(analyst.photo ? analystAvatar(analyst,18) : '<span class="analyst-dot" style="background:'+analyst.color+'"></span>')+'<span>'+esc(analyst.name)+'</span></div>'
         : '')
@@ -8778,10 +8960,10 @@ function renderCardMini(card, listName, filterId){
   }
   let chips = '';
   (card.productTags||[]).forEach(tid=>{ const t=byId(state.productTags,tid); if(t) chips += '<span class="chip" style="background:'+t.color+'">'+esc(t.name)+'</span>'; });
-  return '<div class="card-mini'+(card.isConcluded?' done':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';">'
+  return '<div class="card-mini'+(card.isConcluded?' done':'')+(client && client.realtecBlocked?' card-client-blocked':'')+'" draggable="true" data-card-id="'+card.id+'" data-action="open-card" style="border-left:4px solid '+typeInfo.accent+';"'+(client && client.realtecBlocked?' title="Cliente bloqueado na base Realtec"':'')+'>'
     + '<span class="badge" style="background:'+typeInfo.badgeBg+';color:'+typeInfo.badgeColor+';align-self:flex-start;">'+esc(typeInfo.label)+'</span>'
     + (chips? '<div class="chip-row">'+chips+'</div>' : '')
-    + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+cardCoBadge(card)+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
+    + '<div class="card-title">'+esc(client? client.name : '(cliente removido)')+cardCoBadge(card)+(client && client.realtecBlocked ? ' '+realtecStatusBadge(client) : '')+(card.isConcluded?' <span class="done-flag">✓</span>':'')+(['parado','cancelado'].includes(cardStatus(card).key)?' '+cardStatusBadge(card):'')+'</div>'
     + ((filterId==='all' && analyst)
       ? '<div class="card-meta analyst-meta">'+(analyst.photo ? analystAvatar(analyst,18) : '<span class="analyst-dot" style="background:'+analyst.color+'"></span>')+'<span>'+esc(analyst.name)+'</span></div>'
       : '')
@@ -11828,7 +12010,34 @@ function realtecAutoTick(){
     realtecAutoImport({});
   }catch(e){}
 }
-setTimeout(function(){ realtecAutoTick(); setInterval(realtecAutoTick, 60000); }, 30000);
+/* Conferência automática das alterações dos clientes: a cada 3 dias, a partir das 8h. Roda no navegador de quem estiver
+   logado na rede da Realtec; se ninguém estiver às 8h, roda no primeiro acesso depois disso. Só grava os clientes que mudaram. */
+const REALTEC_SYNC_EVERY_DAYS = 3, REALTEC_SYNC_HOUR = 8;
+function realtecAutoSyncEnabled(){ return realtecMgmtRow().realtecAutoSync !== false; }
+function isoOfTs(ts){ const d = new Date(Number(ts)); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* Próximo dia previsto (AAAA-MM-DD): 3 dias depois da última conferência (manual ou automática). */
+function realtecNextSyncISO(){
+  const last = Number(realtecMgmtRow().realtecLastSyncAt)||0;
+  return last ? addDaysISO(isoOfTs(last), REALTEC_SYNC_EVERY_DAYS) : todayISO();
+}
+function realtecAutoSyncDue(now){
+  now = now || new Date();
+  if(now.getHours() < REALTEC_SYNC_HOUR) return false;
+  return todayISO() >= realtecNextSyncISO();
+}
+var realtecAutoSyncLocalAt = 0;
+function realtecAutoSyncTick(){
+  try{
+    if(!currentUser || !canSyncRealtec() || !realtecAutoSyncEnabled()) return;
+    if(typeof cloudStatus!=='undefined' && cloudStatus!=='connected') return;
+    if(csatSurveyToken && csatSurveyToken()) return;
+    if(!realtecAutoSyncDue()) return;
+    if(Date.now() - realtecAutoSyncLocalAt < 30*60000) return;      // falhou há pouco neste navegador (ex.: fora da rede)
+    realtecAutoSyncLocalAt = Date.now();
+    realtecSyncAll({silent:true});
+  }catch(e){}
+}
+setTimeout(function(){ realtecAutoTick(); realtecAutoSyncTick(); setInterval(function(){ realtecAutoTick(); realtecAutoSyncTick(); }, 60000); }, 30000);
 /* Aviso no sino: só para analistas administradores, até marcarem como lido. */
 function newClientNoticesForAnalyst(analystId){
   const a = getAnalyst(analystId); if(!a || !a.isAdmin) return [];
@@ -11842,11 +12051,13 @@ function markNewClientSeen(clientId, me){
   if(!c.realtecAutoSeenBy.includes(me)){ c.realtecAutoSeenBy.push(me); logNotifHandled('newclient','Cliente novo: '+c.name, c.code?'Código '+c.code:'', 'Lido', c.id); }
 }
 /* Sincronizar: confere pela base todos os clientes do site que têm código. */
-async function realtecSyncAll(){
-  if(ui.realtecSync && ui.realtecSync.running) return;
+async function realtecSyncAll(opts){
+  opts = opts || {};
+  const silent = !!opts.silent;                 // conferência automática (a cada 3 dias, às 8h): sem telas nem alertas
+  if(ui.realtecSync && ui.realtecSync.running) return null;
   const withCode = state.clients.filter(c=>normClientCode(c.code));
-  if(!withCode.length){ showAlert('Nenhum cliente com código para conferir na base Realtec.'); return; }
-  ui.realtecSync = {running:true}; render();
+  if(!withCode.length){ if(!silent) showAlert('Nenhum cliente com código para conferir na base Realtec.'); return null; }
+  ui.realtecSync = {running:true}; if(!silent) render();
   try{
     const out = await realtecApi({action:'sync', codigos: withCode.map(c=>normClientCode(c.code))});
     const byCode = new Map((out.clientes||[]).map(r=>[normClientCode(r.codigo), r]));
@@ -11866,14 +12077,27 @@ async function realtecSyncAll(){
         else rep.same++;
       } else rep.same++;
     });
-    try{ const ni = await realtecAutoImport({manual:true}); rep.imported = ni.imported.map(c=>c.name+' (código '+c.code+')'); rep.linked = ni.linked; rep.conflicts = rep.conflicts.concat(ni.skipped); }
+    try{ const ni = silent ? await realtecAutoImport({}) : await realtecAutoImport({manual:true}); rep.imported = ni.imported.map(c=>c.name+' (código '+c.code+')'); rep.linked = ni.linked; rep.conflicts = rep.conflicts.concat(ni.skipped); }
     catch(e){ rep.conflicts.push('Não foi possível conferir clientes novos: '+((e && e.message) || e)); }
-    realtecSetConfig({realtecLastSyncAt: rep.at});   // data da última conferência geral (uma linha só, em vez de regravar cada cliente)
+    realtecSetConfig(Object.assign({realtecLastSyncAt: rep.at},   // data da última conferência geral (uma linha só, em vez de regravar cada cliente)
+      silent ? {realtecAutoSyncLast: {at: rep.at, updated: rep.updated.length, imported: (rep.imported||[]).length, by: (currentUser && currentUser.displayName) || ''}} : {}));
     persist();
     ui.realtecSync = null;
+    if(silent){
+      if(rep.updated.length || (rep.imported||[]).length){
+        render();
+        if(isAdminUser()) showToast('Base Realtec conferida automaticamente: '+rep.updated.length+' cliente(s) atualizado(s)'+((rep.imported||[]).length ? ', '+rep.imported.length+' novo(s)' : '')+'.', 'ok', {ms:8000});
+      }
+      return rep;
+    }
     ui.modal = {type:'realtec-sync-report', report: rep};
     render();
-  }catch(e){ ui.realtecSync = null; render(); showAlert('Não foi possível sincronizar com a base Realtec.\n'+((e && e.message) || e)); }
+    return rep;
+  }catch(e){
+    ui.realtecSync = null;
+    if(silent){ console.warn('Conferência automática da base Realtec não rodou:', (e && e.message) || e); return null; }
+    render(); showAlert('Não foi possível sincronizar com a base Realtec.\n'+((e && e.message) || e)); return null;
+  }
 }
 function renderRealtecSyncReport(m){
   const r = m.report || {};
@@ -12523,7 +12747,7 @@ function renderFeriasTab(){
     + '<button type="button" class="btn btn-sm btn-ghost" data-action="ferias-toggle-periods" data-id="'+analyst.id+'">'+(periodsExpanded?'Recolher ▲':'Expandir ▼')+'</button>'
     + '</div>';
   if(periodsExpanded){
-    html += '<table><thead><tr><th>Período</th><th>Início</th><th>Fim</th><th>Situação</th><th>Dias</th><th>Análise</th><th>Pendente</th><th>Concluída</th><th>Saldo</th></tr></thead><tbody>';
+    html += '<table><thead><tr><th>Período</th><th>Início</th><th>Fim</th><th>Situação</th><th>Dias</th><th>Análise</th><th>Pendente</th><th>Concluída</th><th>Saldo</th><th>Prazo para tirar</th></tr></thead><tbody>';
     periods.slice().reverse().forEach(p=>{
       const liberado = p.status==='Liberado';
       html += '<tr>'
@@ -12536,6 +12760,7 @@ function renderFeriasTab(){
         + '<td>'+(p.pendente||'<span class="hint">0</span>')+'</td>'
         + '<td>'+(p.concluida||'<span class="hint">0</span>')+'</td>'
         + '<td style="font-weight:700;'+(p.saldo<0?'color:var(--danger);':'')+'">'+p.saldo+'</td>'
+        + '<td>'+(liberado ? (function(){ const dl = vacationDeadlineISO(p), t = todayISO(); const warn = p.saldo>0 && t >= addMonthsISO(dl,-4); return '<span style="'+(warn?'color:var(--danger);font-weight:700;':'')+'">'+fmtDateBR(dl)+(p.saldo>0 && t>dl ? ' (vencido)' : '')+'</span>'; })() : '<span class="hint">—</span>')+'</td>'
         + '</tr>';
     });
     html += '</tbody></table>';
@@ -14845,9 +15070,19 @@ document.addEventListener('click', async function(e){
         else if(x._notifKind==='jira'){ const r=getJiraRequirement(x.id); if(r && r.statusNotice){ r.statusNotice.seen = Array.isArray(r.statusNotice.seen)?r.statusNotice.seen:[]; if(!r.statusNotice.seen.includes(me)){ r.statusNotice.seen.push(me); const cl1=r.clientId?getClient(r.clientId):null; logNotifHandled('jira','Requisito '+(r.number||''),(cl1?cl1.name:''),'Lido',r.id); } } }
         else if(x._notifKind==='newclient'){ markNewClientSeen(x.id, me); }
         else if(x._notifKind==='tasknew'){ markTaskNoticeSeen(x.id, me, 'Ignorada'); }
+        else if(x._notifKind==='ferias' || x._notifKind==='feriasvenc'){ markVacationNoticeSeen(x.id, me); }
         else if(x._notifKind==='task'){ const t=(state.tasks||[]).find(y=>y.id===x.id); if(t){ t.seenBy = Array.isArray(t.seenBy)?t.seenBy:[]; if(!t.seenBy.includes(me)){ t.seenBy.push(me); logNotifHandled('task','Tarefa: '+(t.title||''),'', 'Lido', t.id); } } }
       });
       persist();
+    }
+    render();
+  }
+  else if(a==='ferias-notice-seen' || a==='ferias-notice-open'){
+    const me = myAnalystId(); markVacationNoticeSeen(el.dataset.id, me); persist();
+    if(a==='ferias-notice-open'){
+      ui.showNotif=false; ui.sidebarOpen=false; ui.modal=null; ui.view='settings'; ui.settingsTab='ferias';
+      { const pp = String(el.dataset.id||'').split(':'); ui.feriasAnalystId = pp[0]==='venc' ? pp[1] : pp[0]; }
+      if(typeof ensureLazyTableLoaded==='function') ensureLazyTableLoaded('vacationEntries');
     }
     render();
   }
@@ -15543,6 +15778,14 @@ document.addEventListener('click', async function(e){
   }
   else if(a==='dashboard-resize-card'){
     setDashboardCardSize(el.dataset.key, el.dataset.size);
+  }
+  else if(a==='dashboard-height'){
+    const key = el.dataset.key, dir = parseInt(el.dataset.dir,10);
+    if(dir===0) setDashboardCardHeight(key, null);
+    else {
+      const cur = getDashboardCardHeights()[key] || dashCardCurrentHeight(key) || 500;
+      setDashboardCardHeight(key, dir<0 ? Math.max(DASH_H_MIN, cur - Math.max(80, cur*0.2)) : cur + Math.max(80, cur*0.2));
+    }
   }
   else if(a==='dashboard-reset-layout'){
     resetDashboardLayout();
@@ -16850,7 +17093,7 @@ document.addEventListener('submit', async function(e){
     const raw = String(fd.get('fromCode')||'').trim();
     const n = raw==='' ? null : parseInt(raw,10);
     if(raw!=='' && !(n>=0)){ showAlert('Informe um código válido (número).'); return; }
-    realtecSetConfig({realtecAutoImport: fd.get('auto')==='on', realtecAutoFromCode: n});
+    realtecSetConfig({realtecAutoImport: fd.get('auto')==='on', realtecAutoSync: fd.get('autoSync')==='on', realtecAutoFromCode: n});
     persist(); render(); showToast('Cadastro automático salvo.', 'ok');
   }
   else if(type==='realtec-api-config'){
@@ -17894,6 +18137,888 @@ if('serviceWorker' in navigator){
   window.render = render;
   try{ a11yScan(); }catch(e){}
 })();
+</script>
+<script>
+/* =====================================================================
+   Guia 9Box do Implanta — avaliação de desempenho e comportamento.
+
+   Os dados NÃO entram em `state`: não vão para o localStorage, para o cache
+   local nem para o canal de sincronização geral. São lidos direto do Supabase
+   e protegidos pelas regras de servidor (servidor/28_nine_box.sql).
+   ===================================================================== */
+(function(){
+  'use strict';
+
+  var T = {cycles:'nine_box_cycles', config:'nine_box_config', evals:'nine_box_evaluations'};
+  var AXES = [
+    {k:'comportamento', l:'Comportamento'},
+    {k:'desempenho', l:'Desempenho'}
+  ];
+  var SCALE = [
+    [1,'Muito abaixo do esperado'],[2,'Abaixo do esperado'],[3,'Dentro do esperado'],
+    [4,'Acima do esperado'],[5,'Muito acima do esperado']
+  ];
+  var BANDS = ['Baixo','Médio','Alto'];
+  /* linha = faixa de comportamento (0 baixo → 2 alto); coluna = faixa de desempenho */
+  var MATRIX = [[1,2,4],[3,6,7],[5,8,9]];
+  var CATS = {
+    9:{n:'Destaques', d:'Pontuação alta em comportamento e em desempenho.'},
+    8:{n:'Aprimorar técnica', d:'Pontuação alta em comportamento e média em desempenho.'},
+    7:{n:'Aprimorar comportamento', d:'Pontuação média em comportamento e alta em desempenho.'},
+    6:{n:'Aprimorar comportamento e técnica', d:'Pontuação média em comportamento e em desempenho.'},
+    5:{n:'Desenvolver técnica', d:'Pontuação alta em comportamento e baixa em desempenho.'},
+    4:{n:'Desenvolver comportamento', d:'Pontuação baixa em comportamento e alta em desempenho.'},
+    3:{n:'Verificar situação', d:'Pontuação média em comportamento e baixa em desempenho.'},
+    2:{n:'Trabalhar valores', d:'Pontuação baixa em comportamento e média em desempenho.'},
+    1:{n:'Insuficientes', d:'Pontuação baixa em comportamento e em desempenho.'},
+    10:{n:'Não avaliados', d:'Ainda sem avaliação do líder enviada.'}
+  };
+  var CAT_ORDER = [9,8,7,6,5,4,3,2,1,10];
+  var PDF_COLORS = {1:'#FFD3D8',2:'#FFE0E0',3:'#FFE3DA',4:'#FFF0E8',5:'#FFF2C9',6:'#FFEBCF',7:'#E7FBC7',8:'#DDF7D0',9:'#BDEFC5',10:'#E8ECEA'};
+
+  function freshData(){
+    return {status:'idle', cycles:[], config:[], evals:[], base:{}, cycleId:null, modal:null};
+  }
+  var nb = Object.assign(freshData(), {
+    who:null, tab:'avaliacoes', mode:'cards', showLeaders:false, profile:'all', query:'', open:{}, prevView:null, loadSeq:0
+  });
+  window.__nb = nb; /* usado apenas nos testes automatizados */
+
+  /* ---------- Permissões e leitura ---------- */
+  function isAdmin(){ return isAdminUser(); }
+  function me(){ return myAnalystId(); }
+  function whoKey(){ return currentUser ? String(currentUser.username||'')+'|'+String(currentUser.role||'')+'|'+String(currentUser.analystId||'') : null; }
+
+  function rememberBase(table, item){ nb.base[table+'|'+item.id] = JSON.parse(JSON.stringify(item)); }
+
+  function nbLoad(){
+    if(typeof sbClient==='undefined' || !sbClient || cloudStatus!=='connected'){ nb.status = 'offline'; return Promise.resolve(); }
+    var seq = ++nb.loadSeq;
+    if(nb.status!=='ready') nb.status = 'loading';
+    return Promise.all([T.cycles,T.config,T.evals].map(function(t){ return sbClient.from(t).select('data'); })).then(function(rs){
+      if(seq!==nb.loadSeq) return;
+      var bad = rs.filter(function(r){ return r.error; })[0];
+      if(bad){
+        var code = String(bad.error.code||''), msg = String(bad.error.message||'');
+        nb.status = (code==='42P01' || code==='PGRST205' || /does not exist|schema cache/i.test(msg)) ? 'missing' : 'error';
+        console.warn('9Box: falha ao carregar', bad.error);
+        render();
+        return;
+      }
+      nb.cycles = rs[0].data.map(function(x){ return x.data; });
+      nb.config = rs[1].data.map(function(x){ return x.data; });
+      nb.evals  = rs[2].data.map(function(x){ return x.data; });
+      nb.base = {};
+      nb.cycles.forEach(function(x){ rememberBase(T.cycles,x); });
+      nb.config.forEach(function(x){ rememberBase(T.config,x); });
+      nb.evals.forEach(function(x){ rememberBase(T.evals,x); });
+      nb.status = 'ready';
+      render();
+    }).catch(function(e){
+      if(seq!==nb.loadSeq) return;
+      console.warn('9Box: falha ao carregar', e);
+      nb.status = 'error';
+      render();
+    });
+  }
+  function nbSaveRow(table, list, item){
+    var report = {merged:[]};
+    return saveRowSafe(sbClient, table, item, nb.base[table+'|'+item.id] || null, report).then(function(){
+      rememberBase(table, item);
+      var i = -1;
+      list.forEach(function(x,idx){ if(x.id===item.id) i = idx; });
+      if(i>=0) list[i] = item; else list.push(item);
+      return item;
+    });
+  }
+  function nbDeleteRow(table, id){
+    return sbClient.from(table).delete().eq('id', id).then(function(r){
+      if(r.error) throw r.error;
+      delete nb.base[table+'|'+id];
+    });
+  }
+  function saveErrorText(e){
+    var msg = String((e && e.message) || e || '');
+    if(/row-level security|permission denied|Conflito persistente/i.test(msg)) return 'Sem permissão para salvar. O ciclo pode ter sido encerrado: atualize a tela e tente de novo.';
+    return 'Não foi possível salvar. Verifique a conexão e tente de novo.';
+  }
+
+  /* ---------- Cálculo ---------- */
+  function cycleById(id){ return nb.cycles.filter(function(c){ return c.id===id; })[0] || null; }
+  function sortedCycles(){ return nb.cycles.slice().sort(function(a,b){ return String(b.date||'').localeCompare(String(a.date||'')); }); }
+  function currentCycle(){
+    var c = cycleById(nb.cycleId);
+    if(!c){ c = sortedCycles()[0] || null; nb.cycleId = c ? c.id : null; }
+    return c;
+  }
+  function evalId(cycleId, analystId, kind){ return cycleId+':'+analystId+':'+kind; }
+  function getEval(cycleId, analystId, kind){ var id = evalId(cycleId,analystId,kind); return nb.evals.filter(function(e){ return e.id===id; })[0] || null; }
+  function criteriaOf(cycle, axis){ return (cycle.criteria||[]).filter(function(c){ return c.axis===axis; }); }
+  function axisMean(cycle, ev, axis){
+    if(!ev) return null;
+    var vals = criteriaOf(cycle,axis).map(function(c){ return Number((ev.scores||{})[c.id]); }).filter(function(v){ return v>=1 && v<=5; });
+    if(!vals.length) return null;
+    return vals.reduce(function(a,b){ return a+b; },0)/vals.length;
+  }
+  function band(cycle, v){ return v < Number(cycle.low) ? 0 : (v >= Number(cycle.high) ? 2 : 1); }
+  function categoryFrom(cycle, b, d){ return (b==null || d==null) ? 10 : MATRIX[band(cycle,b)][band(cycle,d)]; }
+  function resultOf(cycle, analystId){
+    var ev = getEval(cycle.id, analystId, 'leader');
+    if(!ev || ev.status!=='enviada') return {cat:10, b:null, d:null, ev:ev};
+    var b = axisMean(cycle,ev,'comportamento'), d = axisMean(cycle,ev,'desempenho');
+    return {cat:categoryFrom(cycle,b,d), b:b, d:d, ev:ev};
+  }
+  function fmtN(v){ return v==null ? '—' : Number(v).toFixed(2).replace('.',','); }
+  function configSettings(){
+    var s = nb.config.filter(function(x){ return x.id==='settings'; })[0];
+    return {low: s && s.low!=null ? Number(s.low) : 3, high: s && s.high!=null ? Number(s.high) : 4};
+  }
+  function catalog(axis){ return nb.config.filter(function(x){ return x.kind==='criterion' && (!axis || x.axis===axis); }).sort(function(a,b){ return (a.createdAt||0)-(b.createdAt||0); }); }
+  function analystName(id){ var a = getAnalyst(id); return a ? a.name : 'Analista removido'; }
+  function pendingSelfCount(){
+    var mine = me();
+    if(!mine || nb.status!=='ready') return 0;
+    return nb.cycles.filter(function(c){
+      if(c.status!=='aberto' || (c.analystIds||[]).indexOf(mine)<0) return false;
+      var e = getEval(c.id,mine,'self');
+      return !e || e.status!=='enviada';
+    }).length;
+  }
+  function visibleParticipants(cycle){
+    var q = nb.query.trim().toLowerCase();
+    return (cycle.analystIds||[]).filter(function(id){
+      var a = getAnalyst(id);
+      if(a && a.isAdmin && !nb.showLeaders) return false;
+      if(nb.profile==='suporte' && !(a && a.isSupport)) return false;
+      if(nb.profile==='analista' && (a && a.isSupport)) return false;
+      if(q && analystName(id).toLowerCase().indexOf(q)<0) return false;
+      return true;
+    });
+  }
+
+  /* ---------- Tela ---------- */
+  function statusBox(title, text, retry){
+    return '<div class="section-card"><div class="empty-state" style="padding:36px 20px;"><h3>'+esc(title)+'</h3><p>'+esc(text)+'</p>'
+      + (retry ? '<button class="btn" data-nb="reload">Tentar de novo</button>' : '')
+      + '</div></div>';
+  }
+  function renderNineBoxView(){
+    if(nb.status==='offline') return statusBox('Sem conexão com a nuvem','O 9Box só funciona conectado à nuvem, para proteger os dados das avaliações.',true);
+    if(nb.status==='missing') return isAdmin()
+      ? statusBox('Falta preparar o servidor','Execute o script servidor/28_nine_box.sql no Supabase para ativar o 9Box.',true)
+      : statusBox('9Box indisponível','Esta guia ainda não foi ativada pelo administrador.',false);
+    if(nb.status==='error') return statusBox('Não foi possível carregar o 9Box','Verifique a conexão e tente de novo.',true);
+    if(nb.status!=='ready') return '<div class="section-card"><div class="report-empty">Carregando avaliações...</div></div>';
+    if(!isAdmin()) return renderMyEvaluations();
+    var tabs = [['avaliacoes','Avaliações'],['relatorio','Relatórios 9Box'],['criterios','Critérios e notas de corte']];
+    var html = '<div class="nb-tabs">'+tabs.map(function(t){
+      return '<button type="button" class="tab-btn'+(nb.tab===t[0]?' active':'')+'" data-nb="tab" data-tab="'+t[0]+'">'+t[1]+'</button>';
+    }).join('')+'</div>';
+    if(nb.tab==='criterios') return html + renderCriteriaTab();
+    if(!nb.cycles.length){
+      return html + '<div class="section-card"><div class="empty-state" style="padding:36px 20px;"><h3>Não há avaliações em aberto</h3><p>'
+        + (catalog('comportamento').length && catalog('desempenho').length
+            ? 'Crie um ciclo para escolher os analistas avaliados e liberar o preenchimento.'
+            : 'Primeiro cadastre ao menos um critério de Comportamento e um de Desempenho.')
+        + '</p>'
+        + (catalog('comportamento').length && catalog('desempenho').length
+            ? '<button class="btn btn-primary" data-nb="cycle-new">+ Novo ciclo</button>'
+            : '<button class="btn btn-primary" data-nb="tab" data-tab="criterios">Cadastrar critérios</button>')
+        + '</div></div>';
+    }
+    return html + (nb.tab==='relatorio' ? renderReportTab() : renderEvaluationsTab());
+  }
+  function cycleOptionLabel(c){ return (c.name||'Ciclo')+' — 9Box em '+fmtDateBR(c.date)+(c.status==='aberto'?' (aberto)':''); }
+  function cycleSelect(){
+    var cur = currentCycle();
+    return '<div class="field nb-cycle-field"><label for="nb-cycle">Ciclo</label><select id="nb-cycle" data-nb-change="cycle">'
+      + sortedCycles().map(function(c){ return '<option value="'+esc(c.id)+'"'+(cur&&cur.id===c.id?' selected':'')+'>'+esc(cycleOptionLabel(c))+'</option>'; }).join('')
+      + '</select></div>';
+  }
+  function statusPill(ev, emptyText){
+    if(ev && ev.status==='enviada') return '<span class="nb-pill ok">Enviada</span>';
+    if(ev) return '<span class="nb-pill warn">Rascunho</span>';
+    return '<span class="nb-pill">'+esc(emptyText||'Pendente')+'</span>';
+  }
+  function renderEvaluationsTab(){
+    var c = currentCycle(), mine = me(), open = c.status==='aberto';
+    var ids = (c.analystIds||[]).slice().sort(function(a,b){ return analystName(a).localeCompare(analystName(b)); });
+    var sent = ids.filter(function(id){ var e=getEval(c.id,id,'leader'); return e && e.status==='enviada'; }).length;
+    var html = '<div class="section-card"><div class="nb-toolbar">'+cycleSelect()
+      + '<div class="nb-actions">'
+      + '<span class="nb-pill '+(open?'ok':'')+'">'+(open?'Aberto':'Encerrado')+'</span>'
+      + '<button class="btn btn-sm" data-nb="cycle-edit" data-id="'+esc(c.id)+'">Editar</button>'
+      + (open
+          ? '<button class="btn btn-sm btn-gold" data-nb="cycle-close" data-id="'+esc(c.id)+'">Encerrar ciclo</button>'
+          : '<button class="btn btn-sm" data-nb="cycle-reopen" data-id="'+esc(c.id)+'">Reabrir</button>')
+      + '<button class="btn btn-sm'+(open?'':' btn-primary')+'" data-nb="analysis-open" data-cycle="'+esc(c.id)+'" title="Análise de Desempenho × Comportamento de cada analista">📋 Relatório de avaliação</button>'
+      + '<button class="btn btn-sm btn-danger" data-nb="cycle-delete" data-id="'+esc(c.id)+'">Excluir</button>'
+      + '</div></div>'
+      + '<p class="hint" style="margin:0 0 12px;">'+sent+' de '+ids.length+' avaliações do líder enviadas. '
+      + 'Corte: abaixo de '+fmtN(c.low)+' = Baixo; a partir de '+fmtN(c.high)+' = Alto. '
+      + (open ? 'O analista só vê o resultado depois que o ciclo for encerrado.' : 'Os analistas já podem ver o próprio resultado.')+'</p>';
+    if(!ids.length) return html + '<div class="report-empty">Nenhum analista neste ciclo.</div></div>';
+    html += '<div class="nb-table-wrap"><table class="nb-table"><thead><tr><th>Analista</th><th>Autoavaliação</th><th>Avaliação do líder</th><th>Comport.</th><th>Desemp.</th><th>Quadrante</th><th></th></tr></thead><tbody>';
+    ids.forEach(function(id){
+      var a = getAnalyst(id), self = getEval(c.id,id,'self'), lead = getEval(c.id,id,'leader'), r = resultOf(c,id);
+      var isMe = id===mine;
+      var selfShown = (self && (self.status==='enviada' || isMe)) ? self : null;
+      var btns = '';
+      if(isMe && open) btns += '<button class="btn btn-sm" data-nb="eval-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(id)+'" data-kind="self">Minha autoavaliação</button>';
+      if(!isMe && open) btns += '<button class="btn btn-sm btn-primary" data-nb="eval-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(id)+'" data-kind="leader">'+(lead?'Editar':'Avaliar')+'</button>';
+      if(lead || (self && self.status==='enviada')) btns += '<button class="btn btn-sm btn-ghost" data-nb="result-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(id)+'">Ver</button>';
+      html += '<tr><td><span class="nb-person">'+(a?analystAvatar(a,26):'')+'<span>'+esc(analystName(id))+'</span></span></td>'
+        + '<td>'+statusPill(selfShown)+'</td><td>'+statusPill(lead)+'</td>'
+        + '<td>'+fmtN(r.b)+'</td><td>'+fmtN(r.d)+'</td>'
+        + '<td><span class="nb-cat-chip nb-c'+r.cat+'">'+(r.cat===10?'':r.cat+' · ')+esc(CATS[r.cat].n)+'</span></td>'
+        + '<td><div class="nb-row-actions">'+btns+'</div></td></tr>';
+    });
+    return html + '</tbody></table></div></div>';
+  }
+  function personChip(c, id, r){
+    var a = getAnalyst(id);
+    return '<button type="button" class="nb-av-btn" data-nb="result-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(id)+'" title="'+esc(analystName(id)+' · Comportamento '+fmtN(r.b)+' · Desempenho '+fmtN(r.d))+'">'+(a?analystAvatar(a,34):esc(analystName(id).charAt(0)))+'</button>';
+  }
+  function renderReportTab(){
+    var c = currentCycle(), ids = visibleParticipants(c);
+    var byCat = {}; CAT_ORDER.forEach(function(k){ byCat[k] = []; });
+    ids.forEach(function(id){ var r = resultOf(c,id); byCat[r.cat].push({id:id, r:r}); });
+    var total = ids.length;
+    var hasLeaders = (c.analystIds||[]).some(function(id){ var a=getAnalyst(id); return a && a.isAdmin; });
+    var html = '<div class="nb-report"><div class="nb-report-main section-card">'
+      + '<div class="nb-toolbar">'+cycleSelect()+'</div>';
+    html += '<div class="nb-legend">'+CAT_ORDER.map(function(k){
+      var pct = total ? (byCat[k].length/total*100) : 0;
+      return '<div class="nb-legend-item"><span class="nb-swatch nb-c'+k+'"></span><span class="nb-legend-name">'+esc(CATS[k].n)+'</span><b>'+pct.toFixed(2).replace('.',',')+'%</b></div>';
+    }).join('')+'</div>';
+    html += '<div class="nb-matrix-wrap"><div class="nb-axis-y"><span>COMPORTAMENTO</span></div><div class="nb-matrix-col"><div class="nb-matrix">';
+    [2,1,0].forEach(function(row){
+      [0,1,2].forEach(function(col){
+        var k = MATRIX[row][col];
+        html += '<div class="nb-cell nb-c'+k+'" title="Comportamento '+BANDS[row]+' · Desempenho '+BANDS[col]+'"><div class="nb-cell-name">'+esc(CATS[k].n)+'</div>'
+          + '<div class="nb-cell-people">'+byCat[k].map(function(x){ return personChip(c,x.id,x.r); }).join('')+'</div>'
+          + '<div class="nb-cell-num">'+k+'</div></div>';
+      });
+    });
+    html += '</div><div class="nb-axis-x">DESEMPENHO</div></div></div>';
+    html += '<div class="nb-list-head"><div class="seg-switch"><button type="button" class="btn btn-sm '+(nb.mode==='cards'?'btn-primary':'btn-ghost')+'" data-nb="mode" data-mode="cards">Cartões</button><button type="button" class="btn btn-sm '+(nb.mode==='list'?'btn-primary':'btn-ghost')+'" data-nb="mode" data-mode="list">Lista</button></div></div>';
+    CAT_ORDER.forEach(function(k){
+      var items = byCat[k], isOpen = nb.open[k]!==undefined ? nb.open[k] : items.length>0;
+      html += '<div class="nb-cat"><button type="button" class="nb-cat-head" data-nb="cat-toggle" data-cat="'+k+'" aria-expanded="'+isOpen+'">'
+        + '<span class="nb-swatch nb-c'+k+'"></span><span class="nb-cat-text"><b>'+(k===10?'10':k)+' · '+esc(CATS[k].n)+' <small>('+items.length+')</small></b><span>'+esc(CATS[k].d)+'</span></span><span class="nb-caret">'+(isOpen?'▴':'▾')+'</span></button>';
+      if(isOpen){
+        if(!items.length) html += '<div class="hint nb-cat-empty">Ninguém neste quadrante.</div>';
+        else if(nb.mode==='list'){
+          html += '<div class="nb-table-wrap"><table class="nb-table"><thead><tr><th>Analista</th><th>Comportamento</th><th>Desempenho</th></tr></thead><tbody>'
+            + items.map(function(x){ return '<tr class="nb-click" data-nb="result-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(x.id)+'"><td>'+esc(analystName(x.id))+'</td><td>'+fmtN(x.r.b)+'</td><td>'+fmtN(x.r.d)+'</td></tr>'; }).join('')
+            + '</tbody></table></div>';
+        } else {
+          html += '<div class="nb-cards">'+items.map(function(x){
+            var a = getAnalyst(x.id);
+            return '<button type="button" class="nb-card" data-nb="result-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(x.id)+'">'+(a?analystAvatar(a,38):'')
+              + '<span class="nb-card-text"><b>'+esc(analystName(x.id))+'</b><span>Comport. '+fmtN(x.r.b)+' · Desemp. '+fmtN(x.r.d)+'</span></span></button>';
+          }).join('')+'</div>';
+        }
+      }
+      html += '</div>';
+    });
+    html += '</div><aside class="nb-filters section-card"><h3>Filtros</h3>'
+      + '<div class="field"><label for="nb-profile">Perfil</label><select id="nb-profile" data-nb-change="profile">'
+      + [['all','Todos'],['analista','Analistas'],['suporte','Suporte']].map(function(o){ return '<option value="'+o[0]+'"'+(nb.profile===o[0]?' selected':'')+'>'+o[1]+'</option>'; }).join('')
+      + '</select></div>'
+      + '<div class="field"><label for="nb-search">Busca por nome</label><input type="text" id="nb-search" value="'+esc(nb.query)+'" placeholder="Nome do analista"></div>'
+      + (hasLeaders ? '<label class="check-pill nb-leader-toggle"><input type="checkbox" data-nb-change="leaders"'+(nb.showLeaders?' checked':'')+'> Exibir liderança</label>' : '')
+      + '<button class="btn btn-primary" style="width:100%;justify-content:center;margin-top:12px;" data-nb="analysis-open" data-cycle="'+esc(c.id)+'">📋 Relatório de avaliação</button>'
+      + '<button class="btn" style="width:100%;justify-content:center;margin-top:8px;" data-nb="pdf">Baixar PDF do 9Box</button>'
+      + '</aside></div>';
+    return html;
+  }
+  function renderCriteriaTab(){
+    var s = configSettings();
+    var html = '<div class="section-card"><h3>Notas de corte</h3>'
+      + '<p class="hint" style="margin:0 0 12px;">A média de cada eixo, em escala de 1 a 5, vira Baixo, Médio ou Alto. O padrão vale para novos ciclos; cada ciclo guarda os próprios cortes.</p>'
+      + '<form data-nb-form="settings" class="nb-settings"><div class="field"><label for="nb-low">Baixo: abaixo de</label><input type="number" id="nb-low" name="low" min="1" max="5" step="0.1" value="'+s.low+'" required></div>'
+      + '<div class="field"><label for="nb-high">Alto: a partir de</label><input type="number" id="nb-high" name="high" min="1" max="5" step="0.1" value="'+s.high+'" required></div>'
+      + '<button class="btn btn-primary" type="submit">Salvar cortes</button><span id="nb-settings-msg" class="hint" style="margin:0;"></span></form></div>';
+    html += '<div class="nb-crit-cols">';
+    AXES.forEach(function(ax){
+      var list = catalog(ax.k);
+      html += '<div class="section-card"><div class="nb-crit-head"><h3 style="margin:0;">'+ax.l+'</h3><button class="btn btn-sm btn-primary" data-nb="crit-new" data-axis="'+ax.k+'">+ Novo critério</button></div>';
+      if(!list.length) html += '<div class="report-empty">Nenhum critério cadastrado.</div>';
+      list.forEach(function(c){
+        html += '<div class="nb-crit-row"><div class="nb-crit-text"><b>'+esc(c.name)+'</b>'+(c.description?'<span>'+esc(c.description)+'</span>':'')+'</div>'
+          + '<div class="nb-row-actions"><button class="btn btn-sm" data-nb="crit-edit" data-id="'+esc(c.id)+'">Editar</button><button class="btn btn-sm btn-danger" data-nb="crit-delete" data-id="'+esc(c.id)+'">Excluir</button></div></div>';
+      });
+      html += '</div>';
+    });
+    return html + '</div><p class="hint">Mudanças nos critérios entram nos novos ciclos e nos ciclos que ainda não têm nenhuma avaliação preenchida. Ciclos com avaliações mantêm os critérios originais.</p>';
+  }
+  function renderMyEvaluations(){
+    var mine = me();
+    var list = sortedCycles().filter(function(c){ return mine && (c.analystIds||[]).indexOf(mine)>=0; });
+    if(!list.length) return '<div class="section-card"><div class="empty-state" style="padding:36px 20px;"><h3>Não há avaliações em aberto</h3><p>Quando um ciclo incluir você, a autoavaliação aparece aqui.</p></div></div>';
+    return list.map(function(c){
+      var self = getEval(c.id,mine,'self'), open = c.status==='aberto', r = open ? null : resultOf(c,mine);
+      var h = '<div class="section-card nb-my"><div class="nb-my-main"><h3 style="margin:0 0 4px;">'+esc(c.name||'Ciclo')+'</h3><div class="hint" style="margin:0;">9Box em '+fmtDateBR(c.date)+' · '+(open?'Aberto':'Encerrado')+'</div>';
+      if(open){
+        h += '<div style="margin-top:8px;">Autoavaliação: '+statusPill(self)+'</div><p class="hint" style="margin:8px 0 0;">O resultado aparece aqui quando o ciclo for encerrado.</p>';
+      } else {
+        h += '<div style="margin-top:8px;"><span class="nb-cat-chip nb-c'+r.cat+'">'+(r.cat===10?'':r.cat+' · ')+esc(CATS[r.cat].n)+'</span></div>'
+          + (r.cat===10 ? '' : '<div class="hint" style="margin:8px 0 0;">Comportamento '+fmtN(r.b)+' · Desempenho '+fmtN(r.d)+'</div>');
+      }
+      h += '</div><div class="nb-row-actions">';
+      if(open) h += '<button class="btn btn-primary" data-nb="eval-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(mine)+'" data-kind="self">'+(self?(self.status==='enviada'?'Editar autoavaliação':'Continuar autoavaliação'):'Preencher autoavaliação')+'</button>';
+      else h += '<button class="btn" data-nb="result-open" data-cycle="'+esc(c.id)+'" data-analyst="'+esc(mine)+'">Ver resultado</button>';
+      return h + '</div></div>';
+    }).join('');
+  }
+
+  /* ---------- Janelas (ficam fora de #app: novos dados da nuvem não apagam o que está sendo digitado) ---------- */
+  function modalRoot(){
+    var el = document.getElementById('nb-modal-root');
+    if(!el){ el = document.createElement('div'); el.id = 'nb-modal-root'; document.body.appendChild(el); }
+    return el;
+  }
+  function paintModal(){
+    var root = modalRoot(), m = nb.modal;
+    if(!m){ root.innerHTML = ''; return; }
+    var inner = '';
+    if(m.type==='eval') inner = evalFormHtml(m);
+    else if(m.type==='result') inner = resultHtml(m);
+    else if(m.type==='cycle') inner = cycleFormHtml(m);
+    else if(m.type==='crit') inner = critFormHtml(m);
+    else if(m.type==='analysis') inner = analysisModalHtml(m);
+    root.innerHTML = '<div class="nb-overlay"><div class="modal '+(m.type==='crit'?'':'wide')+(m.type==='analysis'?' nb-analysis-modal':'')+'" role="dialog" aria-modal="true">'+inner+'</div></div>';
+  }
+  function closeNbModal(){ nb.modal = null; paintModal(); }
+  function modalHead(title){ return '<div class="modal-header"><h3>'+esc(title)+'</h3><button type="button" class="modal-close" data-nb="modal-close" aria-label="Fechar">✕</button></div>'; }
+  function formError(msg){ var el = document.getElementById('nb-form-err'); if(el){ el.textContent = msg; el.style.display = msg?'block':'none'; if(msg && el.scrollIntoView) el.scrollIntoView({block:'nearest'}); } }
+  function setBusy(form, busy){ if(!form) return; form.querySelectorAll('button').forEach(function(b){ b.disabled = !!busy; }); }
+
+  function evalFormHtml(m){
+    var c = cycleById(m.cycleId), ev = getEval(m.cycleId,m.analystId,m.kind) || {scores:{}, comment:''};
+    var self = m.kind==='leader' ? getEval(m.cycleId,m.analystId,'self') : null;
+    var selfSent = self && self.status==='enviada' ? self : null;
+    var title = m.kind==='leader' ? 'Avaliar '+analystName(m.analystId) : 'Minha autoavaliação';
+    var h = modalHead(title) + '<div class="hint" style="margin:-8px 0 12px;">'+esc(c.name||'Ciclo')+' · '+fmtDateBR(c.date)+'</div>'
+      + '<div class="nb-scale-legend">'+SCALE.map(function(s){ return '<span><b>'+s[0]+'</b> '+esc(s[1])+'</span>'; }).join('')+'</div>'
+      + '<form data-nb-form="eval"><div id="nb-form-err" class="error-msg" style="display:none;"></div>';
+    AXES.forEach(function(ax){
+      h += '<fieldset class="nb-axis-group"><legend>'+ax.l+'</legend>';
+      criteriaOf(c,ax.k).forEach(function(cr){
+        var val = Number((ev.scores||{})[cr.id])||0;
+        h += '<div class="nb-crit-input"><div class="nb-crit-text"><b>'+esc(cr.name)+'</b>'+(cr.description?'<span>'+esc(cr.description)+'</span>':'')
+          + (selfSent ? '<span class="nb-self-hint">Autoavaliação: '+(Number((selfSent.scores||{})[cr.id])||'—')+'</span>' : '')+'</div>'
+          + '<div class="nb-scale" role="radiogroup" aria-label="'+esc(cr.name)+'">'
+          + SCALE.map(function(s){ return '<label title="'+esc(s[1])+'"><input type="radio" name="score_'+esc(cr.id)+'" value="'+s[0]+'" data-nb-score="'+ax.k+'"'+(val===s[0]?' checked':'')+'><span>'+s[0]+'</span></label>'; }).join('')
+          + '</div></div>';
+      });
+      h += '</fieldset>';
+    });
+    if(selfSent && selfSent.comment) h += '<div class="choice-box"><div class="choice-title">Observações da autoavaliação</div><div class="choice-desc" style="white-space:pre-wrap;">'+esc(selfSent.comment)+'</div></div>';
+    h += '<div class="field"><label for="nb-comment">Observações</label><textarea id="nb-comment" name="comment" rows="3">'+esc(ev.comment||'')+'</textarea></div>'
+      + '<div id="nb-live" class="nb-live">'+liveText(m,ev.scores||{})+'</div>'
+      + '<div class="form-actions"><button type="button" class="btn btn-ghost" data-nb="modal-close">Cancelar</button><button type="submit" class="btn" name="nbAction" value="rascunho">Salvar rascunho</button><button type="submit" class="btn btn-primary" name="nbAction" value="enviar">Enviar</button></div></form>';
+    return h;
+  }
+  function liveText(m, scores){
+    var c = cycleById(m.cycleId), fake = {scores:scores};
+    var b = axisMean(c,fake,'comportamento'), d = axisMean(c,fake,'desempenho');
+    var t = 'Média de comportamento: <b>'+fmtN(b)+'</b> · Média de desempenho: <b>'+fmtN(d)+'</b>';
+    if(m.kind==='leader' && b!=null && d!=null){ var k = categoryFrom(c,b,d); t += ' · Quadrante previsto: <b>'+k+' · '+esc(CATS[k].n)+'</b>'; }
+    return t;
+  }
+  function scoresFromForm(form, cycle){
+    var fd = new FormData(form), scores = {};
+    (cycle.criteria||[]).forEach(function(cr){ var v = fd.get('score_'+cr.id); if(v) scores[cr.id] = Number(v); });
+    return scores;
+  }
+  function resultHtml(m){
+    var c = cycleById(m.cycleId), mine = me(), adm = isAdmin();
+    var self = getEval(m.cycleId,m.analystId,'self'), lead = getEval(m.cycleId,m.analystId,'leader');
+    if(self && self.status!=='enviada' && m.analystId!==mine) self = null;
+    if(lead && lead.status!=='enviada' && !adm) lead = null;
+    var r = resultOf(c,m.analystId);
+    var showLeadCol = !!lead;
+    var h = modalHead(analystName(m.analystId)) + '<div class="hint" style="margin:-8px 0 12px;">'+esc(c.name||'Ciclo')+' · '+fmtDateBR(c.date)+'</div>';
+    if(lead) h += '<div style="margin-bottom:14px;"><span class="nb-cat-chip nb-c'+r.cat+'">'+(r.cat===10?'Avaliação do líder em rascunho':r.cat+' · '+esc(CATS[r.cat].n))+'</span></div>';
+    AXES.forEach(function(ax){
+      h += '<h4 style="margin:12px 0 6px;">'+ax.l+'</h4><div class="nb-table-wrap"><table class="nb-table"><thead><tr><th>Critério</th><th>Autoavaliação</th>'+(showLeadCol?'<th>Líder</th>':'')+'</tr></thead><tbody>';
+      criteriaOf(c,ax.k).forEach(function(cr){
+        h += '<tr><td>'+esc(cr.name)+'</td><td>'+(self ? (Number((self.scores||{})[cr.id])||'—') : '—')+'</td>'+(showLeadCol?'<td>'+(Number((lead.scores||{})[cr.id])||'—')+'</td>':'')+'</tr>';
+      });
+      h += '<tr class="nb-total"><td>Média</td><td>'+fmtN(axisMean(c,self,ax.k))+'</td>'+(showLeadCol?'<td>'+fmtN(axisMean(c,lead,ax.k))+'</td>':'')+'</tr></tbody></table></div>';
+    });
+    if(self && self.comment) h += '<div class="choice-box" style="margin-top:14px;"><div class="choice-title">Observações da autoavaliação</div><div class="choice-desc" style="white-space:pre-wrap;">'+esc(self.comment)+'</div></div>';
+    if(lead && lead.comment) h += '<div class="choice-box" style="margin-top:14px;"><div class="choice-title">Observações do líder</div><div class="choice-desc" style="white-space:pre-wrap;">'+esc(lead.comment)+'</div></div>';
+    return h + '<div class="form-actions"><button type="button" class="btn" data-nb="modal-close">Fechar</button></div>';
+  }
+  function cycleFormHtml(m){
+    var c = m.id ? cycleById(m.id) : null, s = configSettings();
+    var selected = c ? (c.analystIds||[]) : state.analysts.filter(function(a){ return !a.inactive && !a.isManager && !a.isCoordinator; }).map(function(a){ return a.id; });
+    var people = state.analysts.filter(function(a){ return !a.isManager && (!a.inactive || selected.indexOf(a.id)>=0); }).slice().sort(function(x,y){ return x.name.localeCompare(y.name); });
+    return modalHead(c?'Editar ciclo':'Novo ciclo')
+      + '<form data-nb-form="cycle"><div id="nb-form-err" class="error-msg" style="display:none;"></div>'
+      + '<div class="field-row"><div class="field" style="flex:2;"><label for="nb-c-name">Nome do ciclo</label><input type="text" id="nb-c-name" name="name" value="'+esc(c?c.name:'')+'" placeholder="Ex.: 1º ciclo de 2027" required></div>'
+      + '<div class="field"><label for="nb-c-date">Data do 9Box</label><input type="date" id="nb-c-date" name="date" value="'+esc(c?c.date:todayISO())+'" required></div></div>'
+      + '<div class="field"><label>Analistas avaliados</label><div class="check-grid">'
+      + people.map(function(a){ return '<label class="check-pill"><input type="checkbox" name="analystIds" value="'+esc(a.id)+'"'+(selected.indexOf(a.id)>=0?' checked':'')+'> '+esc(a.name)+'</label>'; }).join('')
+      + '</div></div>'
+      + '<div class="field-row"><div class="field"><label for="nb-c-low">Baixo: abaixo de</label><input type="number" id="nb-c-low" name="low" min="1" max="5" step="0.1" value="'+(c?c.low:s.low)+'" required></div>'
+      + '<div class="field"><label for="nb-c-high">Alto: a partir de</label><input type="number" id="nb-c-high" name="high" min="1" max="5" step="0.1" value="'+(c?c.high:s.high)+'" required></div></div>'
+      + '<p class="hint" style="margin:0;">Critérios: '+catalog('comportamento').length+' de comportamento e '+catalog('desempenho').length+' de desempenho.</p>'
+      + '<div class="form-actions"><button type="button" class="btn btn-ghost" data-nb="modal-close">Cancelar</button><button type="submit" class="btn btn-primary">Salvar ciclo</button></div></form>';
+  }
+  function critFormHtml(m){
+    var c = m.id ? nb.config.filter(function(x){ return x.id===m.id; })[0] : null, axis = c ? c.axis : m.axis;
+    return modalHead(c?'Editar critério':'Novo critério')
+      + '<form data-nb-form="crit"><div id="nb-form-err" class="error-msg" style="display:none;"></div>'
+      + '<div class="field"><label for="nb-cr-axis">Eixo</label><select id="nb-cr-axis" name="axis">'+AXES.map(function(a){ return '<option value="'+a.k+'"'+(axis===a.k?' selected':'')+'>'+a.l+'</option>'; }).join('')+'</select></div>'
+      + '<div class="field"><label for="nb-cr-name">Critério</label><input type="text" id="nb-cr-name" name="name" value="'+esc(c?c.name:'')+'" required></div>'
+      + '<div class="field"><label for="nb-cr-desc">O que observar</label><textarea id="nb-cr-desc" name="description" rows="3">'+esc(c?(c.description||''):'')+'</textarea></div>'
+      + '<div class="form-actions"><button type="button" class="btn btn-ghost" data-nb="modal-close">Cancelar</button><button type="submit" class="btn btn-primary">Salvar</button></div></form>';
+  }
+
+  /* ---------- Salvamentos ---------- */
+  function submitEval(form, action){
+    var m = nb.modal, c = cycleById(m.cycleId), scores = scoresFromForm(form,c);
+    var mine = me();
+    if(m.kind==='self' && m.analystId!==mine) return;
+    if(m.kind==='leader' && !isAdmin()) return;
+    if(action==='enviar' && (c.criteria||[]).some(function(cr){ return !scores[cr.id]; })){ formError('Dê nota para todos os critérios antes de enviar.'); return; }
+    var old = getEval(m.cycleId,m.analystId,m.kind);
+    var item = Object.assign({}, old||{}, {
+      id: evalId(m.cycleId,m.analystId,m.kind), cycleId:m.cycleId, analystId:m.analystId, kind:m.kind,
+      scores:scores, comment:String(new FormData(form).get('comment')||'').trim(),
+      status: action==='enviar' ? 'enviada' : 'rascunho', updatedAt:Date.now(), byName: taskActorName()
+    });
+    if(action==='enviar') item.submittedAt = Date.now();
+    setBusy(form,true);
+    nbSaveRow(T.evals, nb.evals, item).then(function(){ closeNbModal(); render(); })
+      .catch(function(e){ console.warn(e); setBusy(form,false); formError(saveErrorText(e)); });
+  }
+  function validCuts(low, high){ return low>=1 && high<=5 && low<high; }
+  function submitCycle(form){
+    if(!isAdmin()) return;
+    var fd = new FormData(form), m = nb.modal, old = m.id ? cycleById(m.id) : null;
+    var name = String(fd.get('name')||'').trim(), date = String(fd.get('date')||''), ids = fd.getAll('analystIds').map(String);
+    var low = Number(fd.get('low')), high = Number(fd.get('high'));
+    if(!name || !date){ formError('Preencha o nome e a data.'); return; }
+    if(!ids.length){ formError('Escolha ao menos um analista.'); return; }
+    if(!validCuts(low,high)){ formError('O corte de Baixo precisa ser menor que o de Alto, dentro da escala de 1 a 5.'); return; }
+    var started = old ? nb.evals.some(function(e){ return e.cycleId===old.id; }) : false;
+    var criteria = started ? old.criteria : catalog().map(function(c){ return {id:c.id, axis:c.axis, name:c.name, description:c.description||''}; });
+    if(!criteria.some(function(c){ return c.axis==='comportamento'; }) || !criteria.some(function(c){ return c.axis==='desempenho'; })){ formError('Cadastre ao menos um critério de Comportamento e um de Desempenho.'); return; }
+    var item = Object.assign({}, old||{id:uid('nbc'), status:'aberto', createdAt:Date.now(), createdBy:taskActorName()}, {name:name, date:date, analystIds:ids, low:low, high:high, criteria:criteria, updatedAt:Date.now()});
+    setBusy(form,true);
+    nbSaveRow(T.cycles, nb.cycles, item).then(function(){ nb.cycleId = item.id; nb.tab = 'avaliacoes'; closeNbModal(); render(); })
+      .catch(function(e){ console.warn(e); setBusy(form,false); formError(saveErrorText(e)); });
+  }
+  function submitCrit(form){
+    if(!isAdmin()) return;
+    var fd = new FormData(form), m = nb.modal, old = m.id ? nb.config.filter(function(x){ return x.id===m.id; })[0] : null;
+    var name = String(fd.get('name')||'').trim();
+    if(!name){ formError('Informe o nome do critério.'); return; }
+    var item = Object.assign({}, old||{id:uid('nbk'), kind:'criterion', createdAt:Date.now()}, {axis:String(fd.get('axis')), name:name, description:String(fd.get('description')||'').trim(), updatedAt:Date.now()});
+    setBusy(form,true);
+    nbSaveRow(T.config, nb.config, item).then(refreshUnstartedCycles).then(function(){ closeNbModal(); render(); })
+      .catch(function(e){ console.warn(e); setBusy(form,false); formError(saveErrorText(e)); });
+  }
+  /* Ciclos ainda sem nenhuma avaliação acompanham o cadastro de critérios. */
+  function refreshUnstartedCycles(){
+    var criteria = catalog().map(function(c){ return {id:c.id, axis:c.axis, name:c.name, description:c.description||''}; });
+    var targets = nb.cycles.filter(function(c){ return c.status==='aberto' && !nb.evals.some(function(e){ return e.cycleId===c.id; }); });
+    return Promise.all(targets.map(function(c){ return nbSaveRow(T.cycles, nb.cycles, Object.assign({}, c, {criteria:criteria, updatedAt:Date.now()})); }));
+  }
+  function submitSettings(form){
+    if(!isAdmin()) return;
+    var fd = new FormData(form), low = Number(fd.get('low')), high = Number(fd.get('high'));
+    var msg = document.getElementById('nb-settings-msg');
+    if(!validCuts(low,high)){ if(msg) msg.textContent = 'O corte de Baixo precisa ser menor que o de Alto, dentro da escala de 1 a 5.'; return; }
+    var old = nb.config.filter(function(x){ return x.id==='settings'; })[0];
+    var item = Object.assign({}, old||{id:'settings', kind:'settings'}, {low:low, high:high, updatedAt:Date.now()});
+    nbSaveRow(T.config, nb.config, item).then(function(){ var el = document.getElementById('nb-settings-msg'); if(el) el.textContent = 'Cortes salvos.'; })
+      .catch(function(e){ console.warn(e); if(msg) msg.textContent = saveErrorText(e); });
+  }
+  function setCycleStatus(id, status){
+    var c = cycleById(id);
+    return nbSaveRow(T.cycles, nb.cycles, Object.assign({}, c, {status:status, closedAt: status==='encerrado'?Date.now():null, updatedAt:Date.now()}))
+      .then(function(){ render(); }).catch(function(e){ console.warn(e); showAlert(saveErrorText(e)); });
+  }
+  function deleteCycle(id){
+    var evs = nb.evals.filter(function(e){ return e.cycleId===id; });
+    Promise.all(evs.map(function(e){ return nbDeleteRow(T.evals,e.id); })).then(function(){ return nbDeleteRow(T.cycles,id); }).then(function(){
+      nb.evals = nb.evals.filter(function(e){ return e.cycleId!==id; });
+      nb.cycles = nb.cycles.filter(function(c){ return c.id!==id; });
+      nb.cycleId = null;
+      render();
+    }).catch(function(e){ console.warn(e); showAlert(saveErrorText(e)); nbLoad(); });
+  }
+
+  /* ---------- Relatório de avaliação do ciclo (análise Desempenho × Comportamento) ----------
+     Texto gerado por regras a partir das notas: quadrante, médias do líder, comparação com a equipe,
+     diferença para a autoavaliação, pontos fortes e de atenção por critério e recomendações do quadrante. */
+  var RECS = {
+    9:['Reconhecer e reter: dar visibilidade aos resultados e conversar sobre plano de carreira.','Oferecer desafios maiores (projetos de mais peso, clientes estratégicos).','Usar como referência e multiplicador: mentoria de colegas e padronização de boas práticas.'],
+    8:['Plano de capacitação técnica focado nos critérios de desempenho com nota mais baixa.','Acompanhar as entregas mais de perto por um período, com metas técnicas mensuráveis.','Aproveitar a boa postura: parear com um colega de alto desempenho técnico.'],
+    7:['Feedback individual sobre os comportamentos com nota mais baixa, com exemplos concretos.','Combinar 1 ou 2 mudanças de comportamento observáveis e acompanhar mês a mês.','Manter os desafios técnicos, condicionando novas responsabilidades à evolução comportamental.'],
+    6:['Montar um PDI equilibrado, com uma meta técnica e uma comportamental por vez.','Fazer acompanhamentos curtos e frequentes (quinzenais) para ganhar ritmo.','Reavaliar no próximo ciclo para ver a tendência.'],
+    5:['Treinamento técnico estruturado (produto, processos e ferramentas) com prazo definido.','Acompanhamento próximo das entregas e revisão de casos junto com o líder.','Verificar se a função e a carga de trabalho estão adequadas ao momento da pessoa.'],
+    4:['Conversa direta sobre a forma de trabalhar: os resultados são bons, mas o comportamento precisa acompanhar.','Deixar claro o que é esperado em atitude, colaboração e atendimento ao cliente.','Acompanhar a evolução de perto; o alto desempenho não compensa problemas de comportamento.'],
+    3:['Entender as causas do baixo desempenho (função, carga, motivação, questões pessoais).','Definir um plano de ação com metas objetivas e prazo curto.','Avaliar a necessidade de treinamento ou de mudança de atividade.'],
+    2:['Conversa sobre valores e expectativas da empresa, com exemplos práticos.','Combinar comportamentos esperados e registrar os acordos.','Acompanhar de perto e reavaliar em prazo curto.'],
+    1:['Plano de recuperação com metas claras e prazo curto, registrado e acompanhado.','Feedback franco sobre a situação atual e o que precisa mudar.','Se não houver evolução no prazo, reavaliar a permanência na função.'],
+    10:['Concluir a avaliação do líder para gerar a análise.']
+  };
+  function readingOf(cat){
+    return {
+      9:'Entrega acima do esperado e tem o comportamento alinhado aos valores da equipe.',
+      8:'Tem comportamento forte, mas o desempenho técnico ainda está na média: o ganho principal está na técnica.',
+      7:'Entrega bons resultados, mas o comportamento está na média: o ganho principal está na postura e na forma de trabalhar.',
+      6:'Desempenho e comportamento na média: há espaço para evoluir nos dois eixos.',
+      5:'Tem comportamento forte, mas o desempenho está abaixo do esperado: precisa desenvolver a parte técnica.',
+      4:'Entrega bons resultados, mas o comportamento está abaixo do esperado: é preciso trabalhar atitude e valores.',
+      3:'Comportamento na média e desempenho abaixo do esperado: vale investigar as causas antes de definir o plano.',
+      2:'Desempenho na média e comportamento abaixo do esperado: a prioridade é alinhar valores e postura.',
+      1:'Desempenho e comportamento abaixo do esperado: situação que pede plano de ação imediato.',
+      10:'Sem avaliação do líder enviada neste ciclo.'
+    }[cat];
+  }
+  function teamStats(c, ids){
+    var sent = ids.map(function(id){ return resultOf(c,id); }).filter(function(r){ return r.cat!==10; });
+    var avg = function(arr){ return arr.length ? arr.reduce(function(a,b){ return a+b; },0)/arr.length : null; };
+    var perCrit = {};
+    (c.criteria||[]).forEach(function(cr){
+      var vals = sent.map(function(r){ return Number((r.ev.scores||{})[cr.id]); }).filter(function(v){ return v>=1&&v<=5; });
+      perCrit[cr.id] = avg(vals);
+    });
+    return {n:sent.length, b:avg(sent.map(function(r){ return r.b; })), d:avg(sent.map(function(r){ return r.d; })), perCrit:perCrit};
+  }
+  function diffWord(v, ref){
+    if(v==null || ref==null) return '';
+    var d = v-ref;
+    if(Math.abs(d) < 0.25) return 'na média da equipe';
+    return (d>0?'acima':'abaixo')+' da média da equipe em '+fmtN(Math.abs(d));
+  }
+  function gapText(axisLabel, selfV, leadV){
+    if(selfV==null || leadV==null) return null;
+    var d = selfV-leadV;
+    if(Math.abs(d) < 0.5) return axisLabel+': autoavaliação alinhada com o líder ('+fmtN(selfV)+' × '+fmtN(leadV)+').';
+    return axisLabel+': '+(d>0?'se avaliou acima':'se avaliou abaixo')+' do líder ('+fmtN(selfV)+' × '+fmtN(leadV)+')'+(d>0?' — vale alinhar expectativas no feedback.':' — vale reforçar os pontos positivos no feedback.');
+  }
+  function analysisHtml(c){
+    var ids = visibleParticipants(c).slice().sort(function(a,b){ return analystName(a).localeCompare(analystName(b)); });
+    var st = teamStats(c, ids);
+    var byCat = {}; CAT_ORDER.forEach(function(k){ byCat[k]=0; });
+    ids.forEach(function(id){ byCat[resultOf(c,id).cat]++; });
+    var S = {h2:'color:#17324D;margin:0 0 4px;font-size:20px;', h3:'color:#17324D;margin:18px 0 6px;font-size:15px;', p:'margin:0 0 6px;font-size:12.5px;line-height:1.5;',
+      tbl:'width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 8px;', th:'text-align:left;padding:6px;background:#EEF1EF;border-bottom:1px solid #d8dedb;', td:'padding:6px;border-bottom:1px solid #e6eae8;vertical-align:top;'};
+    var h = '<div class="nb-analysis">';
+    h += '<h2 style="'+S.h2+'">Relatório de avaliação — '+esc(c.name||'Ciclo')+'</h2>'
+      + '<p style="'+S.p+'color:#5b6b66;">9Box em '+fmtDateBR(c.date)+' · '+(c.status==='aberto'?'ciclo aberto (resultado parcial)':'ciclo encerrado')+' · '+st.n+' de '+ids.length+' avaliação(ões) do líder enviada(s) · Corte: abaixo de '+fmtN(c.low)+' = Baixo; a partir de '+fmtN(c.high)+' = Alto</p>';
+    // visão geral
+    h += '<h3 style="'+S.h3+'">Visão geral da equipe</h3>'
+      + '<p style="'+S.p+'">Média da equipe (avaliação do líder): <b>Comportamento '+fmtN(st.b)+'</b> · <b>Desempenho '+fmtN(st.d)+'</b>.</p>';
+    var dist = CAT_ORDER.filter(function(k){ return byCat[k]; }).map(function(k){ return (k===10?'':k+' · ')+CATS[k].n+': '+byCat[k]; });
+    if(dist.length) h += '<p style="'+S.p+'">Distribuição: '+esc(dist.join(' · '))+'.</p>';
+    var crits = (c.criteria||[]).filter(function(cr){ return st.perCrit[cr.id]!=null; }).slice().sort(function(a,b){ return st.perCrit[b.id]-st.perCrit[a.id]; });
+    if(crits.length){
+      var top = crits.slice(0,3), low = crits.slice(-3).reverse().filter(function(cr){ return top.indexOf(cr)<0; });
+      h += '<p style="'+S.p+'"><b>Pontos fortes da equipe:</b> '+top.map(function(cr){ return esc(cr.name)+' ('+fmtN(st.perCrit[cr.id])+')'; }).join('; ')+'.</p>';
+      if(low.length) h += '<p style="'+S.p+'"><b>Pontos a desenvolver na equipe:</b> '+low.map(function(cr){ return esc(cr.name)+' ('+fmtN(st.perCrit[cr.id])+')'; }).join('; ')+'.</p>';
+    }
+    // quadro resumo
+    h += '<div style="overflow-x:auto;"><table style="'+S.tbl+'"><tr><th style="'+S.th+'">Analista</th><th style="'+S.th+'">Quadrante</th><th style="'+S.th+'text-align:center;">Comportamento</th><th style="'+S.th+'text-align:center;">Desempenho</th></tr>';
+    ids.forEach(function(id){ var r = resultOf(c,id);
+      h += '<tr><td style="'+S.td+'">'+esc(analystName(id))+'</td><td style="'+S.td+'"><span style="display:inline-block;padding:2px 8px;border-radius:6px;background:'+PDF_COLORS[r.cat]+';color:#1F2A25;font-weight:700;">'+(r.cat===10?'':r.cat+' · ')+esc(CATS[r.cat].n)+'</span></td><td style="'+S.td+'text-align:center;">'+fmtN(r.b)+'</td><td style="'+S.td+'text-align:center;">'+fmtN(r.d)+'</td></tr>';
+    });
+    h += '</table></div>';
+    // por analista
+    h += '<h3 style="'+S.h3+'">Análise individual — Desempenho × Comportamento</h3>';
+    ids.forEach(function(id){
+      var r = resultOf(c,id), self = getEval(c.id,id,'self'); if(self && self.status!=='enviada') self = null;
+      h += '<div style="border:1px solid #dfe5e2;border-radius:10px;padding:10px 12px;margin:0 0 10px;page-break-inside:avoid;break-inside:avoid;">'
+        + '<div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center;"><b style="font-size:14px;color:#17324D;">'+esc(analystName(id))+'</b>'
+        + '<span style="display:inline-block;padding:2px 8px;border-radius:6px;background:'+PDF_COLORS[r.cat]+';color:#1F2A25;font-weight:700;font-size:12px;">'+(r.cat===10?'':r.cat+' · ')+esc(CATS[r.cat].n)+'</span></div>';
+      if(r.cat===10){ h += '<p style="'+S.p+'margin-top:6px;">'+esc(readingOf(10))+'</p></div>'; return; }
+      h += '<p style="'+S.p+'margin-top:6px;"><b>Comportamento '+fmtN(r.b)+'</b> ('+BANDS[band(c,r.b)].toLowerCase()+', '+diffWord(r.b, st.b)+') · <b>Desempenho '+fmtN(r.d)+'</b> ('+BANDS[band(c,r.d)].toLowerCase()+', '+diffWord(r.d, st.d)+').</p>'
+        + '<p style="'+S.p+'"><b>Leitura:</b> '+esc(readingOf(r.cat))+'</p>';
+      var gaps = AXES.map(function(ax){ return gapText(ax.l, self?axisMean(c,self,ax.k):null, axisMean(c,r.ev,ax.k)); }).filter(Boolean);
+      h += '<p style="'+S.p+'"><b>Autoavaliação × líder:</b> '+(gaps.length ? esc(gaps.join(' ')) : 'autoavaliação não enviada.')+'</p>';
+      var sc = (c.criteria||[]).map(function(cr){ return {cr:cr, v:Number((r.ev.scores||{})[cr.id])}; }).filter(function(x){ return x.v>=1&&x.v<=5; });
+      var strong = sc.filter(function(x){ return x.v>=4; }).sort(function(a,b){ return b.v-a.v; }).slice(0,3);
+      var weak = sc.filter(function(x){ return x.v<=3; }).sort(function(a,b){ return a.v-b.v; }).slice(0,3);
+      var lbl = function(x){ var ax = AXES.filter(function(a){ return a.k===x.cr.axis; })[0]; return esc(x.cr.name)+' ('+x.v+(ax?', '+ax.l.toLowerCase():'')+')'; };
+      h += '<p style="'+S.p+'"><b>Pontos fortes:</b> '+(strong.length ? strong.map(lbl).join('; ') : 'nenhum critério com nota 4 ou 5.')+'</p>'
+        + '<p style="'+S.p+'"><b>Pontos de atenção:</b> '+(weak.length ? weak.map(lbl).join('; ') : 'nenhum critério com nota 3 ou menos.')+'</p>'
+        + '<p style="'+S.p+'margin-bottom:2px;"><b>Recomendações:</b></p><ul style="margin:0 0 6px 18px;padding:0;font-size:12.5px;line-height:1.5;">'+(RECS[r.cat]||[]).map(function(t){ return '<li>'+esc(t)+'</li>'; }).join('')+'</ul>';
+      if(r.ev.comment) h += '<p style="'+S.p+'"><b>Observações do líder:</b> '+esc(r.ev.comment)+'</p>';
+      h += '</div>';
+    });
+    h += '<p style="'+S.p+'color:#5b6b66;margin-top:10px;">Relatório gerado pelo Implanta em '+fmtDateBR(todayISO())+' a partir das notas do ciclo. A leitura e as recomendações são automáticas, pelo quadrante; use-as como ponto de partida para o feedback.</p>';
+    return h + '</div>';
+  }
+  function analysisModalHtml(m){
+    var c = cycleById(m.cycleId);
+    return modalHead('Relatório de avaliação')
+      + '<div class="nb-analysis-actions" style="display:flex;gap:8px;flex-wrap:wrap;margin:-6px 0 12px;"><button type="button" class="btn btn-primary btn-sm" data-nb="analysis-pdf" data-cycle="'+esc(c.id)+'">Baixar PDF</button><button type="button" class="btn btn-sm" data-nb="analysis-print">Imprimir</button></div>'
+      + '<div id="nb-analysis-body" style="background:#fff;color:#111;padding:14px 16px;border-radius:10px;border:1px solid var(--border);">'+analysisHtml(c)+'</div>'
+      + '<div class="form-actions"><button type="button" class="btn" data-nb="modal-close">Fechar</button></div>';
+  }
+
+  /* ---------- PDF ---------- */
+  function buildPdfHtml(c){
+    var ids = visibleParticipants(c), byCat = {}; CAT_ORDER.forEach(function(k){ byCat[k] = []; });
+    ids.forEach(function(id){ var r = resultOf(c,id); byCat[r.cat].push({id:id,r:r}); });
+    var h = '<h2 style="color:#17324D;margin:0 0 4px;">9Box — '+esc(c.name||'Ciclo')+'</h2><p style="margin:0 0 12px;font-size:12px;">9Box em '+fmtDateBR(c.date)+' · '+ids.length+' analista(s) · Corte: abaixo de '+fmtN(c.low)+' = Baixo; a partir de '+fmtN(c.high)+' = Alto</p>';
+    h += '<table style="width:100%;border-collapse:collapse;table-layout:fixed;font-size:11px;margin-bottom:6px;">';
+    [2,1,0].forEach(function(row){
+      h += '<tr>';
+      [0,1,2].forEach(function(col){
+        var k = MATRIX[row][col];
+        h += '<td style="border:1px solid #fff;background:'+PDF_COLORS[k]+';height:92px;vertical-align:top;padding:6px;color:#111;"><b>'+k+' · '+esc(CATS[k].n)+'</b><br>'+byCat[k].map(function(x){ return esc(analystName(x.id)); }).join('<br>')+'</td>';
+      });
+      h += '</tr>';
+    });
+    h += '</table><p style="text-align:center;font-size:11px;margin:0 0 14px;"><b>Eixo vertical: Comportamento (alto em cima) · Eixo horizontal: Desempenho (alto à direita)</b></p>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:11px;"><tr style="background:#EEF1EF;"><th style="text-align:left;padding:5px;">Analista</th><th style="text-align:left;padding:5px;">Quadrante</th><th style="padding:5px;">Comportamento</th><th style="padding:5px;">Desempenho</th></tr>';
+    CAT_ORDER.forEach(function(k){
+      byCat[k].forEach(function(x){
+        h += '<tr><td style="padding:5px;border-top:1px solid #ddd;">'+esc(analystName(x.id))+'</td><td style="padding:5px;border-top:1px solid #ddd;">'+(k===10?'':k+' · ')+esc(CATS[k].n)+'</td><td style="padding:5px;border-top:1px solid #ddd;text-align:center;">'+fmtN(x.r.b)+'</td><td style="padding:5px;border-top:1px solid #ddd;text-align:center;">'+fmtN(x.r.d)+'</td></tr>';
+      });
+    });
+    return h + '</table>';
+  }
+
+  /* ---------- Eventos (atributos próprios: não passam pelo roteador do app) ---------- */
+  document.addEventListener('click', function(e){
+    var el = e.target.closest ? e.target.closest('[data-nb]') : null;
+    if(!el) return;
+    var a = el.getAttribute('data-nb'), d = el.dataset;
+    if(a==='reload'){ nb.status = 'idle'; nbLoad().then(function(){ render(); }); render(); }
+    else if(a==='tab'){ nb.tab = d.tab; render(); }
+    else if(a==='mode'){ nb.mode = d.mode; render(); }
+    else if(a==='cat-toggle'){ var isOpen = el.getAttribute('aria-expanded')==='true'; nb.open[d.cat] = !isOpen; render(); }
+    else if(a==='modal-close'){ closeNbModal(); }
+    else if(a==='cycle-new'){
+      if(!catalog('comportamento').length || !catalog('desempenho').length){ nb.tab = 'criterios'; render(); showAlert('Cadastre ao menos um critério de Comportamento e um de Desempenho antes de criar o ciclo.'); return; }
+      nb.modal = {type:'cycle', id:null}; paintModal();
+    }
+    else if(a==='cycle-edit'){ nb.modal = {type:'cycle', id:d.id}; paintModal(); }
+    else if(a==='cycle-close'){
+      var c = cycleById(d.id), pend = (c.analystIds||[]).filter(function(id){ var ev=getEval(c.id,id,'leader'); return !ev || ev.status!=='enviada'; }).length;
+      showConfirm('Encerrar o ciclo "'+(c.name||'')+'"? Os analistas poderão ver o próprio resultado'+(pend?' e '+pend+' analista(s) sem avaliação enviada ficarão como Não avaliados':'')+'.', function(){ setCycleStatus(d.id,'encerrado'); });
+    }
+    else if(a==='cycle-reopen'){ showConfirm('Reabrir este ciclo? Os analistas deixarão de ver o resultado até o novo encerramento.', function(){ setCycleStatus(d.id,'aberto'); }); }
+    else if(a==='cycle-delete'){ var cd = cycleById(d.id); showConfirm('Excluir o ciclo "'+(cd.name||'')+'" e todas as suas avaliações? Essa ação não pode ser desfeita.', function(){ deleteCycle(d.id); }); }
+    else if(a==='eval-open'){ nb.modal = {type:'eval', cycleId:d.cycle, analystId:d.analyst, kind:d.kind}; paintModal(); }
+    else if(a==='result-open'){ nb.modal = {type:'result', cycleId:d.cycle, analystId:d.analyst}; paintModal(); }
+    else if(a==='crit-new'){ nb.modal = {type:'crit', id:null, axis:d.axis}; paintModal(); }
+    else if(a==='crit-edit'){ nb.modal = {type:'crit', id:d.id}; paintModal(); }
+    else if(a==='crit-delete'){
+      var cr = nb.config.filter(function(x){ return x.id===d.id; })[0];
+      showConfirm('Excluir o critério "'+(cr?cr.name:'')+'"? Ciclos que já têm avaliações mantêm esse critério.', function(){
+        nbDeleteRow(T.config,d.id).then(function(){ nb.config = nb.config.filter(function(x){ return x.id!==d.id; }); return refreshUnstartedCycles(); }).then(function(){ render(); })
+          .catch(function(err){ console.warn(err); showAlert(saveErrorText(err)); });
+      });
+    }
+    else if(a==='analysis-open'){ nb.modal = {type:'analysis', cycleId:d.cycle}; paintModal(); }
+    else if(a==='analysis-print'){
+      var body = document.getElementById('nb-analysis-body'); if(!body) return;
+      var w2 = window.open('', '_blank'); if(!w2){ showAlert('O navegador bloqueou a janela de impressão. Use "Baixar PDF".'); return; }
+      w2.document.write('<!doctype html><html><head><meta charset="utf-8"><title>Relatório de avaliação</title><style>body{font-family:Segoe UI,Arial,sans-serif;color:#111;margin:24px;}@page{margin:14mm;}</style></head><body>'+body.innerHTML+'</body></html>');
+      w2.document.close(); w2.focus(); setTimeout(function(){ try{ w2.print(); }catch(e){} }, 300);
+    }
+    else if(a==='analysis-pdf'){
+      var ac = cycleById(d.cycle);
+      generatePdfBlob(analysisHtml(ac)).then(function(blob){ downloadBlob(blob,'relatorio-avaliacao-9box-'+String(ac.date||'')+'.pdf'); })
+        .catch(function(err){ console.warn(err); showAlert('Não foi possível gerar o PDF agora. Verifique sua conexão e tente novamente.'); });
+    }
+    else if(a==='pdf'){
+      var pc = currentCycle();
+      generatePdfBlob(buildPdfHtml(pc)).then(function(blob){ downloadBlob(blob,'9box-'+String(pc.date||'')+'.pdf'); })
+        .catch(function(err){ console.warn(err); showAlert('Não foi possível gerar o PDF agora. Verifique sua conexão e tente novamente.'); });
+    }
+  });
+  document.addEventListener('change', function(e){
+    var t = e.target; if(!t || !t.getAttribute) return;
+    var k = t.getAttribute('data-nb-change');
+    if(k==='cycle'){ nb.cycleId = t.value; render(); }
+    else if(k==='profile'){ nb.profile = t.value; render(); }
+    else if(k==='leaders'){ nb.showLeaders = !!t.checked; render(); }
+    else if(t.hasAttribute('data-nb-score') && nb.modal && nb.modal.type==='eval'){
+      var form = t.closest('form'), live = document.getElementById('nb-live');
+      if(form && live) live.innerHTML = liveText(nb.modal, scoresFromForm(form,cycleById(nb.modal.cycleId)));
+    }
+  });
+  document.addEventListener('input', function(e){
+    if(e.target && e.target.id==='nb-search'){
+      nb.query = e.target.value;
+      ui._focus = {id:'nb-search', pos:e.target.selectionStart};
+      render();
+      ui._focus = null;
+    }
+  });
+  document.addEventListener('submit', function(e){
+    var form = e.target.closest ? e.target.closest('form[data-nb-form]') : null;
+    if(!form) return;
+    e.preventDefault();
+    var type = form.getAttribute('data-nb-form');
+    if(type==='settings') submitSettings(form);
+    else if(type==='eval') submitEval(form, (e.submitter && e.submitter.value) || 'rascunho');
+    else if(type==='cycle') submitCycle(form);
+    else if(type==='crit') submitCrit(form);
+  });
+
+  /* ---------- Encaixe no app ---------- */
+  SUPPORT_VIEWS.push('ninebox');
+  function ensureLoadedFor(){
+    var key = whoKey();
+    if(key!==nb.who){
+      nb.who = key;
+      Object.assign(nb, freshData(), {query:'', open:{}, tab:'avaliacoes'});
+      modalRoot().innerHTML = '';
+    }
+    if(!currentUser) return;
+    var connected = typeof sbClient!=='undefined' && sbClient && cloudStatus==='connected';
+    if(connected && (nb.status==='idle' || nb.status==='offline')){ nb.status = 'loading'; setTimeout(nbLoad,0); }
+    else if(!connected && nb.status==='idle') nb.status = 'offline';
+    if(ui.view==='ninebox' && nb.prevView!=='ninebox' && nb.status==='ready' && !nb.modal) setTimeout(nbLoad,0);
+    nb.prevView = ui.view;
+  }
+  function canSeeGuide(){
+    if(!isManagerUser()) return true;
+    var mine = me();
+    return !!(mine && nb.cycles.some(function(c){ return (c.analystIds||[]).indexOf(mine)>=0; }));
+  }
+  var origSidebar = window.renderSidebar;
+  window.renderSidebar = function(){
+    ensureLoadedFor();
+    var html = origSidebar.apply(this, arguments);
+    if(!canSeeGuide()) return html;
+    var anchor = isSupportUser() ? 'contracts' : 'jira';
+    var re = new RegExp('<button class="side-item[^"]*" data-action="goto-view" data-view="'+anchor+'">');
+    var m = re.exec(html);
+    if(!m) return html;
+    return html.slice(0,m.index) + navItem('ninebox','▦','9Box', pendingSelfCount()) + html.slice(m.index);
+  };
+  var origView = window.renderView;
+  window.renderView = function(){
+    if(ui.view==='ninebox' && canSeeGuide()) return renderNineBoxView();
+    return origView.apply(this, arguments);
+  };
+  var origTopbar = window.renderTopbar;
+  window.renderTopbar = function(){
+    var html = origTopbar.apply(this, arguments);
+    if(ui.view!=='ninebox') return html;
+    var left = '<div class="topbar-title"><h2>9Box</h2><div class="sub">Avaliação de desempenho e comportamento</div></div>'
+      + (isAdmin() && nb.status==='ready' ? '<button class="btn btn-primary topbar-add" data-nb="cycle-new" title="Novo ciclo" aria-label="Novo ciclo">+<span class="btn-label"> Novo ciclo</span></button>' : '');
+    var mark = '☰</button>', i = html.indexOf(mark);
+    return i<0 ? left+html : html.slice(0,i+mark.length)+left+html.slice(i+mark.length);
+  };
+  var origScreens = window.globalSearchScreens;
+  window.globalSearchScreens = function(){
+    var list = origScreens.apply(this, arguments);
+    if(canSeeGuide()) list.push({id:'ninebox', ico:'▦', label:'9Box'});
+    return list;
+  };
+
+  /* ---------- Estilos ---------- */
+  var css = [
+    ':root{--nb1:#FFD3D8;--nb2:#FFE0E0;--nb3:#FFE3DA;--nb4:#FFF0E8;--nb5:#FFF2C9;--nb6:#FFEBCF;--nb7:#E7FBC7;--nb8:#DDF7D0;--nb9:#BDEFC5;--nb10:#E8ECEA;--nb-ink:#1F2A25;}',
+    '@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--nb1:#5A2A31;--nb2:#553033;--nb3:#55362C;--nb4:#4E3B30;--nb5:#4D4524;--nb6:#51402A;--nb7:#3C4F26;--nb8:#2D4F31;--nb9:#22573A;--nb10:#343C3F;--nb-ink:#EDEFEE;}}',
+    ':root[data-theme="dark"]{--nb1:#5A2A31;--nb2:#553033;--nb3:#55362C;--nb4:#4E3B30;--nb5:#4D4524;--nb6:#51402A;--nb7:#3C4F26;--nb8:#2D4F31;--nb9:#22573A;--nb10:#343C3F;--nb-ink:#EDEFEE;}',
+    '.nb-c1{background:var(--nb1);}.nb-c2{background:var(--nb2);}.nb-c3{background:var(--nb3);}.nb-c4{background:var(--nb4);}.nb-c5{background:var(--nb5);}.nb-c6{background:var(--nb6);}.nb-c7{background:var(--nb7);}.nb-c8{background:var(--nb8);}.nb-c9{background:var(--nb9);}.nb-c10{background:var(--nb10);}',
+    '.nb-analysis-modal{max-width:min(980px,96vw) !important;}',
+    '.nb-analysis{color:var(--ink);}',
+    '.nb-overlay{position:fixed;inset:0;background:rgba(15,20,17,.5);display:flex;align-items:flex-start;justify-content:center;padding:5vh 16px;overflow-y:auto;z-index:200;}',
+    '.nb-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:-4px 0 16px;flex-wrap:wrap;}',
+    '.nb-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px;}',
+    '.nb-cycle-field{margin:0;flex:1 1 280px;max-width:520px;}',
+    '.nb-actions,.nb-row-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;}',
+    '.nb-row-actions{justify-content:flex-end;}',
+    '.nb-pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border);white-space:nowrap;}',
+    '.nb-pill.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent;}',
+    '.nb-pill.warn{background:var(--gold-soft);color:var(--gold);border-color:transparent;}',
+    '.nb-table-wrap{overflow-x:auto;}',
+    '.nb-table td,.nb-table th{white-space:nowrap;}',
+    '.nb-table td:first-child{white-space:normal;min-width:150px;}',
+    '.nb-person{display:inline-flex;align-items:center;gap:8px;}',
+    '.nb-cat-chip{display:inline-block;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:6px;color:var(--nb-ink);}',
+    '.nb-report{display:grid;grid-template-columns:minmax(0,1fr) 250px;gap:16px;align-items:start;}',
+    '.nb-filters{position:sticky;top:0;}',
+    '.nb-legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 18px;margin:4px 0 16px;}',
+    '.nb-legend-item{display:flex;align-items:center;gap:8px;font-size:12.5px;}',
+    '.nb-legend-name{flex:1;min-width:0;}',
+    '.nb-swatch{width:13px;height:13px;border-radius:4px;flex:0 0 auto;display:inline-block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.12);}',
+    '.nb-matrix-wrap{display:flex;gap:6px;margin-bottom:18px;}',
+    '.nb-axis-y{display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;transform:rotate(180deg);font-size:11.5px;font-weight:700;letter-spacing:.4px;color:var(--ink-soft);}',
+    '.nb-matrix-col{flex:1;min-width:0;}',
+    '.nb-matrix{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(132px,auto);gap:3px;border-radius:14px;overflow:hidden;}',
+    '.nb-cell{position:relative;padding:9px 10px 30px;color:var(--nb-ink);min-width:0;}',
+    '.nb-cell-name{font-size:11px;font-weight:700;letter-spacing:.2px;text-transform:uppercase;line-height:1.3;}',
+    '.nb-cell-people{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;}',
+    '.nb-cell-num{position:absolute;right:10px;bottom:4px;font-family:var(--font-head);font-size:24px;font-weight:700;opacity:.35;}',
+    '.nb-av-btn{border:2px solid rgba(255,255,255,.75);border-radius:50%;padding:0;background:none;line-height:0;}',
+    '.nb-av-btn:hover,.nb-av-btn:focus-visible{outline:2px solid var(--brand);outline-offset:1px;}',
+    '.nb-axis-x{text-align:center;font-size:11.5px;font-weight:700;letter-spacing:.4px;color:var(--ink-soft);margin-top:7px;}',
+    '.nb-list-head{display:flex;justify-content:flex-end;margin-bottom:8px;}',
+    '.nb-cat{border-top:1px solid var(--border);}',
+    '.nb-cat-head{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;text-align:left;padding:11px 2px;color:var(--ink);}',
+    '.nb-cat-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}',
+    '.nb-cat-text small{font-weight:600;color:var(--ink-soft);}',
+    '.nb-cat-text span{font-size:12px;color:var(--ink-soft);}',
+    '.nb-caret{color:var(--ink-faint);}',
+    '.nb-cat-empty{margin:0 0 12px 23px;}',
+    '.nb-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;padding:0 0 14px;}',
+    '.nb-card{display:flex;align-items:center;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:9px 11px;text-align:left;color:var(--ink);min-width:0;}',
+    '.nb-card:hover{border-color:var(--brand);}',
+    '.nb-card-text{min-width:0;display:flex;flex-direction:column;}',
+    '.nb-card-text b{font-size:13px;overflow-wrap:anywhere;}',
+    '.nb-card-text span{font-size:11.5px;color:var(--ink-soft);}',
+    '.nb-click{cursor:pointer;}',
+    '.nb-click:hover td{background:var(--surface-2);}',
+    '.nb-leader-toggle{width:100%;}',
+    '.nb-settings{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;}',
+    '.nb-settings .field{margin:0;width:150px;}',
+    '.nb-crit-cols{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start;}',
+    '.nb-crit-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;}',
+    '.nb-crit-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-top:1px solid var(--border);}',
+    '.nb-crit-text{min-width:0;display:flex;flex-direction:column;gap:2px;overflow-wrap:anywhere;}',
+    '.nb-crit-text span{font-size:12px;color:var(--ink-soft);}',
+    '.nb-crit-text .nb-self-hint{color:var(--brand);font-weight:700;}',
+    '.nb-my{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;overflow:visible;}',
+    '.nb-my-main{min-width:0;flex:1 1 260px;}',
+    '.nb-scale-legend{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:11.5px;color:var(--ink-soft);margin-bottom:12px;}',
+    '.nb-axis-group{border:1px solid var(--border);border-radius:10px;padding:4px 14px 8px;margin:0 0 14px;min-width:0;}',
+    '.nb-axis-group legend{font-weight:700;font-family:var(--font-head);padding:0 6px;}',
+    '.nb-crit-input{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--border);}',
+    '.nb-crit-input:last-child{border-bottom:none;}',
+    '.nb-scale{display:flex;gap:5px;flex:0 0 auto;}',
+    '.nb-scale label{cursor:pointer;}',
+    '.nb-scale input{position:absolute;opacity:0;width:0;height:0;}',
+    '.nb-scale span{display:flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:9px;border:1px solid var(--border);background:var(--surface-2);font-weight:700;}',
+    '.nb-scale input:checked + span{background:var(--brand);border-color:var(--brand);color:#fff;}',
+    '.nb-scale input:focus-visible + span{outline:2px solid var(--brand);outline-offset:2px;}',
+    '.nb-live{background:var(--surface-2);border-radius:8px;padding:9px 12px;font-size:12.5px;}',
+    '.nb-total td{font-weight:700;background:var(--surface-2);}',
+    '@media (max-width:820px){',
+    '.nb-report{grid-template-columns:minmax(0,1fr);}',
+    '.nb-filters{position:static;order:-1;}',
+    '.nb-crit-cols{grid-template-columns:minmax(0,1fr);}',
+    '.nb-matrix{grid-auto-rows:minmax(112px,auto);}',
+    '.nb-cell{padding:7px 6px 24px;}',
+    '.nb-cell-name{font-size:9px;overflow-wrap:anywhere;hyphens:auto;}',
+    '.nb-crit-input{flex-direction:column;align-items:stretch;gap:8px;}',
+    '.nb-scale span{width:auto;flex:1;height:42px;}',
+    '.nb-scale label{flex:1;}',
+    '.nb-crit-row{flex-direction:column;align-items:stretch;}',
+    '}'
+  ].join('');
+  var st = document.createElement('style'); st.id = 'nb-styles'; st.textContent = css;
+  document.head.appendChild(st);
+})();
+
 </script>
 </body>
 </html>
