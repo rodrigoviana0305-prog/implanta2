@@ -1986,6 +1986,27 @@ input:focus:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=c
 /* Card de cliente bloqueado na base Realtec: fundo e borda num vermelho bem suave */
 .card-mini.card-client-blocked{ background:color-mix(in srgb, var(--danger) 6%, var(--surface)) !important; border-color:color-mix(in srgb, var(--danger) 22%, transparent) !important; }
 .card-mini.card-client-blocked:hover{ border-color:color-mix(in srgb, var(--danger) 38%, transparent) !important; }
+/* Reuniões */
+.mt-sec{ margin:14px 0 6px; font-size:13px; color:var(--brand-dark); text-transform:none; border-bottom:1px solid var(--border); padding-bottom:4px; }
+.mt-block{ margin-bottom:8px; }
+.mt-row{ display:grid; gap:6px; align-items:center; margin-bottom:6px; }
+.mt-row-act{ grid-template-columns:22px minmax(0,2.4fr) minmax(0,1.3fr) 140px 130px 34px; }
+.mt-row-par{ grid-template-columns:minmax(0,1.4fr) minmax(0,1fr) 34px; }
+.mt-n{ font-weight:700; color:var(--ink-soft); font-size:12.5px; }
+.check-pill.mt-on{ background:var(--brand-soft); border-color:var(--brand); color:var(--brand-dark); }
+.mt-list{ display:flex; flex-direction:column; gap:8px; }
+.mt-item{ display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; border:1px solid var(--border); border-radius:12px; padding:10px 12px; background:var(--surface-2); }
+.mt-item-main{ min-width:0; flex:1 1 300px; }
+.mt-item-head{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.mt-item-obj{ margin-top:3px; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+@media (max-width:820px){
+  .mt-row-act{ grid-template-columns:20px minmax(0,1fr) 34px; }
+  .mt-row-act > input[name^="act_owner"], .mt-row-act > input[type="date"], .mt-row-act > select{ grid-column:2 / 3; }
+}
+/* No computador, os blocos de ação e participantes ocupam as duas colunas */
+@media screen and (min-width:1100px){
+  .modal-cols > form[data-form="meeting"] > .mt-block, .modal-cols > form[data-form="meeting"] > h4.cols-span{ column-span:all; -webkit-column-span:all; }
+}
 /* Telas grandes: card e agenda aproveitam mais a largura */
 @media screen and (min-width:1500px){
   .modal.modal-xl{ max-width:min(1480px, 90vw) !important; }
@@ -2353,7 +2374,7 @@ function logout(msg){
 
 /* ============================= STATE ============================= */
 /* Versão do site exibida no rodapé do menu: 1.0.<número da geração do index.html>. Atualizar a cada entrega. */
-const APP_VERSION = '1.0.356';
+const APP_VERSION = '1.0.358';
 const STORAGE_KEY = 'implanta_v1';
 const PALETTE = [
   '#0B5C8E','#C0392B','#1E8449','#8E44AD','#E67E22','#16A085','#C2185B','#2980B9',
@@ -2500,6 +2521,7 @@ function normalizeState(raw){
   if(!Array.isArray(s.trainingTemplates)) s.trainingTemplates = [];
   if(!Array.isArray(s.cardTemplates)) s.cardTemplates = [];
   if(!Array.isArray(s.tasks)) s.tasks = [];
+  if(!Array.isArray(s.meetings)) s.meetings = [];
   if(!Array.isArray(s.mgmtSettings)) s.mgmtSettings = [];
   /* Configuração de gestão guardada na nuvem (1 linha): vale sobre a cópia local. */
   if(s.mgmtSettings[0]){ if(s.mgmtSettings[0].staleDays!=null) s.mgmt.staleDays = s.mgmtSettings[0].staleDays; if(s.mgmtSettings[0].alertPct!=null) s.mgmt.alertPct = s.mgmtSettings[0].alertPct; }
@@ -2650,7 +2672,7 @@ function icsFeedUrl(analyst){
 }
 
 /* Tabelas "opcionais": se ainda não existirem na nuvem (ou o acesso for negado), o app segue funcionando e guarda os dados só neste navegador. */
-const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates','tasks'];
+const OPTIONAL_TABLE_KEYS = ['serviceContracts','checklistTemplates','trainingTemplates','mgmtSettings','cardTemplates','tasks','meetings'];
 function isOptionalTableKey(k){ return OPTIONAL_TABLE_KEYS.indexOf(k)>=0; }
 const ENTITY_TABLES = [
   {key:'clients', table:'clients'},
@@ -2676,7 +2698,9 @@ const ENTITY_TABLES = [
   // Modelos de card (segmento + persona → produtos, módulos e telas pré-marcados). Veja servidor/21_modelos_de_card.sql.
   {key:'cardTemplates', table:'card_templates'},
   // Tarefas Pendentes. Veja servidor/22_tarefas.sql.
-  {key:'tasks', table:'tasks'}
+  {key:'tasks', table:'tasks'},
+  // Reuniões (atas). Veja servidor/29_reunioes.sql.
+  {key:'meetings', table:'meetings'}
 ];
 /* Mantém a linha de configuração de gestão (nuvem) igual a state.mgmt. */
 function syncMgmtRow(st){
@@ -6615,6 +6639,7 @@ function renderSidebar(){
   html += '<div class="side-section"><div class="side-label"><span>Gestão</span></div>';
   html += navItem('calendar','◷','Agenda', totalPend);
   html += navItem('tasks','☑','Tarefas Pendentes');
+  html += navItem('meetings','🗒','Reuniões');
   html += navItem('jira','⌁','Requisitos Jira');
   html += navItem('contracts','📄','Contratos de Serviços');
   html += navItem('clients','◉','Cadastros');
@@ -6707,6 +6732,9 @@ function renderTopbar(){
   } else if(ui.view==='tasks'){
     left = '<div class="topbar-title"><h2>Tarefas Pendentes</h2><div class="sub">Tarefas para virar agenda ou card de implantação</div></div>'
       + '<button class="btn btn-primary topbar-add" data-action="open-modal" data-modal="task-form" title="Nova tarefa" aria-label="Nova tarefa">+<span class="btn-label"> Nova tarefa</span></button>';
+  } else if(ui.view==='meetings'){
+    left = '<div class="topbar-title"><h2>Reuniões</h2><div class="sub">Atas de reunião para imprimir e assinar</div></div>'
+      + (canEditMeetings() ? '<button class="btn btn-primary topbar-add" data-action="meeting-new" title="Nova reunião" aria-label="Nova reunião">+<span class="btn-label"> Nova reunião</span></button>' : '');
   } else if(ui.view==='jira'){
     left = '<div class="topbar-title"><h2>Requisitos Jira</h2><div class="sub">Requisitos sincronizados com o Jira</div></div>';
   } else if(ui.view==='contracts'){
@@ -7001,7 +7029,7 @@ function globalSearchResults(q){
 }
 function globalSearchScreens(){
   const list = [
-    ['dashboard','🏠','Painel Geral'],['calendar','◷','Agenda'],['tasks','☑','Tarefas Pendentes'],['jira','⌁','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
+    ['dashboard','🏠','Painel Geral'],['calendar','◷','Agenda'],['tasks','☑','Tarefas Pendentes'],['meetings','🗒','Reuniões'],['jira','⌁','Requisitos Jira'],['contracts','📄','Contratos de Serviços'],
     ['clients','◉','Cadastros (clientes)'],['reports','▥','Relatórios'],['settings','⚙','Configurações'],['manual','📘','Manual do Usuário'],
     ['settings:produtos','⚙','Configurações — Produtos'],['settings:modulos','⚙','Configurações — Módulos do sistema'],['settings:telas','⚙','Configurações — Telas'],
     ['settings:tipos','⚙','Configurações — Tipos de agenda'],['settings:modelos','⚙','Configurações — Modelos de treinamento'],
@@ -7243,6 +7271,179 @@ function renderManualView(){
 }
 
 /* ============================= VIEW ROUTER ============================= */
+/* ===================== Reuniões (ata de reunião) =====================
+   Baseado no modelo "Ata de Reunião — Implantação NEO". Cada reunião fica em state.meetings
+   (tabela meetings no Supabase, servidor/29_reunioes.sql) e gera a ata pronta para imprimir e assinar. */
+const MEETING_TYPES = [['checkin','Check-in Líder e Equipe'],['comite','Comitê Técnico'],['outro','Outro']];
+const MEETING_LOCATIONS = ['Implantação NEO','Suporte NEO'];
+const MEETING_ACTION_STATUS = [['pendente','Pendente'],['andamento','Em andamento'],['concluido','Concluído']];
+const MEETING_SUBJECTS = [
+  ['points','Principais pontos levantados',''],
+  ['demands','Demandas identificadas',''],
+  ['difficulties','Dificuldades e fatores de pressão',''],
+  ['support','Necessidades de apoio',''],
+  ['improvements','Oportunidades de melhoria','Validação e anotação de demandas simples e recorrentes para que possam ser discutidas nas reuniões e pontuadas de acordo com respectivas causas']
+];
+function meetingRoleOf(a){
+  if(!a) return '';
+  if(a.isCoordinator) return 'Coordenadora';
+  if(a.isAdmin) return 'Gestor';
+  if(a.isSupport) return 'Analista de Suporte';
+  if(a.isManager) return 'Consulta';
+  return 'Analista de Implantação';
+}
+function meetingTypeLabel(m){
+  if(!m) return '';
+  if(m.type==='outro') return m.typeOther ? 'Outro: '+m.typeOther : 'Outro';
+  const t = MEETING_TYPES.find(x=>x[0]===m.type); return t ? t[1] : '';
+}
+function canEditMeetings(){ return !!currentUser && !isManagerUser() && !isSupportUser(); }
+function blankMeeting(){
+  const me = getAnalyst(myAnalystId());
+  return {type:'checkin', typeOther:'', date: todayISO(), startTime:'', endTime:'', location:'Implantação NEO', objective:'',
+    points:'', demands:'', difficulties:'', support:'', improvements:'', notes:'', closeTime:'',
+    actions:[{text:'',owner:'',due:'',status:'pendente'}],
+    participants: me ? [{name:me.name, role:meetingRoleOf(me), analystId:me.id}] : []};
+}
+function readMeetingForm(form){
+  const fd = new FormData(form), g = k=> String(fd.get(k)||'');
+  const d = {type:g('m_type')||'checkin', typeOther:g('m_typeOther').trim(), date:g('m_date'), startTime:g('m_start'), endTime:g('m_end'),
+    location:g('m_location'), objective:g('m_objective'), notes:g('m_notes'), closeTime:g('m_close'), actions:[], participants:[]};
+  MEETING_SUBJECTS.forEach(([k])=> d[k] = g('m_'+k));
+  const na = parseInt(form.dataset.actions,10)||0, np = parseInt(form.dataset.parts,10)||0;
+  for(let i=0;i<na;i++) d.actions.push({text:g('act_text_'+i), owner:g('act_owner_'+i), due:g('act_due_'+i), status:g('act_status_'+i)||'pendente'});
+  for(let i=0;i<np;i++) d.participants.push({name:g('par_name_'+i), role:g('par_role_'+i), analystId:g('par_aid_'+i)});
+  return d;
+}
+function renderMeetingForm(m){
+  const d = m.draft || blankMeeting();
+  const acts = d.actions && d.actions.length ? d.actions : [{text:'',owner:'',due:'',status:'pendente'}];
+  const parts = d.participants || [];
+  const inParts = new Set(parts.map(p=>p.analystId).filter(Boolean));
+  const people = state.analysts.filter(a=>!a.inactive).slice().sort((x,y)=>x.name.localeCompare(y.name,'pt-BR'));
+  let h = '<div class="modal-header"><h3>'+(m.id?'Editar reunião':'Nova reunião')+'</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  if(ui.formErr) h += '<div class="error-msg">'+esc(ui.formErr)+'</div>';
+  h += '<form data-form="meeting" data-id="'+esc(m.id||'')+'" data-actions="'+acts.length+'" data-parts="'+parts.length+'">';
+  h += '<h4 class="mt-sec">Dados da reunião</h4>'
+    + '<div class="field"><label>Tipo de reunião</label><div class="check-grid">'
+    + MEETING_TYPES.map(t=>'<label class="check-pill"><input type="radio" name="m_type" value="'+t[0]+'"'+(d.type===t[0]?' checked':'')+'> '+esc(t[1])+'</label>').join('')
+    + '</div></div>'
+    + (d.type==='outro' ? '<div class="field"><label>Qual?</label><input type="text" name="m_typeOther" value="'+esc(d.typeOther||'')+'" placeholder="Descreva o tipo da reunião"></div>' : '<input type="hidden" name="m_typeOther" value="'+esc(d.typeOther||'')+'">')
+    + '<div class="field-row"><div class="field"><label>Data <span style="color:var(--danger)">*</span></label><input type="date" name="m_date" value="'+esc(d.date||'')+'" required></div>'
+    + '<div class="field"><label>Início</label><input type="time" name="m_start" value="'+esc(d.startTime||'')+'"></div>'
+    + '<div class="field"><label>Fim</label><input type="time" name="m_end" value="'+esc(d.endTime||'')+'"></div></div>'
+    + '<div class="field"><label>Local</label><select name="m_location">'
+    + MEETING_LOCATIONS.concat(d.location && MEETING_LOCATIONS.indexOf(d.location)<0 ? [d.location] : []).map(l=>'<option value="'+esc(l)+'"'+((d.location||MEETING_LOCATIONS[0])===l?' selected':'')+'>'+esc(l)+'</option>').join('')
+    + '</select></div>';
+  h += '<h4 class="mt-sec">Objetivo da reunião</h4>'
+    + '<div class="field"><textarea name="m_objective" rows="2" placeholder="Descrever o objetivo da reunião.">'+esc(d.objective||'')+'</textarea></div>';
+  h += '<h4 class="mt-sec">Assuntos discutidos</h4>';
+  MEETING_SUBJECTS.forEach(([k,l,ph])=>{ h += '<div class="field"><label>'+esc(l)+'</label><textarea name="m_'+k+'" rows="3"'+(ph?' placeholder="'+esc(ph)+'"':'')+'>'+esc(d[k]||'')+'</textarea></div>'; });
+  h += '<h4 class="mt-sec cols-span">Plano de ação</h4><div class="mt-block">'
+    + '<datalist id="mt-people">'+people.map(a=>'<option value="'+esc(a.name)+'"></option>').join('')+'</datalist>';
+  acts.forEach((a,i)=>{
+    h += '<div class="mt-row mt-row-act"><span class="mt-n">'+(i+1)+'.</span>'
+      + '<input type="text" name="act_text_'+i+'" value="'+esc(a.text||'')+'" placeholder="Ação" aria-label="Ação '+(i+1)+'">'
+      + '<input type="text" name="act_owner_'+i+'" list="mt-people" value="'+esc(a.owner||'')+'" placeholder="Responsável" aria-label="Responsável">'
+      + '<input type="date" name="act_due_'+i+'" value="'+esc(a.due||'')+'" aria-label="Prazo">'
+      + '<select name="act_status_'+i+'" aria-label="Status">'+MEETING_ACTION_STATUS.map(s=>'<option value="'+s[0]+'"'+((a.status||'pendente')===s[0]?' selected':'')+'>'+s[1]+'</option>').join('')+'</select>'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="meeting-del-action" data-idx="'+i+'" title="Remover ação" aria-label="Remover ação">✕</button></div>';
+  });
+  h += '<button type="button" class="btn btn-sm" data-action="meeting-add-action">+ Adicionar ação</button></div>';
+  h += '<h4 class="mt-sec">Observações</h4><div class="field"><textarea name="m_notes" rows="3">'+esc(d.notes||'')+'</textarea></div>';
+  h += '<h4 class="mt-sec">Encerramento</h4><div class="field" style="max-width:220px;"><label>Encerrada às</label><input type="time" name="m_close" value="'+esc(d.closeTime||'')+'"></div>';
+  h += '<h4 class="mt-sec cols-span">Participantes</h4><div class="mt-block">'
+    + '<div class="hint" style="margin:0 0 6px;">Clique para incluir da equipe:</div><div class="check-grid" style="margin-bottom:8px;">'
+    + people.map(a=>'<button type="button" class="check-pill'+(inParts.has(a.id)?' mt-on':'')+'" data-action="meeting-toggle-person" data-id="'+a.id+'">'+(inParts.has(a.id)?'✓ ':'+ ')+esc(a.name)+'</button>').join('')
+    + '</div>';
+  parts.forEach((p,i)=>{
+    h += '<div class="mt-row mt-row-par"><input type="text" name="par_name_'+i+'" value="'+esc(p.name||'')+'" placeholder="Nome" aria-label="Nome">'
+      + '<input type="text" name="par_role_'+i+'" value="'+esc(p.role||'')+'" placeholder="Cargo" aria-label="Cargo"><input type="hidden" name="par_aid_'+i+'" value="'+esc(p.analystId||'')+'">'
+      + '<button type="button" class="btn btn-sm btn-ghost" data-action="meeting-del-part" data-idx="'+i+'" title="Remover participante" aria-label="Remover participante">✕</button></div>';
+  });
+  h += '<button type="button" class="btn btn-sm" data-action="meeting-add-part">+ Outro participante</button></div>';
+  h += '<div class="form-actions"><button type="button" class="btn btn-ghost" data-action="close-modal">Cancelar</button>'
+    + '<button type="submit" class="btn" name="after" value="stay">Salvar</button>'
+    + '<button type="submit" class="btn btn-primary" name="after" value="print">🖨 Salvar e gerar ata</button></div></form>';
+  return h;
+}
+function meetingLines(n){ let s=''; for(let i=0;i<n;i++) s += '<div style="border-bottom:1px solid #d7dde3;height:22px;"></div>'; return s; }
+function meetingTextBlock(v, blankLines){
+  const t = String(v||'').trim();
+  return t ? '<div style="white-space:pre-wrap;font-size:12.5px;line-height:1.5;margin:2px 0 4px;">'+esc(t)+'</div>' : meetingLines(blankLines);
+}
+function renderMeetingPrint(id){
+  const m = (state.meetings||[]).find(x=>x.id===id);
+  if(!m) return '<div class="modal-header"><h3>Reunião não encontrada</h3><button class="modal-close" data-action="close-modal">✕</button></div>';
+  const NAVY = '#1F3864', sec = t=>'<div style="color:'+NAVY+';font-weight:700;font-size:13px;margin:16px 0 6px;padding-bottom:3px;border-bottom:1.5px solid '+NAVY+';">'+t+'</div>';
+  const lab = t=>'<div style="font-weight:700;font-size:12.5px;margin:8px 0 2px;">'+t+'</div>';
+  const box = c=>'<span style="display:inline-block;width:11px;height:11px;border:1px solid #333;margin:0 4px 0 10px;vertical-align:-1px;text-align:center;line-height:10px;font-size:10px;">'+(c?'✕':'')+'</span>';
+  const th = 'background:#DCE6F2;border:1px solid #b9c6d6;padding:6px;font-size:11.5px;font-weight:600;';
+  const td = 'border:1px solid #b9c6d6;padding:6px;font-size:12px;height:20px;vertical-align:top;';
+  const hhmm = t=> t ? esc(t) : '___:___';
+  let h = '<div class="modal-header no-print"><h3>Ata de reunião</h3><button class="btn btn-sm btn-primary" data-action="print-report">🖨 Imprimir</button><button class="btn btn-sm btn-ghost" data-action="meeting-edit" data-id="'+esc(m.id)+'">✏️ Editar</button><button class="modal-close" data-action="close-modal">✕</button></div>';
+  h += '<div id="print-report" class="meeting-print" style="background:#fff;color:#111;font-family:Calibri,Segoe UI,Arial,sans-serif;max-width:760px;margin:0 auto;padding:6px 4px;">';
+  h += '<div style="text-align:center;margin-bottom:10px;"><img src="https://realtec.com.br/wp-content/uploads/2018/03/logorealtec.png" alt="Realtec" style="width:170px;height:auto;"></div>';
+  h += '<div style="background:'+NAVY+';color:#fff;text-align:center;font-weight:700;font-size:17px;padding:16px 8px;letter-spacing:.3px;">ATA DE REUNIÃO</div>';
+  h += sec('DADOS DA REUNIÃO');
+  h += '<div style="font-size:12.5px;margin:4px 0 6px;"><b>Tipo de reunião:</b>'
+    + box(m.type==='checkin')+'Check-in Líder e Equipe'+box(m.type==='comite')+'Comitê Técnico'+box(m.type==='outro')+'Outro: '
+    + (m.type==='outro' && m.typeOther ? '<u>'+esc(m.typeOther)+'</u>' : '______________________')+'</div>';
+  h += '<table style="width:100%;border-collapse:collapse;font-size:12.5px;"><tr>'
+    + '<td style="padding:5px 4px;font-weight:700;width:16%;border-bottom:1px solid #d7dde3;">Data:</td><td style="padding:5px 4px;width:30%;border-bottom:1px solid #d7dde3;">'+(m.date?fmtDateBR(m.date):'___ / ___ / ______')+'</td>'
+    + '<td style="padding:5px 4px;font-weight:700;width:16%;border-bottom:1px solid #d7dde3;">Horário:</td><td style="padding:5px 4px;border-bottom:1px solid #d7dde3;">'+hhmm(m.startTime)+' às '+hhmm(m.endTime)+'</td></tr>'
+    + '<tr><td style="padding:5px 4px;font-weight:700;border-bottom:1px solid #d7dde3;">Local:</td><td colspan="3" style="padding:5px 4px;border-bottom:1px solid #d7dde3;">'+esc(m.location||'')+'</td></tr></table>';
+  h += sec('OBJETIVO DA REUNIÃO') + meetingTextBlock(m.objective, 2);
+  h += sec('ASSUNTOS DISCUTIDOS');
+  MEETING_SUBJECTS.forEach(([k,l])=>{ h += lab(esc(l)+':') + meetingTextBlock(m[k], 3); });
+  h += sec('PLANO DE AÇÃO');
+  const acts = (m.actions||[]).filter(a=>String(a.text||a.owner||a.due||'').trim());
+  const rows = Math.max(5, acts.length);
+  const stLabel = s=> (MEETING_ACTION_STATUS.find(x=>x[0]===s)||['',''])[1];
+  h += '<table style="width:100%;border-collapse:collapse;"><tr><th style="'+th+'width:46%;">Ação</th><th style="'+th+'">Responsável</th><th style="'+th+'width:14%;">Prazo</th><th style="'+th+'width:15%;">Status</th></tr>';
+  for(let i=0;i<rows;i++){ const a = acts[i];
+    h += '<tr><td style="'+td+'">'+(i+1)+'. '+(a?esc(a.text||''):'')+'</td><td style="'+td+'">'+(a?esc(a.owner||''):'')+'</td><td style="'+td+'">'+(a&&a.due?fmtDateBR(a.due):'')+'</td><td style="'+td+'">'+(a?esc(stLabel(a.status)):'')+'</td></tr>'; }
+  h += '</table>';
+  h += sec('OBSERVAÇÕES') + meetingTextBlock(m.notes, 3);
+  h += sec('ENCERRAMENTO') + '<div style="font-size:12.5px;line-height:1.5;">Nada mais havendo a tratar, a reunião foi encerrada às '+hhmm(m.closeTime || m.endTime)+', sendo esta ata lida, aprovada e assinada pelos participantes.</div>';
+  h += '<div style="page-break-inside:avoid;break-inside:avoid;">' + sec('PARTICIPANTES');
+  const parts = (m.participants||[]).filter(p=>String(p.name||'').trim());
+  h += '<table style="width:100%;border-collapse:collapse;"><tr><th style="'+th+'width:36%;">Nome</th><th style="'+th+'width:28%;">Cargo</th><th style="'+th+'">Assinatura</th></tr>';
+  parts.concat([{name:'',role:''}]).forEach(p=>{ h += '<tr><td style="'+td+'height:32px;vertical-align:middle;">'+esc(p.name||'')+'</td><td style="'+td+'vertical-align:middle;">'+esc(p.role||'')+'</td><td style="'+td+'"></td></tr>'; });
+  h += '</table></div>';
+  return h + '</div>';
+}
+function renderMeetingsView(){
+  const list = (state.meetings||[]).slice().sort((a,b)=> String(b.date||'').localeCompare(String(a.date||'')) || (b.createdAt||0)-(a.createdAt||0));
+  const q = String(ui.meetingQuery||'').trim().toLowerCase();
+  const shown = list.filter(m=> !q || [meetingTypeLabel(m), m.objective, m.points, m.demands, (m.participants||[]).map(p=>p.name).join(' ')].join(' ').toLowerCase().includes(q));
+  let h = '<div class="section-card"><div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:space-between;margin-bottom:10px;">'
+    + '<div class="search-box" style="flex:1 1 260px;max-width:420px;"><span>🔎</span><input id="meeting-search" placeholder="Buscar por tipo, objetivo, assunto ou participante..." value="'+esc(ui.meetingQuery||'')+'"></div>'
+    + (canEditMeetings() ? '<button class="btn btn-primary" data-action="meeting-new">+ Nova reunião</button>' : '')
+    + '</div>';
+  if(!list.length){
+    return h + '<div class="empty-state" style="padding:30px 16px;"><h3>Nenhuma reunião registrada</h3><p>Registre a ata de cada reunião (check-in da equipe, comitê técnico) e gere o documento para imprimir e assinar.</p>'
+      + (canEditMeetings() ? '<button class="btn btn-primary" data-action="meeting-new">+ Nova reunião</button>' : '') + '</div></div>';
+  }
+  if(!shown.length) return h + '<div class="report-empty">Nenhuma reunião encontrada para essa busca.</div></div>';
+  h += '<div class="mt-list">';
+  shown.forEach(m=>{
+    const acts = (m.actions||[]).filter(a=>String(a.text||'').trim()), open = acts.filter(a=>a.status!=='concluido').length;
+    const parts = (m.participants||[]).filter(p=>String(p.name||'').trim());
+    const canDel = canEditMeetings() && (isAdminUser() || m.createdById===myAnalystId());
+    h += '<div class="mt-item"><div class="mt-item-main">'
+      + '<div class="mt-item-head"><b>'+fmtDateBR(m.date)+'</b>'+(m.startTime?' <span class="hint" style="margin:0;">'+esc(m.startTime)+(m.endTime?'–'+esc(m.endTime):'')+'</span>':'')
+      + ' <span class="badge" style="background:var(--brand-soft);color:var(--brand);">'+esc(meetingTypeLabel(m))+'</span></div>'
+      + '<div class="mt-item-obj">'+(m.objective?esc(m.objective):'<span class="hint" style="margin:0;">Sem objetivo informado</span>')+'</div>'
+      + '<div class="hint" style="margin:2px 0 0;">'+parts.length+' participante(s) · '+acts.length+' ação(ões)'+(open?' · <b style="color:var(--gold);">'+open+' em aberto</b>':'')+'</div></div>'
+      + '<div class="row-actions"><button class="btn btn-sm btn-primary" data-action="meeting-print" data-id="'+esc(m.id)+'">🖨 Ata</button>'
+      + (canEditMeetings() ? '<button class="btn btn-sm" data-action="meeting-edit" data-id="'+esc(m.id)+'">Editar</button>' : '')
+      + (canDel ? '<button class="btn btn-sm btn-danger" data-action="meeting-delete" data-id="'+esc(m.id)+'">Excluir</button>' : '')
+      + '</div></div>';
+  });
+  return h + '</div></div>';
+}
+
 function renderView(){
   if(!state.analysts.length && ui.view!=='settings' && ui.view!=='clients' && ui.view!=='manual'){
     return '<div class="empty-state"><h3>Comece cadastrando um analista</h3>'
@@ -7255,6 +7456,7 @@ function renderView(){
     case 'calendar': return renderCalendarView();
     case 'reports': return renderReportsView();
     case 'tasks': return renderTasksView();
+    case 'meetings': return renderMeetingsView();
     case 'jira': return renderJiraRequirementsView();
     case 'contracts': return renderServiceContractsView();
     case 'clients': return renderClientsView();
@@ -12796,7 +12998,7 @@ function renderFeriasTab(){
 
 /* ============================= MODALS ============================= */
 /* Computador: telas de formulário longas abrem largas, em 2 colunas (como a agenda). Celular não muda. */
-const MODAL_COLS_TYPES = ['client-new','client-edit','client-view','analyst-new','analyst-edit','card-new','commercial-report-form','service-contract'];
+const MODAL_COLS_TYPES = ['client-new','client-edit','client-view','analyst-new','analyst-edit','card-new','commercial-report-form','service-contract','meeting-form'];
 function renderModal(){
   const m = ui.modal;
   let inner = '';
@@ -13104,6 +13306,10 @@ function renderModal(){
       + '<div class="form-actions">'
       + (isAdminUser() ? '<button type="button" class="btn" data-action="template-example">Usar este exemplo no novo modelo</button>' : '')
       + '<button type="button" class="btn btn-primary" data-action="close-modal">Entendi</button></div>';
+  } else if(m.type==='meeting-form'){
+    inner = renderMeetingForm(m);
+  } else if(m.type==='meeting-print'){
+    inner = renderMeetingPrint(m.id);
   } else if(m.type==='trainingtpl'){
     inner = renderTrainingTplModal(m);
   } else if(m.type==='apply-template'){
@@ -13371,7 +13577,7 @@ function renderModal(){
   } else if(m.type==='notif-center'){
     inner = renderNotifCenterModal();
   }
-  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='trainingtpl' || m.type==='commercial-report-view' || m.type==='commercial-feedback' || m.type==='task-form' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+((m.type==='schedule-new'||m.type==='schedule-edit')?' modal-xl':'')+(MODAL_COLS_TYPES.includes(m.type)?' modal-cols':'')+'">'+inner+'</div></div>';
+  return '<div class="overlay"><div class="modal'+(m.type && (m.type.startsWith('schedule') || m.type==='card-closing-report' || m.type==='card-certificates' || m.type==='card-forecast-report' || m.type==='card-workflow-print' || m.type==='agenda-print' || m.type==='extrato-print' || m.type==='client-balance-print' || m.type==='commercial-report-form' || m.type==='trainingtpl' || m.type==='meeting-print' || m.type==='commercial-report-view' || m.type==='commercial-feedback' || m.type==='task-form' || m.type==='commercial-report-email-preview' || m.type==='service-contract' || m.type==='service-contract-print')?' wide':'')+((m.type==='schedule-new'||m.type==='schedule-edit')?' modal-xl':'')+(MODAL_COLS_TYPES.includes(m.type)?' modal-cols':'')+'">'+inner+'</div></div>';
 }
 
 /* Seção "Riscos do projeto" do relatório de fechamento. */
@@ -14693,6 +14899,13 @@ async function sigRefresh(ids){
   }catch(e){ showAlert('Não foi possível consultar o Assinafy.\n'+((e && e.message) || e)); }
 }
 document.addEventListener('input', function(e){ if(e.target && e.target.dataset && e.target.dataset.sigField) sigCaptureInput(e.target); }, true);
+/* Reuniões: guarda o rascunho enquanto digita (sem redesenhar) e busca na lista */
+document.addEventListener('input', function(e){
+  const t = e.target; if(!t) return;
+  if(t.id==='meeting-search'){ ui.meetingQuery = t.value; ui._focus = {id:'meeting-search', pos:t.selectionStart}; render(); return; }
+  const form = t.closest && t.closest('form[data-form="meeting"]');
+  if(form && ui.modal && ui.modal.type==='meeting-form') ui.modal.draft = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form));
+});
 document.addEventListener('change', function(e){ if(e.target && e.target.dataset && e.target.dataset.sigField) sigCaptureInput(e.target); }, true);
 function htmlFromPrintReport(){
   const node = document.querySelector('.overlay .modal #print-report');
@@ -14887,11 +15100,11 @@ const FORM_MODAL_TYPES = new Set([
   'vacation-entry-new','vacation-entry-edit',
   'service-contract',
   'commercial-report-form','commercial-feedback','task-form','commercial-report-email-preview',
-  'confirm-complete','quick-time','apply-template','csat-form','risk-form','card-change-client','trainingtpl'
+  'confirm-complete','quick-time','apply-template','csat-form','risk-form','card-change-client','trainingtpl','meeting-form'
 ]);
 
 ['click','submit','change'].forEach(function(t){ document.addEventListener(t, function(){ window.__mgrInteracted = true; }, true); });
-const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-|sw-|card-change-client|trainingtpl-)/;
+const MANAGER_BLOCKED_RE = /^(delete-|checklist-|card-conclude|card-delete|card-reopen|card-create|mark-not-done|revert-to-pending|duplicate-|move-list|toggle-entity|toggle-list|dashboard-move|dashboard-resize|coclient-|force-save|backup-restore|import-|contract-(add|remove|delete|redistribute)|additional-|schedule-(create|jira|attach-delete)|jira-(delete|merge)|internal-answer|after-complete|attach-(delete|upload)|commercial-report-delete|vacation-entry|balance-notice-seen|jira-notice-seen|csat-ask|csat-refresh|risk-(toggle|delete)|quick-|timer-|series-|task-|sw-|card-change-client|trainingtpl-|meeting-(new|edit|delete|add|del|toggle))/;
 document.addEventListener('click', async function(e){
   let needsRender = false;
   const notifPanelClick = e.target.closest('.notif-panel');
@@ -14993,6 +15206,33 @@ document.addEventListener('click', async function(e){
     const ex = (day,hours,title)=>Object.assign(trainingTplBlankSession(day),{hours,title});
     ui.modal = {type:'trainingtpl', id:null, values:{name:'Implantação padrão', sessions:[ex(0,2,'Kick-off e parametrização'),ex(3,1.5,'Cadastros básicos'),ex(7,2,'Movimentação'),ex(14,2,'Fechamento e revisão')]}};
     render();
+  }
+  else if(a==='meeting-new'){
+    if(!canEditMeetings()) return;
+    ui.formErr=''; ui.modal = {type:'meeting-form', id:null, draft: blankMeeting()}; render();
+  }
+  else if(a==='meeting-edit'){
+    if(!canEditMeetings()) return;
+    const mt = (state.meetings||[]).find(x=>x.id===el.dataset.id); if(!mt) return;
+    ui.formErr=''; ui.modal = {type:'meeting-form', id:mt.id, draft: JSON.parse(JSON.stringify(mt))}; render();
+  }
+  else if(a==='meeting-print'){ ui.formErr=''; ui.modal = {type:'meeting-print', id: el.dataset.id}; render(); }
+  else if(a==='meeting-delete'){
+    const id = el.dataset.id, mt = (state.meetings||[]).find(x=>x.id===id); if(!mt) return;
+    showConfirm('Excluir a ata da reunião de '+fmtDateBR(mt.date)+' ('+meetingTypeLabel(mt)+')? Essa ação não pode ser desfeita.', function(){ state.meetings = (state.meetings||[]).filter(x=>x.id!==id); persist(); });
+  }
+  else if(a==='meeting-add-action' || a==='meeting-del-action' || a==='meeting-add-part' || a==='meeting-del-part' || a==='meeting-toggle-person'){
+    const form = el.closest('form[data-form="meeting"]'); if(!form || !ui.modal) return;
+    const d = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form));
+    if(a==='meeting-add-action') d.actions.push({text:'',owner:'',due:'',status:'pendente'});
+    else if(a==='meeting-del-action'){ d.actions.splice(parseInt(el.dataset.idx,10),1); if(!d.actions.length) d.actions.push({text:'',owner:'',due:'',status:'pendente'}); }
+    else if(a==='meeting-add-part') d.participants.push({name:'',role:'',analystId:''});
+    else if(a==='meeting-del-part') d.participants.splice(parseInt(el.dataset.idx,10),1);
+    else {
+      const an = getAnalyst(el.dataset.id); const i = d.participants.findIndex(p=>p.analystId===el.dataset.id);
+      if(i>=0) d.participants.splice(i,1); else if(an) d.participants.push({name:an.name, role:meetingRoleOf(an), analystId:an.id});
+    }
+    ui.modal.draft = d; render();
   }
   else if(a==='trainingtpl-new'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
@@ -16148,6 +16388,9 @@ document.addEventListener('change', function(e){
     const label = e.target.closest('.multi-analyst-item');
     if(label){ if(e.target.checked) label.classList.add('checked'); else label.classList.remove('checked'); }
   }
+  else if(e.target.matches('form[data-form="meeting"] input[name="m_type"]')){
+    const form = e.target.closest('form'); if(ui.modal){ ui.modal.draft = Object.assign({}, ui.modal.draft||{}, readMeetingForm(form)); render(); }
+  }
   else if(e.target.matches('form[data-form="trainingtpl"] select[data-trainingtpl-mod]')){
     const form = e.target.closest('form'); const v = readTrainingTplForm(form);
     const i = parseInt(String(e.target.name).split('_')[1],10); if(v.sessions[i]) v.sessions[i].screens = [];
@@ -17041,6 +17284,23 @@ document.addEventListener('submit', async function(e){
     if(id){ const t = state.trainingTemplates.find(x=>x.id===id); if(t){ t.name=name; t.sessions=parsed.sessions; } }
     else state.trainingTemplates.push({id:uid('tp'), name, sessions:parsed.sessions});
     persist(); render(); showAlert('Modelo salvo.');
+  }
+  else if(type==='meeting'){
+    if(!canEditMeetings()){ showAlert('Seu perfil não pode registrar reuniões.'); return; }
+    const d = readMeetingForm(form);
+    if(!d.date){ ui.formErr = 'Informe a data da reunião.'; ui.modal.draft = d; render(); return; }
+    if(d.type==='outro' && !d.typeOther){ ui.formErr = 'Informe qual é o tipo da reunião (Outro).'; ui.modal.draft = d; render(); return; }
+    d.actions = d.actions.filter(x=>String(x.text||x.owner||x.due||'').trim());
+    d.participants = d.participants.filter(x=>String(x.name||'').trim());
+    state.meetings = state.meetings||[];
+    const id = form.dataset.id;
+    let saved;
+    if(id){ saved = state.meetings.find(x=>x.id===id); if(saved) Object.assign(saved, d, {updatedAt:Date.now(), updatedBy:taskActorName()}); }
+    if(!saved){ saved = Object.assign({id:uid('mt'), createdAt:Date.now(), createdBy:taskActorName(), createdById: myAnalystId()||''}, d); state.meetings.push(saved); }
+    ui.formErr=''; persist();
+    if(e.submitter && e.submitter.value==='print'){ ui.modal = {type:'meeting-print', id:saved.id}; }
+    else { ui.modal = {type:'meeting-form', id:saved.id, draft: JSON.parse(JSON.stringify(saved))}; }
+    render(); showToast('Reunião salva.', 'ok');
   }
   else if(type==='trainingtpl'){
     if(!isAdminUser()){ showAlert('Apenas administradores.'); return; }
@@ -18896,7 +19156,7 @@ if('serviceWorker' in navigator){
     ensureLoadedFor();
     var html = origSidebar.apply(this, arguments);
     if(!canSeeGuide()) return html;
-    var anchor = isSupportUser() ? 'contracts' : 'jira';
+    var anchor = isSupportUser() ? 'contracts' : (html.indexOf('data-view="meetings"')>=0 ? 'meetings' : 'jira');
     var re = new RegExp('<button class="side-item[^"]*" data-action="goto-view" data-view="'+anchor+'">');
     var m = re.exec(html);
     if(!m) return html;
